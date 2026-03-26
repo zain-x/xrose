@@ -101,9 +101,10 @@ body::before {
     background: linear-gradient(to top, rgba(147, 112, 219, 0.3), rgba(186, 148, 255, 0.15));
     pointer-events: none;
     z-index: 3;
-    transition: height 180s linear, transform 0.3s ease-out;
+    transition: height 180s linear, transform 0.15s ease-out;
     overflow: hidden;
     transform-style: preserve-3d;
+    will-change: transform;
 }
 
 .water-fill.active {
@@ -118,7 +119,8 @@ body::before {
     height: 40px;
     background: radial-gradient(ellipse at center, rgba(186, 148, 255, 0.4) 0%, transparent 70%);
     animation: wave 8s linear infinite;
-    transition: transform 0.3s ease-out;
+    transition: transform 0.15s ease-out;
+    will-change: transform;
 }
 
 .wave-2 {
