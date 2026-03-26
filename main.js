@@ -146,14 +146,61 @@ scene.add(wave);
 
 camera.position.z = 20;
 
-// Mouse interaction
+// Mouse/Touch interaction for background scene
 let mouseX = 0;
 let mouseY = 0;
+let touchStartX = 0;
+let touchStartY = 0;
+let isDragging = false;
 
 document.addEventListener('mousemove', (event) => {
     mouseX = (event.clientX / window.innerWidth) * 2 - 1;
     mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
 });
+
+// Touch events for background rotation
+document.addEventListener('touchstart', (event) => {
+    if (event.target.closest('#messagebox-container') || 
+        event.target.closest('.mood-option') ||
+        event.target.closest('button')) {
+        return; // Don't interfere with other interactive elements
+    }
+    
+    touchStartX = event.touches[0].clientX;
+    touchStartY = event.touches[0].clientY;
+    isDragging = true;
+}, { passive: true });
+
+document.addEventListener('touchmove', (event) => {
+    if (!isDragging) return;
+    
+    if (event.target.closest('#messagebox-container') || 
+        event.target.closest('.mood-option') ||
+        event.target.closest('button')) {
+        return;
+    }
+    
+    const touchX = event.touches[0].clientX;
+    const touchY = event.touches[0].clientY;
+    
+    const deltaX = touchX - touchStartX;
+    const deltaY = touchY - touchStartY;
+    
+    // Update mouse position based on touch delta
+    mouseX += deltaX / window.innerWidth * 2;
+    mouseY -= deltaY / window.innerHeight * 2;
+    
+    // Clamp values
+    mouseX = Math.max(-1, Math.min(1, mouseX));
+    mouseY = Math.max(-1, Math.min(1, mouseY));
+    
+    touchStartX = touchX;
+    touchStartY = touchY;
+}, { passive: true });
+
+document.addEventListener('touchend', () => {
+    isDragging = false;
+}, { passive: true });
 
 // Animation
 let time = 0;
@@ -847,60 +894,3 @@ function createShootingStar() {
 
 // Create shooting roses periodically
 setInterval(createShootingStar, 8000);
-
-
-// Mood Tracker
-import { getRandomMoodMessage } from './messages.js';
-
-const moodOptions = document.querySelectorAll('.mood-option');
-const moodResponse = document.getElementById('mood-response');
-
-moodOptions.forEach(option => {
-    option.addEventListener('click', () => {
-        const mood = option.getAttribute('data-mood');
-        
-        // Remove previous selection
-        moodOptions.forEach(opt => opt.classList.remove('selected'));
-        
-        // Select current
-        option.classList.add('selected');
-        
-        // Show random response for this mood
-        const message = getRandomMoodMessage(mood);
-        moodResponse.textContent = message;
-        moodResponse.classList.add('show');
-        
-        // Track mood selection
-        if (window.trackButtonClick) {
-            window.trackButtonClick(`💭 Mood Selected: ${mood}`);
-        }
-        
-        // Create mood particles
-        for (let i = 0; i < 10; i++) {
-            setTimeout(() => {
-                const particle = document.createElement('div');
-                particle.innerHTML = option.querySelector('.mood-emoji').textContent;
-                particle.style.position = 'fixed';
-                particle.style.left = option.getBoundingClientRect().left + option.offsetWidth / 2 + 'px';
-                particle.style.top = option.getBoundingClientRect().top + option.offsetHeight / 2 + 'px';
-                particle.style.fontSize = '20px';
-                particle.style.pointerEvents = 'none';
-                particle.style.zIndex = '1000';
-                particle.style.transition = 'all 2s ease-out';
-                particle.style.opacity = '1';
-                
-                document.body.appendChild(particle);
-                
-                const angle = Math.random() * Math.PI * 2;
-                const distance = Math.random() * 100 + 50;
-                
-                setTimeout(() => {
-                    particle.style.transform = `translate(${Math.cos(angle) * distance}px, ${Math.sin(angle) * distance}px) scale(0)`;
-                    particle.style.opacity = '0';
-                }, 50);
-                
-                setTimeout(() => particle.remove(), 2000);
-            }, i * 50);
-        }
-    });
-});
