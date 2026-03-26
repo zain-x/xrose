@@ -355,6 +355,11 @@ musicBtn.addEventListener('click', () => {
         stopBubbles();
         clearInterval(thunderInterval);
         
+        // Track music stop
+        if (window.trackButtonClick) {
+            window.trackButtonClick('🎵 Music Button (Stopped)');
+        }
+        
         // Reset water level
         setTimeout(() => {
             waterFill.style.transition = 'height 2s ease-out';
@@ -365,9 +370,14 @@ musicBtn.addEventListener('click', () => {
         }, 100);
     } else {
         // Start music and effects
-        audio.play().catch(err => console.log('Audio play failed:', err));
+        audio.play().catch(err => {});
         musicBtn.classList.add('playing');
         rainContainer.classList.add('active');
+        
+        // Track music start
+        if (window.trackButtonClick) {
+            window.trackButtonClick('🎵 Music Button (Started)');
+        }
         
         // Start water fill
         setTimeout(() => {
@@ -425,6 +435,11 @@ function createBubble() {
 }
 
 breatheBtn.addEventListener('click', () => {
+    // Track breathe button click
+    if (window.trackButtonClick) {
+        window.trackButtonClick('💜 لن أغرق أبداً Button');
+    }
+    
     // Add draining class for faster animation
     waterFill.classList.add('draining');
     stopBubbles();
@@ -707,12 +722,16 @@ let tiltX = 0;
 let tiltY = 0;
 let smoothTiltX = 0;
 let smoothTiltY = 0;
+let sensorActive = false;
 
 if (window.DeviceOrientationEvent) {
-    window.addEventListener('deviceorientation', (event) => {
-        // Get device tilt
-        tiltX = event.gamma || 0; // Left to right tilt (-90 to 90)
-        tiltY = event.beta || 0;  // Front to back tilt (-180 to 180)
+    // Add multiple event listeners for better compatibility
+    const handleOrientation = (event) => {
+        sensorActive = true;
+        
+        // Get device tilt - handle different browser implementations
+        tiltX = event.gamma !== null ? event.gamma : 0; // Left to right tilt (-90 to 90)
+        tiltY = event.beta !== null ? event.beta : 0;   // Front to back tilt (-180 to 180)
         
         // Smooth the tilt values for more natural movement
         smoothTiltX += (tiltX - smoothTiltX) * 0.1;
@@ -743,7 +762,20 @@ if (window.DeviceOrientationEvent) {
             // Add water slosh effect
             waterFill.style.transformOrigin = `${50 - smoothTiltX * 0.5}% 100%`;
         }
-    });
+    };
+    
+    // Try both event types for maximum compatibility
+    window.addEventListener('deviceorientation', handleOrientation, true);
+    window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+    
+    // Check if sensors are working after 3 seconds
+    setTimeout(() => {
+        if (!sensorActive) {
+            console.warn('Sensors not responding. Check browser permissions.');
+        }
+    }, 3000);
+} else {
+    console.error('DeviceOrientation not supported');
 }
 
 // Animation loop for smooth water movement
@@ -758,8 +790,9 @@ function updateWaterTilt() {
 
 updateWaterTilt();
 
-// Request permission for iOS 13+ devices
+// Request permission for iOS 13+ and Android devices
 function requestMotionPermission() {
+    // For iOS 13+
     if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
         DeviceOrientationEvent.requestPermission()
             .then(permissionState => {
@@ -767,11 +800,13 @@ function requestMotionPermission() {
                     console.log('Motion sensors enabled');
                 }
             })
-            .catch(console.error);
+            .catch(err => {
+                console.error('Permission error:', err);
+            });
     }
 }
 
-// Request permission when user interacts (iOS requirement)
+// Request permission when user interacts
 document.addEventListener('click', requestMotionPermission, { once: true });
 
 // Add shooting stars
