@@ -1136,3 +1136,220 @@ body::before {
         font-size: 1.1em;
     }
 }
+
+/* Mood Tracker Section */
+.mood-section {
+    margin-bottom: 80px;
+    text-align: center;
+}
+
+.mood-container {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin: 40px 0;
+}
+
+.mood-option {
+    background: rgba(147, 112, 219, 0.1);
+    border: 2px solid rgba(186, 148, 255, 0.3);
+    border-radius: 20px;
+    padding: 25px 20px;
+    min-width: 100px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+}
+
+.mood-option:hover {
+    transform: translateY(-10px) scale(1.05);
+    background: rgba(147, 112, 219, 0.2);
+    border-color: rgba(186, 148, 255, 0.6);
+    box-shadow: 0 10px 30px rgba(186, 148, 255, 0.4);
+}
+
+.mood-option.selected {
+    background: rgba(147, 112, 219, 0.3);
+    border-color: rgba(186, 148, 255, 0.8);
+    transform: scale(1.1);
+}
+
+.mood-emoji {
+    font-size: 3em;
+    display: block;
+    margin-bottom: 10px;
+    animation: float 3s ease-in-out infinite;
+}
+
+.mood-option p {
+    color: #d4b5f7;
+    font-size: 1em;
+    margin: 0;
+    font-family: 'Tajawal', sans-serif;
+}
+
+.mood-response {
+    margin-top: 30px;
+    font-size: 1.3em;
+    color: #ba94ff;
+    font-style: italic;
+    min-height: 30px;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+}
+
+.mood-response.show {
+    opacity: 1;
+}
+
+@media (max-width: 768px) {
+    .mood-container {
+        gap: 15px;
+    }
+    
+    .mood-option {
+        padding: 20px 15px;
+        min-width: 80px;
+    }
+    
+    .mood-emoji {
+        font-size: 2.5em;
+    }
+    
+    .mood-option p {
+        font-size: 0.9em;
+    }
+}
+
+/* Message Box Section */
+.messagebox-section {
+    margin-bottom: 80px;
+    text-align: center;
+    position: relative;
+}
+
+.messagebox-subtitle {
+    font-size: 1.1em;
+    color: #c9b3e0;
+    margin-bottom: 30px;
+    font-family: 'Tajawal', sans-serif;
+}
+
+#messagebox-container {
+    display: flex;
+    justify-content: center;
+    margin: 40px auto;
+    cursor: pointer;
+    transition: transform 0.3s ease;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+#messagebox-container:hover {
+    transform: scale(1.05);
+}
+
+#messagebox-container:active {
+    transform: scale(0.98);
+}
+
+#messagebox-container canvas {
+    border-radius: 20px;
+    box-shadow: 0 10px 40px rgba(147, 112, 219, 0.3);
+    display: block;
+}
+
+.message-display {
+    max-width: 90%;
+    width: 400px;
+    margin: -50px auto 0;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.8s ease;
+    position: relative;
+    z-index: 10;
+}
+
+.message-display.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.message-content {
+    background: rgba(147, 112, 219, 0.08);
+    border: 2px solid rgba(186, 148, 255, 0.25);
+    border-radius: 20px;
+    padding: 20px 25px;
+    backdrop-filter: blur(20px);
+    box-shadow: 0 10px 40px rgba(147, 112, 219, 0.2);
+    position: relative;
+    overflow: hidden;
+}
+
+.message-content::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(186, 148, 255, 0.05) 0%, transparent 70%);
+    animation: shimmer 3s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+    0%, 100% {
+        transform: translate(0, 0);
+    }
+    50% {
+        transform: translate(10%, 10%);
+    }
+}
+
+.message-text {
+    font-size: 1.1em;
+    color: #d4b5f7;
+    line-height: 1.8;
+    font-family: 'Tajawal', sans-serif;
+    font-weight: 400;
+    position: relative;
+    z-index: 1;
+    margin: 0;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+@media (max-width: 768px) {
+    .messagebox-subtitle {
+        font-size: 1em;
+        padding: 0 15px;
+    }
+    
+    #messagebox-container {
+        margin: 30px auto;
+    }
+    
+    .message-display {
+        max-width: 95%;
+        margin: -40px auto 0;
+    }
+    
+    .message-content {
+        padding: 15px 20px;
+    }
+    
+    .message-text {
+        font-size: 1em;
+        line-height: 1.7;
+    }
+}
+
+@media (max-width: 480px) {
+    .message-text {
+        font-size: 0.95em;
+    }
+    
+    .message-content {
+        padding: 12px 18px;
+    }
+}
