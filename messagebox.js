@@ -112,6 +112,10 @@ let targetLidRotation = 0;
 // Mouse/Touch interaction
 let mouseX = 0;
 let mouseY = 0;
+let touchStartX = 0;
+let touchStartY = 0;
+let isDragging = false;
+let hasMoved = false;
 
 function handleMove(clientX, clientY) {
     const rect = container.getBoundingClientRect();
@@ -124,13 +128,41 @@ container.addEventListener('mousemove', (event) => {
     handleMove(event.clientX, event.clientY);
 });
 
-// Touch events
+// Touch events for rotation
+container.addEventListener('touchstart', (event) => {
+    touchStartX = event.touches[0].clientX;
+    touchStartY = event.touches[0].clientY;
+    isDragging = true;
+    hasMoved = false;
+}, { passive: true });
+
 container.addEventListener('touchmove', (event) => {
-    event.preventDefault();
-    if (event.touches.length > 0) {
-        handleMove(event.touches[0].clientX, event.touches[0].clientY);
+    if (!isDragging) return;
+    
+    const touchX = event.touches[0].clientX;
+    const touchY = event.touches[0].clientY;
+    
+    const deltaX = Math.abs(touchX - touchStartX);
+    const deltaY = Math.abs(touchY - touchStartY);
+    
+    // If moved more than 10px, consider it a drag
+    if (deltaX > 10 || deltaY > 10) {
+        hasMoved = true;
+        handleMove(touchX, touchY);
+    }
+}, { passive: true });
+
+container.addEventListener('touchend', (event) => {
+    isDragging = false;
+    
+    // Only open if didn't move (tap, not drag)
+    if (!hasMoved) {
+        handleOpen(event);
     }
 }, { passive: false });
+
+// Click to open box (desktop only)
+container.addEventListener('click', handleOpen);
 
 // Click/Touch to open box
 let hasTrackedOpen = false;
@@ -173,9 +205,6 @@ function handleOpen(event) {
         }, 800);
     }
 }
-
-container.addEventListener('click', handleOpen);
-container.addEventListener('touchstart', handleOpen, { passive: false });
 
 // Show message above box
 function showMessage() {
