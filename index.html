@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rose - ملاذكِ الآمن</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="canvas-container"></div>
+    
+    <!-- Rain Effect Container -->
+    <div class="rain-container" id="rain-container"></div>
+    
+    <!-- Water Fill Effect -->
+    <div class="water-fill" id="water-fill">
+        <div class="water-wave"></div>
+        <div class="water-wave wave-2"></div>
+        <div class="water-wave wave-3"></div>
+    </div>
+    
+    <!-- Breathe Button -->
+    <button id="breathe-btn" class="breathe-btn">
+        لن أغرق أبداً
+    </button>
+    
+    <!-- Thunder Flash Effect -->
+    <div class="thunder-flash" id="thunder-flash"></div>
+    
+    <!-- Music Toggle -->
+    <button id="music-toggle" class="music-btn" aria-label="تشغيل الموسيقى">
+        <span class="music-icon">♪</span>
+    </button>
+
+    <!-- Main Content -->
+    <div class="content-wrapper">
+        <!-- Welcome Section -->
+        <section class="welcome-section fade-in">
+            <h1 class="main-title">هنا.. يتوقف الزمن</h1>
+            <p class="welcome-text">
+                لا أحد يراقب، لا أحد يحاسب، ولا أحد يطلب منكِ شيئاً.<br>
+                هذا المكان صُنع من أجلكِ فقط، ليكون ملاذكِ الآمن<br>
+                كلما احتجتِ أن تهربي من العالم وتجدي قلبي بانتظاركِ.<br><br>
+                <strong>تنفسي بعمق.. أنتِ هنا في أمان.</strong>
+            </p>
+        </section>
+
+        <!-- Anchor Message -->
+        <section class="anchor-section fade-in-delay">
+            <h2 class="section-title">روز.. </h2>
+            <div class="message-box">
+                <p>
+                    أعلم أن الصمت ثقيل، وأعلم أن الأيام الماضية كانت كأنها سنوات، 
+                    لكن أريدكِ أن تعلمي يقيناً: غيابكِ لم يغير فيّ شيئاً سوى أنه زادني إيماناً بكِ.
+                </p>
+                <p>
+                    لا تلومي نفسكِ على ما حدث، ولا تحملي هماً. 
+                    أنا لستُ منتظراً خلف بابٍ موصد، أنا هنا أبني لكِ هذا العالم 
+                    لتعودي إليه حين تشائين، وكيفما تشائين.
+                </p>
+                <p>
+                    صمتكِ لا يزعجني، لأنني أسمع صوت قلبكِ بوضوح. 
+                    كوني بخير لأجلكِ أولاً، ولأجلي ثانياً. 
+                    خذي كل الوقت الذي تحتاجينه لتكوني قوية من جديد.
+                </p>
+                <p class="final-words">
+                    أنا هنا.. ثابت، هادئ، ومحب، كما كنتِ دائماً تعرفينني.
+                </p>
+            </div>
+        </section>
+
+        <!-- Daily Bloom -->
+        <section class="daily-bloom scroll-reveal">
+            <h3 class="bloom-title">نهفات 🙂</h3>
+            <div class="bloom-card">
+                <div class="date" id="current-date"></div>
+                <div class="daily-memory">
+                    <img src="noisy.gif" alt="memory" class="memory-gif">
+                    <p class="memory-text">
+                        فقت اليوم على صوت قرقعة وما خطرلي الا انتي اتذكرتك وقت فقت على صوت طرق الأواني المزعج تبعك... ما قدرت وقف ضحك .. كتير حبيت 😌
+                    </p>
+                </div>
+                <p class="daily-message" id="daily-message">
+                    وقتها ابتسمت لما شفت مدى سعادتك... أنتي وأشياءاتك الغريبة اللي تغير المود كله 😌
+                </p>
+            </div>
+        </section>
+
+        <!-- Hidden Memories -->
+        <section class="memories-section scroll-reveal" style="display: none;">
+            <h3 class="memories-title">ذكريات مخفية</h3>
+            <div class="memories-grid">
+                <div class="memory-card scroll-reveal">
+                    <div class="memory-icon">💜</div>
+                    <p>تمنيتُ لو كنتِ هنا</p>
+                </div>
+                <div class="memory-card scroll-reveal">
+                    <div class="memory-icon">�</div>
+                    <p>تمنيتُ لو كنتِ هنا</p>
+                </div>
+                <div class="memory-card scroll-reveal">
+                    <div class="memory-icon">🌺</div>
+                    <p>تمنيتُ لو كنتِ هنا</p>
+                </div>
+                <div class="memory-card scroll-reveal">
+                    <div class="memory-icon">💕</div>
+                    <p>تمنيتُ لو كنتِ هنا</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Flowers Garden -->
+        <section class="garden-section scroll-reveal">
+            <div class="flowers-row">
+                <span class="flower">💜</span>
+                <span class="flower">🌷</span>
+                <span class="flower">💐</span>
+                <span class="flower">💕</span>
+                <span class="flower">🌹</span>
+                <span class="flower">💜</span>
+            </div>
+        </section>
+
+        <!-- Daily Messages Timeline -->
+        <section class="timeline-section scroll-reveal">
+            <h3 class="section-title">مذكرات مؤقتة</h3>
+            <div class="timeline-container">
+                <div class="timeline-card scroll-reveal" data-date="2025-03-12">
+                    <div class="timeline-date">12 آذار - الأسبوع الأول</div>
+                    <p class="timeline-message">
+                        أول أسبوع مر بصمت... حسيت بالقلق، بس حاولت أفهم. عارف إنك بظرف صعب، وعارف إنك محتاجة وقت. بس اعرفي إني هون، وما رح روح لأي مكان.
+                    </p>
+                </div>
+                
+                <div class="timeline-card scroll-reveal" data-date="2025-03-14">
+                    <div class="timeline-date">14 آذار - يوم الحب</div>
+                    <p class="timeline-message">
+                        صارلك يومين غايبة.. اشتقت لضحكتك بس قلبي بقولي إنك بخير، وهاد أهم شي عندي.
+                    </p>
+                </div>
+                
+                <div class="timeline-card scroll-reveal" data-date="2025-03-18">
+                    <div class="timeline-date">18 آذار - قبل العيد</div>
+                    <p class="timeline-message">
+                        قرب العيد وأنا بفكر فيكِ... مش عارف شو الوضع عندك، بس بتمنى تكوني مرتاحة. بحاول أبني شي حلو يخليكِ تبتسمي لما ترجعي.
+                    </p>
+                </div>
+                
+                <div class="timeline-card scroll-reveal" data-date="2025-03-20">
+                    <div class="timeline-date">20 آذار - ليلة العيد</div>
+                    <p class="timeline-message">
+                        الكل بعايد بعض، وأنا بعايد طيفك بخيالي.. كل عام وإنتِ عيدي، وكل عام وإنتِ أغلى ما عندي.
+                    </p>
+                </div>
+                
+                <div class="timeline-card scroll-reveal" data-date="2025-03-21">
+                    <div class="timeline-date">21 آذار - أول يوم العيد</div>
+                    <p class="timeline-message">
+                        أول يوم عيد بمر بدون صوتك.. غريب هالعيد، بس يقيني فيكِ بخلي العيد يضل بقلبي.
+                    </p>
+                </div>
+                
+                <div class="timeline-card scroll-reveal" data-date="2025-03-22">
+                    <div class="timeline-date">22 آذار - تاني يوم العيد</div>
+                    <p class="timeline-message">
+                        تاني يوم عيد.. شفت ستوري الواتساب، حسيت إنك عم بتبعثيلي إشارة براءة.. ارتحت شوي، المهم إنك بخير.
+                    </p>
+                </div>
+                
+                <div class="timeline-card scroll-reveal" data-date="2025-03-23">
+                    <div class="timeline-date">23 آذار - بعد العيد</div>
+                    <p class="timeline-message">
+                        خلص العيد، والناس رجعت لحياتها، وأنا لسا ببني بعالم 'روز'.. عشان لما ترجعي تلاقي وطن بستناكي.
+                    </p>
+                </div>
+                
+                <div class="timeline-card scroll-reveal" data-date="2025-03-24">
+                    <div class="timeline-date">24 آذار - يوم الضيق</div>
+                    <p class="timeline-message">
+                        اليوم حسيتك تعبانة، وحسيت الغيبة طولت زيادة.. بس الصلاة والدعاء هم اللي بردولي قلبي.
+                    </p>
+                </div>
+                
+                <div class="timeline-card scroll-reveal current-day" data-date="2025-03-25">
+                    <div class="timeline-date">25 آذار - يوم افتتاح الموقع</div>
+                    <p class="timeline-message">
+                        وأنا واثق تماماً أنكِ ستخرجين من هذا أقوى مما كنتِ، لأن القوة الحقيقية تُولد من رحم الصعوبات. وأنا هنا، أؤمن بكِ أكثر مما تؤمنين بنفسكِ.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- Secret Message (Click to Reveal) -->
+        <!-- Secret Message (Click to Reveal) -->
+        <section class="secret-section scroll-reveal">
+            <div class="secret-box" id="secret-box">
+                <div class="secret-lock">🔒</div>
+                <div class="secret-message" id="secret-message">
+                    <p>أجهل ما يحدث تماماً ولكن احساسي يقول رح بتكوني بخير مهما صار</p>
+                    <p>أعلم أن الأيام صعبة، وربما الخوف يحاصركِ من كل جانب...</p>
+                    <p>لكن تأكدي أنكِ أقوى مما تظنين، وأنا أؤمن بكِ أكثر من أي شيء في هذا العالم.</p>
+                    <p>أنا أعي تماماً كم الشعور الداخلي صعب، وكم الضغط ثقيل على قلبكِ الصغير.</p>
+                    <p>اجعلي مرارة الحياة وقوداً لتصبحي أقوى، فالألم الذي لا يكسرنا يجعلنا أصلب.</p>
+                    <p class="secret-final">في النهاية، تذكري دائماً: أنتِ لستِ وحيدة... أنا معكِ 💜</p>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Footer -->
+        <footer class="footer">
+        </footer>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+    <script type="module" src="main.js"></script>
+</body>
+</html>
