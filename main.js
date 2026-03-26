@@ -702,29 +702,61 @@ function highlightCurrentDay() {
 
 highlightCurrentDay();
 
-// Mobile sensor support for water waves
+// Mobile sensor support for water waves - Enhanced iBeer style
 let tiltX = 0;
 let tiltY = 0;
+let smoothTiltX = 0;
+let smoothTiltY = 0;
 
 if (window.DeviceOrientationEvent) {
     window.addEventListener('deviceorientation', (event) => {
         // Get device tilt
-        tiltX = event.gamma; // Left to right tilt (-90 to 90)
-        tiltY = event.beta;  // Front to back tilt (-180 to 180)
+        tiltX = event.gamma || 0; // Left to right tilt (-90 to 90)
+        tiltY = event.beta || 0;  // Front to back tilt (-180 to 180)
         
-        // Apply tilt to water waves
+        // Smooth the tilt values for more natural movement
+        smoothTiltX += (tiltX - smoothTiltX) * 0.1;
+        smoothTiltY += (tiltY - smoothTiltY) * 0.1;
+        
+        // Apply realistic tilt to water surface
         const waves = document.querySelectorAll('.water-wave');
         waves.forEach((wave, index) => {
-            const intensity = (index + 1) * 0.5;
-            wave.style.transform = `translateX(${tiltX * intensity}px) translateY(${tiltY * 0.3}px)`;
+            const intensity = (index + 1) * 1.5;
+            const offsetX = smoothTiltX * intensity;
+            const offsetY = smoothTiltY * 0.5;
+            wave.style.transform = `translateX(${offsetX}px) translateY(${offsetY}px) rotate(${smoothTiltX * 0.5}deg)`;
         });
         
-        // Tilt the water fill slightly
-        if (waterFill) {
-            waterFill.style.transform = `perspective(1000px) rotateY(${tiltX * 0.3}deg) rotateX(${-tiltY * 0.2}deg)`;
+        // Tilt the entire water container for realistic effect
+        if (waterFill && waterFill.classList.contains('active')) {
+            const rotateY = smoothTiltX * 0.8;
+            const rotateX = -smoothTiltY * 0.4;
+            const translateX = smoothTiltX * 2;
+            
+            waterFill.style.transform = `
+                perspective(1000px) 
+                rotateY(${rotateY}deg) 
+                rotateX(${rotateX}deg)
+                translateX(${translateX}px)
+            `;
+            
+            // Add water slosh effect
+            waterFill.style.transformOrigin = `${50 - smoothTiltX * 0.5}% 100%`;
         }
     });
 }
+
+// Animation loop for smooth water movement
+function updateWaterTilt() {
+    if (waterFill && waterFill.classList.contains('active')) {
+        // Continue smooth interpolation
+        smoothTiltX += (tiltX - smoothTiltX) * 0.05;
+        smoothTiltY += (tiltY - smoothTiltY) * 0.05;
+    }
+    requestAnimationFrame(updateWaterTilt);
+}
+
+updateWaterTilt();
 
 // Request permission for iOS 13+ devices
 function requestMotionPermission() {
