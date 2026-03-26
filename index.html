@@ -86,6 +86,41 @@
             </div>
         </section>
 
+        <!-- Mood Tracker -->
+        <section class="mood-section scroll-reveal">
+            <h3 class="section-title">كيف مزاجك اليوم؟ 💭</h3>
+            <div class="mood-container">
+                <div class="mood-option" data-mood="سعيدة جداً">
+                    <span class="mood-emoji">😊</span>
+                    <p>سعيدة جداً</p>
+                </div>
+                <div class="mood-option" data-mood="مرتاحة">
+                    <span class="mood-emoji">😌</span>
+                    <p>مرتاحة</p>
+                </div>
+                <div class="mood-option" data-mood="عادي">
+                    <span class="mood-emoji">😐</span>
+                    <p>عادي</p>
+                </div>
+                <div class="mood-option" data-mood="متعبة">
+                    <span class="mood-emoji">😔</span>
+                    <p>متعبة</p>
+                </div>
+                <div class="mood-option" data-mood="حزينة">
+                    <span class="mood-emoji">😢</span>
+                    <p>حزينة</p>
+                </div>
+            </div>
+            <div class="mood-response" id="mood-response"></div>
+        </section>
+
+        <!-- Message Box 3D -->
+        <section class="messagebox-section scroll-reveal">
+          
+            <div id="messagebox-container"></div>
+            <div class="message-display" id="message-display"></div>
+        </section>
+
         <!-- Hidden Memories -->
         <section class="memories-section scroll-reveal" style="display: none;">
             <h3 class="memories-title">ذكريات مخفية</h3>
@@ -223,6 +258,7 @@
     }
     </script>
     <script type="module" src="analytics.js"></script>
+    <script type="module" src="messagebox.js"></script>
     <script type="module" src="main.js"></script>
 </body>
 </html>
