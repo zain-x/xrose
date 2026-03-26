@@ -133,6 +133,8 @@ container.addEventListener('touchmove', (event) => {
 }, { passive: false });
 
 // Click/Touch to open box
+let hasTrackedOpen = false;
+
 function handleOpen(event) {
     event.preventDefault();
     
@@ -152,9 +154,10 @@ function handleOpen(event) {
             isOpening = false;
         }, 1000);
         
-        // Track box opened
-        if (window.trackButtonClick) {
+        // Track box opened ONLY ONCE per session
+        if (window.trackButtonClick && !hasTrackedOpen) {
             window.trackButtonClick('💌 Message Box (Opened)');
+            hasTrackedOpen = true;
         }
         
         // Create particle explosion
