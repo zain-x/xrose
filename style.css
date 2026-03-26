@@ -1071,3 +1071,68 @@ body::before {
         opacity: 0;
     }
 }
+
+/* Welcome Notification */
+.welcome-notification {
+    position: fixed;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-20px);
+    background: linear-gradient(135deg, rgba(147, 112, 219, 0.95), rgba(186, 148, 255, 0.95));
+    backdrop-filter: blur(20px);
+    padding: 20px 40px;
+    border-radius: 25px;
+    box-shadow: 0 10px 40px rgba(147, 112, 219, 0.5);
+    z-index: 10000;
+    opacity: 0;
+    transition: all 0.5s ease;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.welcome-notification.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+.welcome-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.welcome-icon {
+    font-size: 2.5em;
+    animation: heartbeat 1.5s ease-in-out infinite;
+}
+
+.welcome-content p {
+    font-size: 1.3em;
+    color: white;
+    font-weight: 500;
+    margin: 0;
+    font-family: 'Tajawal', sans-serif;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.visit-count {
+    font-size: 0.9em;
+    color: rgba(255, 255, 255, 0.9);
+    font-weight: 400;
+    font-family: 'Tajawal', sans-serif;
+}
+
+@media (max-width: 768px) {
+    .welcome-notification {
+        padding: 15px 30px;
+        top: 70px;
+    }
+    
+    .welcome-icon {
+        font-size: 2em;
+    }
+    
+    .welcome-content p {
+        font-size: 1.1em;
+    }
+}
