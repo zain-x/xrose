@@ -116,6 +116,7 @@ let touchStartX = 0;
 let touchStartY = 0;
 let isDragging = false;
 let hasMoved = false;
+let lastTapTime = 0;
 
 function handleMove(clientX, clientY) {
     const rect = container.getBoundingClientRect();
@@ -145,19 +146,33 @@ container.addEventListener('touchmove', (event) => {
     const deltaX = Math.abs(touchX - touchStartX);
     const deltaY = Math.abs(touchY - touchStartY);
     
-    // If moved more than 10px, consider it a drag
-    if (deltaX > 10 || deltaY > 10) {
+    // If moved more than 3px, consider it a drag (not a tap)
+    if (deltaX > 3 || deltaY > 3) {
         hasMoved = true;
         handleMove(touchX, touchY);
     }
 }, { passive: true });
 
 container.addEventListener('touchend', (event) => {
-    isDragging = false;
+    const wasDragging = isDragging;
+    const didMove = hasMoved;
     
-    // Only open if didn't move (tap, not drag)
-    if (!hasMoved) {
-        handleOpen(event);
+    isDragging = false;
+    hasMoved = false;
+    
+    // Double tap to open
+    if (wasDragging && !didMove) {
+        const currentTime = Date.now();
+        const timeSinceLastTap = currentTime - lastTapTime;
+        
+        if (timeSinceLastTap < 300 && timeSinceLastTap > 0) {
+            // Double tap detected
+            handleOpen(event);
+            lastTapTime = 0; // Reset
+        } else {
+            // First tap
+            lastTapTime = currentTime;
+        }
     }
 }, { passive: false });
 
