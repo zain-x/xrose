@@ -1,4 +1,5 @@
 import { getRandomMoodMessage } from './messages.js';
+import { startInlineBreathing, stopInlineBreathing, beginInlineBreathing } from './breathe.js';
 
 // Mood Tracker
 const moodOptions = document.querySelectorAll('.mood-option');
@@ -28,6 +29,15 @@ if (moodOptions && moodOptions.length > 0) {
             // Track mood selection
             if (window.trackButtonClick) {
                 window.trackButtonClick(`💭 Mood Selected: ${mood}`);
+            }
+            
+            // Show breathing exercise if tired or sad
+            if (mood === 'تعبانة' || mood === 'زعلانة') {
+                setTimeout(() => {
+                    startInlineBreathing();
+                }, 1000);
+            } else {
+                stopInlineBreathing();
             }
             
             // Create mood particles
@@ -63,3 +73,13 @@ if (moodOptions && moodOptions.length > 0) {
         });
     });
 }
+
+// Start breathing exercise button
+document.addEventListener('DOMContentLoaded', () => {
+    const startBtn = document.getElementById('start-breathe-btn');
+    if (startBtn) {
+        startBtn.addEventListener('click', () => {
+            beginInlineBreathing();
+        });
+    }
+});
