@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { initBreathingExercise, startBreathing, stopBreathing } from './breathe.js';
 
 // Scene setup
 const scene = new THREE.Scene();
@@ -484,7 +485,7 @@ function createBubble() {
 breatheBtn.addEventListener('click', () => {
     // Track breathe button click
     if (window.trackButtonClick) {
-        window.trackButtonClick('💜 لن أغرق أبداً Button');
+        window.trackButtonClick('💜 مستحيل أغرق! Button');
     }
     
     // Add draining class for faster animation
@@ -527,6 +528,21 @@ breatheBtn.addEventListener('click', () => {
         
         // Don't restart water fill - prevent refilling
     }, 3000);
+});
+
+// Initialize breathing exercise
+window.addEventListener('DOMContentLoaded', () => {
+    initBreathingExercise();
+});
+
+// Close breathing exercise button
+document.addEventListener('DOMContentLoaded', () => {
+    const closeBtn = document.getElementById('close-breathe');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            stopBreathing();
+        });
+    }
 });
 
 // Scroll reveal animation
@@ -697,25 +713,7 @@ document.querySelectorAll('.promise-card').forEach(card => {
     });
 });
 
-// Countdown timer (from 20 days ago)
-const startDate = new Date();
-startDate.setDate(startDate.getDate() - 20);
-
-function updateCountdown() {
-    const now = new Date();
-    const diff = now - startDate;
-    
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    
-    document.getElementById('days').textContent = days;
-    document.getElementById('hours').textContent = hours;
-    document.getElementById('minutes').textContent = minutes;
-}
-
-updateCountdown();
-setInterval(updateCountdown, 60000); // Update every minute
+// Countdown timer - REMOVED (elements don't exist in HTML)
 
 // Tomorrow's locked message
 const lockedBox = document.getElementById('locked-box');
