@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rose - ملاذكِ الآمن</title>
+    <title>Rose World</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🌹</text></svg>">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -21,8 +22,22 @@
     
     <!-- Breathe Button -->
     <button id="breathe-btn" class="breathe-btn">
-        لن أغرق أبداً
+        مستحيل أغرق!
     </button>
+    
+    <!-- Breathing Exercise Container -->
+    <div id="breathe-container" class="breathe-container">
+        <button id="close-breathe" class="close-breathe">✕</button>
+        <div class="breathe-content">
+            <h2 class="breathe-title">تمرين التنفس</h2>
+            <div class="breathe-instructions">
+                <div class="breathe-phase-display">
+                    <span id="breathe-phase" class="breathe-phase">شهيق</span>
+                    <span id="breathe-timer" class="breathe-timer">4</span>
+                </div>
+            </div>
+        </div>
+    </div>
     
     <!-- Thunder Flash Effect -->
     <div class="thunder-flash" id="thunder-flash"></div>
@@ -35,12 +50,12 @@
     <!-- Main Content -->
     <div class="content-wrapper">
         <!-- Welcome Section -->
-        <section class="welcome-section fade-in">
+        <section id="home" class="welcome-section fade-in">
             <h1 class="main-title">هنا.. يتوقف الزمن</h1>
             <p class="welcome-text">
                 لا أحد يراقب، لا أحد يحاسب، ولا أحد يطلب منكِ شيئاً.<br>
-                هذا المكان صُنع من أجلكِ فقط، ليكون ملاذكِ الآمن<br>
-                كلما احتجتِ أن تهربي من العالم وتجدي قلبي بانتظاركِ.<br><br>
+                هذا المكان صُنع من أجلكِ فقط، ليكون عالمك الآمن<br>
+                كلما احتجتي أن تهربي من العالم وتجدي عالمك الخاص بانتظاركِ.<br><br>
                 <strong>تنفسي بعمق.. أنتِ هنا في أمان.</strong>
             </p>
         </section>
@@ -60,8 +75,11 @@
                 </p>
                 <p>
                     صمتكِ لا يزعجني، لأنني أسمع صوت قلبكِ بوضوح. 
-                    كوني بخير لأجلكِ أولاً، ولأجلي ثانياً. 
-                    خذي كل الوقت الذي تحتاجينه لتكوني قوية من جديد.
+                    كوني بخير لأجلكِ أولاً، ولأجلي ثانياً.
+                </p>
+                <p>
+                    أنتي أغلى ما أملك، ولن أسمح لهموم الدنيا أن تسيطر عليكِ. 
+                    مدّي يدكِ للحياة، فهي تنتظركِ بكل جمالها، وأنا معكِ في كل خطوة.
                 </p>
                 <p class="final-words">
                     أنا هنا.. ثابت، هادئ، ومحب، كما كنتِ دائماً تعرفينني.
@@ -70,7 +88,7 @@
         </section>
 
         <!-- Daily Bloom -->
-        <section class="daily-bloom scroll-reveal">
+        <section id="daily" class="daily-bloom scroll-reveal">
             <h3 class="bloom-title">نهفات 🙂</h3>
             <div class="bloom-card">
                 <div class="date" id="current-date"></div>
@@ -86,36 +104,8 @@
             </div>
         </section>
 
-        <!-- Mood Tracker -->
-        <section class="mood-section scroll-reveal">
-            <h3 class="section-title">كيف مزاجك اليوم؟ 💭</h3>
-            <div class="mood-container">
-                <div class="mood-option" data-mood="سعيدة جداً">
-                    <span class="mood-emoji">😊</span>
-                    <p>سعيدة جداً</p>
-                </div>
-                <div class="mood-option" data-mood="مرتاحة">
-                    <span class="mood-emoji">😌</span>
-                    <p>مرتاحة</p>
-                </div>
-                <div class="mood-option" data-mood="عادي">
-                    <span class="mood-emoji">😐</span>
-                    <p>عادي</p>
-                </div>
-                <div class="mood-option" data-mood="متعبة">
-                    <span class="mood-emoji">😔</span>
-                    <p>متعبة</p>
-                </div>
-                <div class="mood-option" data-mood="حزينة">
-                    <span class="mood-emoji">😢</span>
-                    <p>حزينة</p>
-                </div>
-            </div>
-            <div class="mood-response" id="mood-response"></div>
-        </section>
-
         <!-- Message Box 3D -->
-        <section class="messagebox-section scroll-reveal">
+        <section id="messages" class="messagebox-section scroll-reveal">
           
             <div id="messagebox-container"></div>
             <div class="message-display" id="message-display"></div>
@@ -157,69 +147,63 @@
         </section>
 
         <!-- Daily Messages Timeline -->
-        <section class="timeline-section scroll-reveal">
+        <section id="timeline" class="timeline-section scroll-reveal">
             <h3 class="section-title">مذكرات مؤقتة</h3>
             <div class="timeline-container">
                 <div class="timeline-card scroll-reveal" data-date="2025-03-12">
-                    <div class="timeline-date">12 آذار - الأسبوع الأول</div>
+                    <div class="timeline-date">الأسبوع الأول</div>
                     <p class="timeline-message">
-                        أول أسبوع مر بصمت... حسيت بالقلق، بس حاولت أفهم. عارف إنك بظرف صعب، وعارف إنك محتاجة وقت. بس اعرفي إني هون، وما رح روح لأي مكان.
+                        أول أسبوع مر بصمت... حسيت بالقلق، بس حاولت أفهم. بعرف إنك بظرف صعب، وبعرف إنك محتاجة وقت. وأنا واثق فيكي.
                     </p>
                 </div>
                 
                 <div class="timeline-card scroll-reveal" data-date="2025-03-14">
-                    <div class="timeline-date">14 آذار - يوم الحب</div>
+                    <div class="timeline-date">بعد 10 أيام</div>
                     <p class="timeline-message">
-                        صارلك يومين غايبة.. اشتقت لضحكتك بس قلبي بقولي إنك بخير، وهاد أهم شي عندي.
+                        صارلك فترة غايبة.. اشتقتلك بس قلبي بحكيلي إنك بخير، وهاد أهم شي عندي.
                     </p>
                 </div>
                 
                 <div class="timeline-card scroll-reveal" data-date="2025-03-18">
-                    <div class="timeline-date">18 آذار - قبل العيد</div>
+                    <div class="timeline-date">الأسبوع التاني</div>
                     <p class="timeline-message">
-                        قرب العيد وأنا بفكر فيكِ... مش عارف شو الوضع عندك، بس بتمنى تكوني مرتاحة. بحاول أبني شي حلو يخليكِ تبتسمي لما ترجعي.
+                        قرب العيد وأنا بفكر فيكي... ما بعرف شو الوضع عندك، بس بتمنى تكوني مرتاحة. عم حاول أبني شي حلو يخليكِ تبتسمي لما ترجعي.
                     </p>
                 </div>
                 
                 <div class="timeline-card scroll-reveal" data-date="2025-03-20">
-                    <div class="timeline-date">20 آذار - ليلة العيد</div>
+                    <div class="timeline-date">ليلة العيد</div>
                     <p class="timeline-message">
-                        الكل بعايد بعض، وأنا بعايد طيفك بخيالي.. كل عام وإنتِ عيدي، وكل عام وإنتِ أغلى ما عندي.
+                        الكل عم بعايد بعض، وأنا عم بعايد طيفك بخيالي.. كل عام وإنتِ عيدي، وكل عام وإنتِ أغلى ما عندي.
                     </p>
                 </div>
                 
                 <div class="timeline-card scroll-reveal" data-date="2025-03-21">
-                    <div class="timeline-date">21 آذار - أول يوم العيد</div>
+                    <div class="timeline-date">الأسبوع الثالث - العيد</div>
                     <p class="timeline-message">
-                        أول يوم عيد بمر بدون صوتك.. غريب هالعيد، بس يقيني فيكِ بخلي العيد يضل بقلبي.
+                        أول يوم عيد عم يمر بدون صوتك والإيموجي الضاحك تبعك.. غريب هالعيد، بس يقيني فيكي بخلي العيد يضل بقلبي.
                     </p>
                 </div>
                 
                 <div class="timeline-card scroll-reveal" data-date="2025-03-22">
-                    <div class="timeline-date">22 آذار - تاني يوم العيد</div>
+                    <div class="timeline-date">تاني يوم العيد</div>
                     <p class="timeline-message">
-                        تاني يوم عيد.. شفت ستوري الواتساب، حسيت إنك عم بتبعثيلي إشارة براءة.. ارتحت شوي، المهم إنك بخير.
+                        تاني يوم عيد.. شفت ستوري الواتساب صدفة، حسيت إني ارتحت شوي بس، المهم إنك بخير.
                     </p>
                 </div>
                 
                 <div class="timeline-card scroll-reveal" data-date="2025-03-23">
-                    <div class="timeline-date">23 آذار - بعد العيد</div>
+                    <div class="timeline-date">بعد العيد</div>
                     <p class="timeline-message">
-                        خلص العيد، والناس رجعت لحياتها، وأنا لسا ببني بعالم 'روز'.. عشان لما ترجعي تلاقي وطن بستناكي.
+                        خلص العيد، والناس رجعت لحياتها، وأنا لسا عم ببني بعالم 'روز'.. مشان لما ترجعي تلاقي وطن مستنيكي.
                     </p>
                 </div>
                 
-                <div class="timeline-card scroll-reveal" data-date="2025-03-24">
-                    <div class="timeline-date">24 آذار - يوم الضيق</div>
-                    <p class="timeline-message">
-                        اليوم حسيتك تعبانة، وحسيت الغيبة طولت زيادة.. بس الصلاة والدعاء هم اللي بردولي قلبي.
-                    </p>
-                </div>
-                
+ 
                 <div class="timeline-card scroll-reveal current-day" data-date="2025-03-25">
-                    <div class="timeline-date">25 آذار - يوم افتتاح الموقع</div>
+                    <div class="timeline-date">الأسبوع الرابع</div>
                     <p class="timeline-message">
-                        وأنا واثق تماماً أنكِ ستخرجين من هذا أقوى مما كنتِ، لأن القوة الحقيقية تُولد من رحم الصعوبات. وأنا هنا، أؤمن بكِ أكثر مما تؤمنين بنفسكِ.
+                        رغم اختفائك واثق تماماً إنك رح تطلعي من هالظروف أقوى بكتير، لأنه القوة الحقيقية بتولد من رحم الصعوبات. وأنا هون، بآمن فيكي أكتر من حالك.
                     </p>
                 </div>
             </div>
@@ -227,17 +211,80 @@
 
 
         <!-- Secret Message (Click to Reveal) -->
-        <!-- Secret Message (Click to Reveal) -->
-        <section class="secret-section scroll-reveal">
+        <section id="secret" class="secret-section scroll-reveal">
             <div class="secret-box" id="secret-box">
                 <div class="secret-lock">🔒</div>
                 <div class="secret-message" id="secret-message">
-                    <p>أجهل ما يحدث تماماً ولكن احساسي يقول رح بتكوني بخير مهما صار</p>
-                    <p>أعلم أن الأيام صعبة، وربما الخوف يحاصركِ من كل جانب...</p>
+                    <p>أجهل ما يحدث تماماً ولكن احساسي يقول ستكوني بخير مهما حدث</p>
+                    <p>أعلم أن الأيام صعبة، وربما الخوف والضغط يحاصركِ من كل جانب...</p>
                     <p>لكن تأكدي أنكِ أقوى مما تظنين، وأنا أؤمن بكِ أكثر من أي شيء في هذا العالم.</p>
                     <p>أنا أعي تماماً كم الشعور الداخلي صعب، وكم الضغط ثقيل على قلبكِ الصغير.</p>
                     <p>اجعلي مرارة الحياة وقوداً لتصبحي أقوى، فالألم الذي لا يكسرنا يجعلنا أصلب.</p>
+                    <p>أحاول أن أغيّر نظرتكِ للحياة عبر البرمجة، وأعي تماماً أنها ليست الطريقة المثالية، لكنني متأكد أنني الشخص الوحيد الذي يعبّر بهذه الطريقة الغريبة. الحياة لا تستحق أن نتألم من أجلها، بل تريدنا أن نندمج فيها لنصبح أقوى، وهذا سرّ قوتي الذي أحب أن أشاركه معكِ.</p>
                     <p class="secret-final">في النهاية، تذكري دائماً: أنتِ لستِ وحيدة... أنا معكِ 💜</p>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Mood Tracker -->
+        <section id="mood" class="mood-section scroll-reveal">
+            <h3 class="section-title">كيف مزاجك اليوم؟</h3>
+            <div class="mood-container">
+                <div class="mood-option" data-mood="مبسوطة كتير">
+                    <span class="mood-emoji">😊</span>
+                    <p>مبسوطة كتير</p>
+                </div>
+                <div class="mood-option" data-mood="مرتاحة">
+                    <span class="mood-emoji">😌</span>
+                    <p>مرتاحة</p>
+                </div>
+                <div class="mood-option" data-mood="عادي">
+                    <span class="mood-emoji">😐</span>
+                    <p>عادي</p>
+                </div>
+                <div class="mood-option" data-mood="تعبانة">
+                    <span class="mood-emoji">😔</span>
+                    <p>تعبانة</p>
+                </div>
+                <div class="mood-option" data-mood="زعلانة">
+                    <span class="mood-emoji">😢</span>
+                    <p>زعلانة</p>
+                </div>
+            </div>
+            <div class="mood-response" id="mood-response"></div>
+            
+            <!-- Breathing Exercise (shown when tired or sad) -->
+            <div id="breathe-inline-container" class="breathe-inline-container">
+                <div class="breathe-inline-content">
+                    <h3 class="breathe-inline-title">تمرين تنفس بسيط</h3>
+                    <p class="breathe-inline-subtitle">خليني ساعدك تسترخي شوي 💜</p>
+                    
+                    <!-- Exercise content (animation always visible) -->
+                    <div id="breathe-inline-exercise" class="breathe-inline-exercise">
+                        <div id="breathe-inline-canvas"></div>
+                        
+                        <!-- Start button (shown before exercise starts) -->
+                        <button id="start-breathe-btn" class="start-breathe-btn">
+                            يلا نبلش
+                        </button>
+                        
+                        <!-- Timer display (hidden until started) -->
+                        <div id="breathe-inline-display" class="breathe-inline-display">
+                            <div class="breathe-cycle-counter">
+                                <span id="breathe-cycle-text">الدورة</span>
+                                <span id="breathe-cycle-number">1</span>
+                                <span>من 3</span>
+                            </div>
+                            <span id="breathe-inline-phase" class="breathe-inline-phase">شهيق</span>
+                            <span id="breathe-inline-timer" class="breathe-inline-timer">4</span>
+                        </div>
+                        
+                        <!-- Completion message (shown after finishing) -->
+                        <div id="breathe-completion-message" class="breathe-completion-message">
+                            <div class="completion-icon">🌹</div>
+                            <p class="completion-subtitle">إذا صرتي أحسن، غيري مزاجك فوق 💜</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </section>
@@ -260,6 +307,7 @@
     <script type="module" src="analytics.js"></script>
     <script type="module" src="messagebox.js"></script>
     <script type="module" src="mood.js"></script>
+    <script type="module" src="breathe.js"></script>
     <script type="module" src="main.js"></script>
 </body>
 </html>
