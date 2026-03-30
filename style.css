@@ -13,6 +13,9 @@ body {
     overflow-x: hidden;
     line-height: 1.8;
     position: relative;
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
 }
 
 body::before {
@@ -178,9 +181,9 @@ body::before {
 /* Breathe Button */
 .breathe-btn {
     position: fixed;
-    bottom: 20px;
+    bottom: 30px;
     left: 20px;
-    z-index: 10;
+    z-index: 10000;
     background: rgba(147, 112, 219, 0.3);
     border: 2px solid rgba(186, 148, 255, 0.5);
     color: #d4b5f7;
@@ -242,7 +245,7 @@ body::before {
     z-index: 1;
     max-width: 800px;
     margin: 0 auto;
-    padding: 60px 20px;
+    padding: 60px 20px 20px 20px;
 }
 
 /* Music Button */
@@ -253,28 +256,54 @@ body::before {
     width: 50px;
     height: 50px;
     border-radius: 50%;
-    background: rgba(147, 112, 219, 0.2);
-    border: 2px solid rgba(186, 148, 255, 0.4);
+    background: linear-gradient(135deg, rgba(147, 112, 219, 0.3), rgba(186, 148, 255, 0.2));
+    border: 2px solid rgba(186, 148, 255, 0.5);
     color: #ba94ff;
     font-size: 24px;
     cursor: pointer;
     z-index: 100;
     transition: all 0.3s ease;
-    backdrop-filter: blur(10px);
+    backdrop-filter: blur(15px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 15px rgba(147, 112, 219, 0.3);
 }
 
 .music-btn:hover {
-    background: rgba(147, 112, 219, 0.4);
-    transform: scale(1.1);
+    background: linear-gradient(135deg, rgba(147, 112, 219, 0.5), rgba(186, 148, 255, 0.3));
+    border-color: rgba(186, 148, 255, 0.7);
+    transform: scale(1.08);
+    box-shadow: 0 6px 25px rgba(147, 112, 219, 0.5);
+}
+
+.music-btn:active {
+    transform: scale(0.95);
+}
+
+.music-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
 }
 
 .music-btn.playing {
-    animation: pulse 2s infinite;
+    animation: musicPulse 2s ease-in-out infinite;
+    border-color: rgba(186, 148, 255, 0.8);
+    box-shadow: 0 0 20px rgba(186, 148, 255, 0.6), 0 0 40px rgba(147, 112, 219, 0.4);
 }
 
-@keyframes pulse {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.05); }
+@keyframes musicPulse {
+    0%, 100% { 
+        transform: scale(1);
+        box-shadow: 0 0 20px rgba(186, 148, 255, 0.6), 0 0 40px rgba(147, 112, 219, 0.4);
+    }
+    50% { 
+        transform: scale(1.05);
+        box-shadow: 0 0 30px rgba(186, 148, 255, 0.8), 0 0 60px rgba(147, 112, 219, 0.6);
+    }
 }
 
 /* Animations */
@@ -414,6 +443,14 @@ body::before {
 .scroll-reveal.revealed {
     opacity: 1;
     transform: translateY(0);
+}
+
+/* Mobile: Show all sections immediately */
+@media (max-width: 768px) {
+    .scroll-reveal {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 /* Memories Section */
@@ -782,9 +819,9 @@ body::before {
 /* Footer */
 .footer {
     text-align: center;
-    padding: 40px 20px;
+    padding: 40px 20px 20px 20px;
     margin-top: 60px;
-    border-top: 1px solid rgba(186, 148, 255, 0.2);
+    margin-bottom: 0;
 }
 
 .footer p {
@@ -795,6 +832,15 @@ body::before {
 
 /* Responsive */
 @media (max-width: 768px) {
+    /* Improve music button for mobile */
+    .music-btn {
+        width: 46px;
+        height: 46px;
+        top: 15px;
+        left: 15px;
+        font-size: 22px;
+    }
+    
     .main-title {
         font-size: 2em;
     }
@@ -855,6 +901,17 @@ body::before {
     
     .countdown-number {
         font-size: 2.5em;
+    }
+}
+
+/* Extra small mobile devices */
+@media (max-width: 380px) {
+    .music-btn {
+        width: 42px;
+        height: 42px;
+        top: 12px;
+        left: 12px;
+        font-size: 20px;
     }
 }
 
@@ -1351,5 +1408,399 @@ body::before {
     
     .message-content {
         padding: 12px 18px;
+    }
+}
+
+/* Breathing Exercise Container */
+.breathe-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(15, 10, 26, 0.95);
+    backdrop-filter: blur(20px);
+    z-index: 10001;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    padding: 20px;
+}
+
+.breathe-content {
+    text-align: center;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+}
+
+.breathe-content canvas {
+    border-radius: 20px;
+    box-shadow: 0 10px 50px rgba(147, 112, 219, 0.5);
+    margin: 20px 0;
+}
+
+.breathe-title {
+    font-size: 2em;
+    color: #d4b5f7;
+    margin-bottom: 10px;
+    font-family: 'Tajawal', sans-serif;
+    text-shadow: 0 0 20px rgba(186, 148, 255, 0.5);
+}
+
+.breathe-instructions {
+    margin-top: 10px;
+}
+
+.breathe-phase-display {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+}
+
+.breathe-phase {
+    font-size: 2.5em;
+    color: #ba94ff;
+    font-weight: 600;
+    font-family: 'Tajawal', sans-serif;
+    text-shadow: 0 0 30px currentColor;
+    transition: color 0.5s ease;
+}
+
+.breathe-timer {
+    font-size: 4em;
+    color: #d4b5f7;
+    font-weight: 700;
+    font-family: 'Tajawal', sans-serif;
+    text-shadow: 0 0 40px rgba(186, 148, 255, 0.6);
+}
+
+.close-breathe {
+    position: absolute;
+    top: 30px;
+    right: 30px;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: rgba(147, 112, 219, 0.3);
+    border: 2px solid rgba(186, 148, 255, 0.5);
+    color: #d4b5f7;
+    font-size: 24px;
+    cursor: pointer;
+    z-index: 10002;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: Arial, sans-serif;
+}
+
+.close-breathe:hover {
+    background: rgba(147, 112, 219, 0.5);
+    border-color: rgba(186, 148, 255, 0.8);
+    transform: scale(1.1) rotate(90deg);
+}
+
+.close-breathe:active {
+    transform: scale(0.95) rotate(90deg);
+}
+
+@media (max-width: 768px) {
+    .breathe-title {
+        font-size: 1.5em;
+        margin-bottom: 10px;
+    }
+    
+    .breathe-phase {
+        font-size: 2em;
+    }
+    
+    .breathe-timer {
+        font-size: 3em;
+    }
+    
+    .close-breathe {
+        top: 20px;
+        right: 20px;
+        width: 45px;
+        height: 45px;
+        font-size: 20px;
+    }
+    
+    .breathe-content canvas {
+        max-width: 90%;
+        height: auto;
+    }
+}
+
+/* Inline Breathing Exercise (below mood) */
+.breathe-inline-container {
+    display: none;
+    margin-top: 40px;
+    padding: 40px 20px;
+    background: rgba(147, 112, 219, 0.08);
+    border-radius: 20px;
+    border: 2px solid rgba(186, 148, 255, 0.3);
+    backdrop-filter: blur(10px);
+    animation: fadeInUp 0.8s ease-out;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.breathe-inline-content {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+}
+
+.breathe-inline-title {
+    font-size: 1.8em;
+    color: #d4b5f7;
+    margin-bottom: 5px;
+    font-family: 'Tajawal', sans-serif;
+    text-shadow: 0 0 15px rgba(186, 148, 255, 0.4);
+}
+
+.breathe-inline-subtitle {
+    font-size: 1.2em;
+    color: #c9b3e0;
+    margin-bottom: 15px;
+    font-family: 'Tajawal', sans-serif;
+    font-style: italic;
+}
+
+/* Start button */
+.start-breathe-btn {
+    background: linear-gradient(135deg, rgba(147, 112, 219, 0.4), rgba(186, 148, 255, 0.3));
+    border: 2px solid rgba(186, 148, 255, 0.6);
+    color: #d4b5f7;
+    font-size: 1.3em;
+    font-family: 'Tajawal', sans-serif;
+    font-weight: 600;
+    padding: 15px 40px;
+    border-radius: 30px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 5px 20px rgba(147, 112, 219, 0.3);
+    margin: 20px 0;
+}
+
+.start-breathe-btn:hover {
+    background: linear-gradient(135deg, rgba(147, 112, 219, 0.6), rgba(186, 148, 255, 0.4));
+    border-color: rgba(186, 148, 255, 0.8);
+    transform: scale(1.05);
+    box-shadow: 0 8px 30px rgba(147, 112, 219, 0.5);
+}
+
+.start-breathe-btn:active {
+    transform: scale(0.98);
+}
+
+/* Exercise content (animation always visible) */
+.breathe-inline-exercise {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    width: 100%;
+}
+
+#breathe-inline-canvas {
+    margin: 10px 0;
+    display: flex;
+    justify-content: center;
+}
+
+#breathe-inline-canvas canvas {
+    border-radius: 20px;
+    box-shadow: 0 10px 40px rgba(147, 112, 219, 0.4);
+    max-width: 100%;
+    height: auto;
+}
+
+/* Timer display (hidden until started) */
+.breathe-inline-display {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+    margin-top: 10px;
+}
+
+.breathe-cycle-counter {
+    font-size: 1.1em;
+    color: #c9b3e0;
+    font-family: 'Tajawal', sans-serif;
+    margin-bottom: 10px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+#breathe-cycle-number {
+    font-size: 1.4em;
+    color: #ba94ff;
+    font-weight: 700;
+    text-shadow: 0 0 15px rgba(186, 148, 255, 0.5);
+}
+
+.breathe-inline-phase {
+    font-size: 2em;
+    color: #ba94ff;
+    font-weight: 600;
+    font-family: 'Tajawal', sans-serif;
+    text-shadow: 0 0 25px currentColor;
+    transition: color 0.5s ease;
+}
+
+.breathe-inline-timer {
+    font-size: 3.5em;
+    color: #d4b5f7;
+    font-weight: 700;
+    font-family: 'Tajawal', sans-serif;
+    text-shadow: 0 0 35px rgba(186, 148, 255, 0.6);
+}
+
+/* Completion message */
+.breathe-completion-message {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+    margin: 20px 0;
+    padding: 25px;
+    background: rgba(147, 112, 219, 0.15);
+    border-radius: 15px;
+    border: 2px solid rgba(186, 148, 255, 0.4);
+    animation: fadeInScale 0.6s ease-out;
+}
+
+@keyframes fadeInScale {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.completion-icon {
+    font-size: 3em;
+    animation: slowRotate 4s linear infinite;
+}
+
+@keyframes slowRotate {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.completion-subtitle {
+    font-size: 1.1em;
+    color: #c9b3e0;
+    font-family: 'Tajawal', sans-serif;
+    margin: 0;
+    font-style: italic;
+}
+
+@media (max-width: 768px) {
+    .breathe-inline-container {
+        padding: 30px 15px;
+        margin-top: 30px;
+    }
+    
+    .breathe-inline-title {
+        font-size: 1.5em;
+    }
+    
+    .breathe-inline-subtitle {
+        font-size: 1.1em;
+    }
+    
+    .start-breathe-btn {
+        font-size: 1.2em;
+        padding: 12px 35px;
+    }
+    
+    .breathe-cycle-counter {
+        font-size: 1em;
+    }
+    
+    #breathe-cycle-number {
+        font-size: 1.3em;
+    }
+    
+    .breathe-inline-phase {
+        font-size: 1.8em;
+    }
+    
+    .breathe-inline-timer {
+        font-size: 3em;
+    }
+    
+    .completion-subtitle {
+        font-size: 1em;
+    }
+    
+    #breathe-inline-canvas canvas {
+        max-width: 100%;
+        height: auto;
+    }
+}
+
+@media (max-width: 480px) {
+    .breathe-inline-title {
+        font-size: 1.3em;
+    }
+    
+    .breathe-inline-subtitle {
+        font-size: 1em;
+    }
+    
+    .start-breathe-btn {
+        font-size: 1.1em;
+        padding: 10px 30px;
+    }
+    
+    .breathe-cycle-counter {
+        font-size: 0.95em;
+    }
+    
+    .breathe-inline-phase {
+        font-size: 1.6em;
+    }
+    
+    .breathe-inline-timer {
+        font-size: 2.5em;
+    }
+    
+    .completion-icon {
+        font-size: 2.5em;
+    }
+    
+    .completion-subtitle {
+        font-size: 0.95em;
     }
 }
