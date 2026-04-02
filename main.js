@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { initBreathingExercise, startBreathing, stopBreathing } from './breathe.js';
+import { initRosePortrait } from './rose-portrait.js';
 
 // Scene setup
 const scene = new THREE.Scene();
@@ -533,6 +534,7 @@ breatheBtn.addEventListener('click', () => {
 // Initialize breathing exercise
 window.addEventListener('DOMContentLoaded', () => {
     initBreathingExercise();
+    initRosePortrait();
 });
 
 // Close breathing exercise button
