@@ -32,7 +32,7 @@ if (moodOptions && moodOptions.length > 0) {
             }
             
             // Show breathing exercise if tired or sad
-            if (mood === 'تعبانة' || mood === 'زعلانة') {
+            if (mood === 'تعبانة' || mood === 'مخنوقة') {
                 setTimeout(() => {
                     startInlineBreathing();
                 }, 1000);
