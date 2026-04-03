@@ -490,11 +490,24 @@ window.addEventListener('resize', () => {
 
 // Handle scroll to move portrait down to half page
 let lastScrollY = 0;
+let ticking = false;
+
 window.addEventListener('scroll', () => {
+    lastScrollY = window.scrollY;
+    
+    if (!ticking) {
+        window.requestAnimationFrame(() => {
+            updatePortraitPosition(lastScrollY);
+            ticking = false;
+        });
+        ticking = true;
+    }
+}, { passive: true });
+
+function updatePortraitPosition(scrollY) {
     const container = document.getElementById('rose-portrait-container');
     if (!container) return;
     
-    const scrollY = window.scrollY;
     const windowHeight = window.innerHeight;
     const documentHeight = document.documentElement.scrollHeight;
     
@@ -506,6 +519,4 @@ window.addEventListener('scroll', () => {
     
     // Apply transform
     container.style.transform = `translate(-50%, ${translateY}px)`;
-    
-    lastScrollY = scrollY;
-}, { passive: true });
+}
