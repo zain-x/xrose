@@ -109,32 +109,69 @@ let isOpen = false;
 let targetLidY = 1.15;
 let targetLidRotation = 0;
 
-// Mouse/Touch interaction
+// Mouse/Touch interaction for 360° rotation
 let mouseX = 0;
 let mouseY = 0;
-let touchStartX = 0;
-let touchStartY = 0;
 let isDragging = false;
-let hasMoved = false;
+let previousMouseX = 0;
+let previousMouseY = 0;
+let rotationX = 0;
+let rotationY = 0;
+let velocityX = 0;
+let velocityY = 0;
 let lastTapTime = 0;
+let hasMoved = false;
 
-function handleMove(clientX, clientY) {
-    const rect = container.getBoundingClientRect();
-    mouseX = ((clientX - rect.left) / rect.width) * 2 - 1;
-    mouseY = -((clientY - rect.top) / rect.height) * 2 + 1;
-}
+// Mouse events for rotation
+container.addEventListener('mousedown', (event) => {
+    isDragging = true;
+    previousMouseX = event.clientX;
+    previousMouseY = event.clientY;
+    velocityX = 0;
+    velocityY = 0;
+    container.style.cursor = 'grabbing';
+});
 
-// Mouse events
 container.addEventListener('mousemove', (event) => {
-    handleMove(event.clientX, event.clientY);
+    if (!isDragging) return;
+    
+    const deltaX = event.clientX - previousMouseX;
+    const deltaY = event.clientY - previousMouseY;
+    
+    velocityX = deltaX * 0.01;
+    velocityY = deltaY * 0.01;
+    
+    rotationY += velocityX;
+    rotationX -= velocityY;
+    
+    previousMouseX = event.clientX;
+    previousMouseY = event.clientY;
+});
+
+container.addEventListener('mouseup', () => {
+    isDragging = false;
+    container.style.cursor = 'grab';
+});
+
+container.addEventListener('mouseleave', () => {
+    isDragging = false;
+    container.style.cursor = 'grab';
 });
 
 // Touch events for rotation
+let touchStartX = 0;
+let touchStartY = 0;
+let touchMoved = false;
+
 container.addEventListener('touchstart', (event) => {
+    isDragging = true;
+    touchMoved = false;
     touchStartX = event.touches[0].clientX;
     touchStartY = event.touches[0].clientY;
-    isDragging = true;
-    hasMoved = false;
+    previousMouseX = touchStartX;
+    previousMouseY = touchStartY;
+    velocityX = 0;
+    velocityY = 0;
 }, { passive: true });
 
 container.addEventListener('touchmove', (event) => {
@@ -143,24 +180,32 @@ container.addEventListener('touchmove', (event) => {
     const touchX = event.touches[0].clientX;
     const touchY = event.touches[0].clientY;
     
-    const deltaX = Math.abs(touchX - touchStartX);
-    const deltaY = Math.abs(touchY - touchStartY);
+    const deltaX = touchX - previousMouseX;
+    const deltaY = touchY - previousMouseY;
     
-    // If moved more than 3px, consider it a drag (not a tap)
-    if (deltaX > 3 || deltaY > 3) {
-        hasMoved = true;
-        handleMove(touchX, touchY);
+    // If moved more than 5px, consider it a drag
+    if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
+        touchMoved = true;
     }
+    
+    velocityX = deltaX * 0.01;
+    velocityY = deltaY * 0.01;
+    
+    rotationY += velocityX;
+    rotationX -= velocityY;
+    
+    previousMouseX = touchX;
+    previousMouseY = touchY;
 }, { passive: true });
 
 container.addEventListener('touchend', (event) => {
     const wasDragging = isDragging;
-    const didMove = hasMoved;
+    const didMove = touchMoved;
     
     isDragging = false;
-    hasMoved = false;
+    touchMoved = false;
     
-    // Double tap to open
+    // Double tap to open (only if didn't drag)
     if (wasDragging && !didMove) {
         const currentTime = Date.now();
         const timeSinceLastTap = currentTime - lastTapTime;
@@ -176,12 +221,21 @@ container.addEventListener('touchend', (event) => {
     }
 }, { passive: false });
 
-// Click to open box (desktop only)
-container.addEventListener('click', handleOpen);
+// Click to open box (desktop only) - only if not dragging
+let clickStartTime = 0;
+container.addEventListener('mousedown', (event) => {
+    clickStartTime = Date.now();
+});
+
+container.addEventListener('click', (event) => {
+    const clickDuration = Date.now() - clickStartTime;
+    // Only open if it was a quick click (not a drag)
+    if (clickDuration < 200 && Math.abs(velocityX) < 0.1 && Math.abs(velocityY) < 0.1) {
+        handleOpen(event);
+    }
+});
 
 // Click/Touch to open box
-let hasTrackedOpen = false;
-
 function handleOpen(event) {
     event.preventDefault();
     
@@ -200,12 +254,6 @@ function handleOpen(event) {
             showMessage();
             isOpening = false;
         }, 1000);
-        
-        // Track box opened ONLY ONCE per session
-        if (window.trackButtonClick && !hasTrackedOpen) {
-            window.trackButtonClick('💌 Message Box (Opened)');
-            hasTrackedOpen = true;
-        }
         
         // Create particle explosion
         createParticleExplosion();
@@ -233,6 +281,11 @@ function showMessage() {
     `;
     
     messageDisplay.classList.add('show');
+    
+    // Track every message opened with content
+    if (window.trackButtonClick) {
+        window.trackButtonClick(`💌 Message: ${message}`);
+    }
 }
 
 // Hide message
@@ -283,9 +336,17 @@ function animate() {
     lid.position.y += (targetLidY - lid.position.y) * 0.1;
     lid.rotation.x += (targetLidRotation - lid.rotation.x) * 0.1;
     
-    // Rotate box slightly with mouse/touch
-    boxGroup.rotation.y += (mouseX * 0.5 - boxGroup.rotation.y) * 0.05;
-    boxGroup.rotation.x += (-mouseY * 0.3 - boxGroup.rotation.x) * 0.05;
+    // Apply user rotation
+    boxGroup.rotation.y = rotationY;
+    boxGroup.rotation.x = rotationX;
+    
+    // Add inertia when not dragging
+    if (!isDragging) {
+        velocityX *= 0.95;
+        velocityY *= 0.95;
+        rotationY += velocityX;
+        rotationX += velocityY;
+    }
     
     // Floating animation
     boxGroup.position.y = Math.sin(time) * 0.1;
