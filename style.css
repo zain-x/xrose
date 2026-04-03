@@ -744,7 +744,7 @@ body::before {
 }
 
 .secret-box.unlocked .secret-message {
-    max-height: 1000px;
+    max-height: 2000px;
     opacity: 1;
     margin-top: 30px;
 }
@@ -1297,18 +1297,15 @@ body::before {
     display: flex;
     justify-content: center;
     margin: 40px auto;
-    cursor: pointer;
+    cursor: grab;
     transition: transform 0.3s ease;
     touch-action: none;
     -webkit-tap-highlight-color: transparent;
-}
-
-#messagebox-container:hover {
-    transform: scale(1.05);
+    user-select: none;
 }
 
 #messagebox-container:active {
-    transform: scale(0.98);
+    cursor: grabbing;
 }
 
 #messagebox-container canvas {
