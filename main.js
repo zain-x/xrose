@@ -248,11 +248,9 @@ window.addEventListener('resize', () => {
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// Daily date display
+// Daily date display - Fixed to March 26
 const dateElement = document.getElementById('current-date');
-const today = new Date();
-const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-dateElement.textContent = today.toLocaleDateString('ar-EG', options);
+dateElement.textContent = '26 آذار';
 
 // Set the daily message (fixed, no rotation)
 document.getElementById('daily-message').textContent = 'وقتها ابتسمت لما شفت مدى سعادتك... أنتي وأشياءاتك الغريبة اللي تغير المود كله 😌';
