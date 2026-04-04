@@ -23,10 +23,11 @@ export function initRosePortrait() {
     portraitCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000);
     portraitCamera.position.z = 6;
     
-    // Renderer
+    // Renderer with performance optimizations
     portraitRenderer = new THREE.WebGLRenderer({ 
-        antialias: true,
-        alpha: true
+        antialias: false, // Disable antialiasing for better performance
+        alpha: true,
+        powerPreference: 'high-performance'
     });
     
     // Calculate size based on container width (90% of viewport, max 900px)
@@ -88,8 +89,8 @@ function createPixelSpritePortrait(texture) {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     
-    // Set canvas size
-    const resolution = 100;
+    // Set canvas size - reduced resolution for better performance
+    const resolution = 80; // Reduced from 100 to 80
     canvas.width = resolution;
     canvas.height = resolution;
     
@@ -435,8 +436,18 @@ function onTouchMove(event) {
     }
 }
 
-function animatePortrait() {
+// Throttle animation to 30fps for better performance
+let lastFrameTime = 0;
+const frameInterval = 1000 / 30; // 30fps
+
+function animatePortrait(currentTime) {
     requestAnimationFrame(animatePortrait);
+    
+    // Throttle to 30fps
+    if (currentTime - lastFrameTime < frameInterval) {
+        return;
+    }
+    lastFrameTime = currentTime;
     
     time += 0.016;
     
@@ -488,12 +499,16 @@ window.addEventListener('resize', () => {
     }
 });
 
-// Handle scroll to move portrait down to half page
+// Handle scroll to move portrait down to half page - Optimized with CSS transform
 let lastScrollY = 0;
 let ticking = false;
+let scrollTimeout;
 
 window.addEventListener('scroll', () => {
     lastScrollY = window.scrollY;
+    
+    // Clear previous timeout
+    clearTimeout(scrollTimeout);
     
     if (!ticking) {
         window.requestAnimationFrame(() => {
@@ -502,6 +517,11 @@ window.addEventListener('scroll', () => {
         });
         ticking = true;
     }
+    
+    // Debounce for final position
+    scrollTimeout = setTimeout(() => {
+        updatePortraitPosition(window.scrollY);
+    }, 100);
 }, { passive: true });
 
 function updatePortraitPosition(scrollY) {
@@ -515,8 +535,19 @@ function updatePortraitPosition(scrollY) {
     const halfPageScroll = (documentHeight - windowHeight) / 2;
     
     // Move portrait down much slower (30% of scroll speed for parallax effect)
-    const translateY = Math.min(scrollY * 0.3, halfPageScroll);
+    // But stop at halfway point
+    const maxTranslate = halfPageScroll * 0.3; // 30% of halfway point
+    const translateY = Math.min(scrollY * 0.3, maxTranslate);
     
-    // Apply transform
-    container.style.transform = `translate(-50%, ${translateY}px)`;
+    // Use will-change and transform for better performance
+    container.style.willChange = 'transform';
+    container.style.transform = `translate3d(-50%, ${translateY}px, 0)`;
+    
+    // Hide portrait after halfway point
+    if (scrollY > halfPageScroll) {
+        container.style.opacity = '0';
+        container.style.pointerEvents = 'none';
+    } else {
+        container.style.opacity = '0.6';
+    }
 }
