@@ -1818,12 +1818,15 @@ body::before {
     pointer-events: none;
     opacity: 0.6;
     padding-top: 30px;
-    transition: transform 0.1s ease-out;
+    will-change: transform;
+    transform: translate3d(-50%, 0, 0);
 }
 
 .portrait-background canvas {
     width: 100%;
     height: auto;
+    transform: translateZ(0);
+    backface-visibility: hidden;
 }
 
 @media (max-width: 768px) {
