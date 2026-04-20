@@ -253,7 +253,7 @@ const dateElement = document.getElementById('current-date');
 dateElement.textContent = '26 آذار';
 
 // Set the daily message (fixed, no rotation)
-document.getElementById('daily-message').textContent = 'وقتها ابتسمت لما شفت مدى سعادتك... أنتي وأشياءاتك الغريبة اللي تغير المود كله 😌';
+document.getElementById('daily-message').textContent = 'وقتها ابتسمت لما شفت مدى سعادتك لما رسلتيها للكل... أنتي وأشياءاتك الغريبة اللي تغير المود كله 😌';
 
 // Rain Effect
 const rainContainer = document.getElementById('rain-container');
@@ -646,6 +646,18 @@ secretBox.addEventListener('click', () => {
         if (window.trackButtonClick) {
             window.trackButtonClick('🔓 Secret Message (Opened)');
         }
+        
+        // Scroll to ensure the message is visible on mobile
+        setTimeout(() => {
+            const secretMessage = document.getElementById('secret-message');
+            if (secretMessage && window.innerWidth <= 768) {
+                secretMessage.scrollIntoView({ 
+                    behavior: 'smooth', 
+                    block: 'start',
+                    inline: 'nearest'
+                });
+            }
+        }, 1200); // Wait for animation to complete
         
         // Create explosion of hearts
         for (let i = 0; i < 20; i++) {
