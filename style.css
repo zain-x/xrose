@@ -711,6 +711,7 @@ body::before {
     cursor: pointer;
     transition: all 0.5s ease;
     max-width: 600px;
+    width: 100%;
     backdrop-filter: blur(10px);
 }
 
@@ -744,9 +745,11 @@ body::before {
 }
 
 .secret-box.unlocked .secret-message {
-    max-height: 2000px;
+    max-height: none;
+    height: auto;
     opacity: 1;
     margin-top: 30px;
+    overflow: visible;
 }
 
 .secret-message p {
@@ -754,6 +757,7 @@ body::before {
     color: #d4b5f7;
     margin-bottom: 20px;
     line-height: 2;
+    text-align: center;
 }
 
 .secret-final {
@@ -761,6 +765,59 @@ body::before {
     color: #ba94ff !important;
     font-weight: 500 !important;
     margin-top: 30px !important;
+}
+
+/* Mobile responsiveness for secret section */
+@media (max-width: 768px) {
+    .secret-section {
+        margin-bottom: 60px;
+        padding: 0 10px;
+    }
+    
+    .secret-box {
+        padding: 30px 20px;
+        max-width: 100%;
+        margin: 0 10px;
+    }
+    
+    .secret-lock {
+        font-size: 3em;
+        margin-bottom: 15px;
+    }
+    
+    .secret-message p {
+        font-size: 1.1em;
+        line-height: 1.8;
+        margin-bottom: 18px;
+        text-align: center;
+    }
+    
+    .secret-final {
+        font-size: 1.2em !important;
+        margin-top: 25px !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .secret-box {
+        padding: 25px 15px;
+        margin: 0 5px;
+    }
+    
+    .secret-lock {
+        font-size: 2.5em;
+    }
+    
+    .secret-message p {
+        font-size: 1em;
+        line-height: 1.7;
+        margin-bottom: 15px;
+    }
+    
+    .secret-final {
+        font-size: 1.1em !important;
+        margin-top: 20px !important;
+    }
 }
 
 /* Countdown Section */
@@ -902,6 +959,18 @@ body::before {
     .countdown-number {
         font-size: 2.5em;
     }
+    
+    /* Ensure content wrapper has proper padding on mobile */
+    .content-wrapper {
+        padding: 40px 15px 20px 15px;
+        max-width: 100%;
+    }
+    
+    /* Improve scrolling on mobile */
+    body {
+        -webkit-overflow-scrolling: touch;
+        scroll-behavior: smooth;
+    }
 }
 
 /* Extra small mobile devices */
@@ -912,6 +981,18 @@ body::before {
         top: 12px;
         left: 12px;
         font-size: 20px;
+    }
+    
+    .content-wrapper {
+        padding: 30px 10px 20px 10px;
+    }
+    
+    .main-title {
+        font-size: 1.8em;
+    }
+    
+    .welcome-text {
+        font-size: 1em;
     }
 }
 
@@ -1848,4 +1929,66 @@ body::before {
 /* Remove old portrait section styles */
 .rose-portrait-section {
     display: none;
+}
+/* Additional mobile optimizations for secret message */
+@media (max-width: 600px) {
+    .secret-box {
+        padding: 20px 15px;
+        border-radius: 15px;
+    }
+    
+    .secret-message {
+        text-align: center;
+        direction: ltr;
+    }
+    
+    .secret-message p {
+        font-size: 0.95em;
+        line-height: 1.6;
+        margin-bottom: 12px;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        hyphens: auto;
+        text-align: center;
+    }
+    
+    .secret-final {
+        font-size: 1.05em !important;
+        margin-top: 15px !important;
+        text-align: center !important;
+    }
+}
+
+/* Very small screens */
+@media (max-width: 360px) {
+    .secret-box {
+        padding: 15px 10px;
+        margin: 0 2px;
+    }
+    
+    .secret-message p {
+        font-size: 0.9em;
+        line-height: 1.5;
+        margin-bottom: 10px;
+        text-align: center;
+    }
+    
+    .secret-final {
+        font-size: 1em !important;
+        margin-top: 12px !important;
+    }
+}
+
+/* Ensure proper viewport handling */
+@media screen and (max-height: 600px) {
+    .secret-box {
+        max-height: 80vh;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    .secret-box.unlocked .secret-message {
+        max-height: none;
+        overflow: visible;
+    }
 }
