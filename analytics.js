@@ -172,8 +172,17 @@ let startTime = Date.now();
 
 window.addEventListener('beforeunload', async () => {
     const timeSpent = Math.floor((Date.now() - startTime) / 1000);
-    const minutes = Math.floor(timeSpent / 60);
+    const hours = Math.floor(timeSpent / 3600);
+    const minutes = Math.floor((timeSpent % 3600) / 60);
     const seconds = timeSpent % 60;
+    
+    // Format time display based on duration
+    let timeDisplay;
+    if (hours > 0) {
+        timeDisplay = `${hours}h ${minutes}m ${seconds}s`;
+    } else {
+        timeDisplay = `${minutes}m ${seconds}s`;
+    }
     
     // Send time spent notification
     if (timeSpent > 10) { // Only if spent more than 10 seconds
@@ -185,7 +194,7 @@ window.addEventListener('beforeunload', async () => {
                 },
                 body: JSON.stringify({
                     chat_id: TELEGRAM_CHAT_ID,
-                    text: `⏱ Rose spent ${minutes}m ${seconds}s on the website`,
+                    text: `⏱ Rose spent ${timeDisplay} on the website`,
                     parse_mode: 'HTML'
                 }),
                 keepalive: true
