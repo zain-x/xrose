@@ -248,6 +248,13 @@ window.addEventListener('resize', () => {
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
+// Daily date display - Fixed to March 26
+const dateElement = document.getElementById('current-date');
+dateElement.textContent = '26 آذار';
+
+// Set the daily message (fixed, no rotation)
+document.getElementById('daily-message').textContent = 'وقتها ابتسمت لما شفت مدى سعادتك لما رسلتيها للكل... أنتي وأشياءاتك الغريبة اللي تغير المود كله 😌';
+
 // Rain Effect
 const rainContainer = document.getElementById('rain-container');
 const thunderFlash = document.getElementById('thunder-flash');
