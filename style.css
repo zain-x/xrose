@@ -758,6 +758,8 @@ body::before {
     margin-bottom: 20px;
     line-height: 2;
     text-align: center;
+    direction: rtl;
+    unicode-bidi: plaintext;
 }
 
 .secret-final {
@@ -790,6 +792,8 @@ body::before {
         line-height: 1.8;
         margin-bottom: 18px;
         text-align: center;
+        direction: rtl;
+        unicode-bidi: plaintext;
     }
     
     .secret-final {
@@ -1939,7 +1943,7 @@ body::before {
     
     .secret-message {
         text-align: center;
-        direction: ltr;
+        direction: rtl;
     }
     
     .secret-message p {
@@ -1950,6 +1954,8 @@ body::before {
         overflow-wrap: break-word;
         hyphens: auto;
         text-align: center;
+        direction: rtl;
+        unicode-bidi: plaintext;
     }
     
     .secret-final {
@@ -1971,6 +1977,8 @@ body::before {
         line-height: 1.5;
         margin-bottom: 10px;
         text-align: center;
+        direction: rtl;
+        unicode-bidi: plaintext;
     }
     
     .secret-final {
@@ -1991,4 +1999,17 @@ body::before {
         max-height: none;
         overflow: visible;
     }
+}
+
+/* Fix for English words in Arabic text in secret message */
+.secret-message p {
+    text-align: center !important;
+    direction: rtl !important;
+    unicode-bidi: embed !important;
+}
+
+/* Ensure proper RTL handling for mixed content */
+.secret-box.unlocked .secret-message {
+    direction: rtl;
+    text-align: center;
 }
