@@ -1,0 +1,3711 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rose City ♥</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #120209;
+        font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+      }
+      #app {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+      #hud {
+        position: fixed;
+        top: 44px;
+        left: 14px;
+        color: #ffd9e6;
+        font-size: 12px;
+        line-height: 1.55;
+        pointer-events: none;
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+        user-select: none;
+        z-index: 10;
+      }
+      #hud b {
+        color: #ff9ec2;
+      }
+      #hud .key {
+        display: inline-block;
+        min-width: 18px;
+        padding: 0 5px;
+        margin-right: 4px;
+        background: rgba(255, 140, 180, 0.15);
+        border: 1px solid rgba(255, 150, 190, 0.4);
+        border-radius: 4px;
+        color: #ffe0ec;
+        font-size: 11px;
+      }
+      #stats {
+        display: none;
+      }
+      #title {
+        position: fixed;
+        top: 14px;
+        right: 18px;
+        text-align: right;
+        z-index: 10;
+        color: #ffb3d2;
+        text-shadow: 0 1px 6px #000;
+      }
+      #title h1 {
+        font-size: 18px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+      }
+      #title p {
+        font-size: 11px;
+        color: #cf8aa8;
+        margin-top: 2px;
+      }
+      #overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 50;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(
+          circle at 50% 40%,
+          rgba(60, 15, 40, 0.55),
+          rgba(12, 2, 8, 0.95)
+        );
+        transition: opacity 0.6s ease;
+        cursor: pointer;
+      }
+      #overlay .card {
+        text-align: center;
+        color: #ffe0ec;
+      }
+      #overlay h2 {
+        font-size: 26px;
+        font-weight: 600;
+        margin-bottom: 10px;
+        letter-spacing: 1px;
+        color: #ff9ec2;
+      }
+      #overlay p {
+        font-size: 13px;
+        color: #e3a9c4;
+        margin: 4px 0;
+      }
+      #overlay .go {
+        margin-top: 22px;
+        font-size: 13px;
+        color: #fff;
+        border: 1px solid rgba(255, 150, 190, 0.55);
+        border-radius: 8px;
+        padding: 10px 26px;
+        display: inline-block;
+        background: rgba(255, 110, 150, 0.2);
+      }
+      .hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+      .flash {
+        position: fixed;
+        inset: 0;
+        background: #ffd0e0;
+        opacity: 0;
+        pointer-events: none;
+        z-index: 5;
+      }
+
+      /* ─────────── Loading: Welcome to Rose Dream Land ─────────── */
+      #loading {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        color: #ffe0ec;
+        background: radial-gradient(circle at 50% 35%, #401434, #120209 72%);
+        transition: opacity 0.8s ease;
+      }
+      #loading.gone {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #loading .rose {
+        font-size: 64px;
+        filter: drop-shadow(0 6px 22px rgba(255, 90, 150, 0.7));
+        animation: floaty 3s ease-in-out infinite;
+      }
+      #loading h1 {
+        font-size: clamp(22px, 6vw, 34px);
+        font-weight: 700;
+        margin: 16px 22px 6px;
+        letter-spacing: 0.5px;
+        text-shadow: 0 2px 22px rgba(255, 90, 150, 0.75);
+      }
+      #loading h2 {
+        font-size: clamp(13px, 4vw, 17px);
+        color: #ffb3d2;
+        margin: 0 22px 28px;
+        font-weight: 500;
+      }
+      #loading .barwrap {
+        width: min(74vw, 360px);
+        height: 12px;
+        border-radius: 20px;
+        background: rgba(255, 160, 190, 0.14);
+        border: 1px solid rgba(255, 150, 190, 0.35);
+        overflow: hidden;
+      }
+      #loading .bar {
+        height: 100%;
+        width: 0%;
+        border-radius: 20px;
+        background: linear-gradient(90deg, #ff5d83, #ffa8c8, #fff0f6);
+        box-shadow: 0 0 18px rgba(255, 120, 170, 0.85);
+        transition: width 0.25s ease;
+      }
+      #loading .pct {
+        margin-top: 11px;
+        font-size: 12px;
+        color: #e3a9c4;
+        letter-spacing: 1px;
+      }
+      @keyframes floaty {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(-13px);
+        }
+      }
+
+      /* ─────────── Discovery counter + interaction prompt ─────────── */
+      #discovery {
+        position: fixed;
+        top: 12px;
+        left: 14px;
+        z-index: 12;
+        color: #ffe0ec;
+        font-size: 14px;
+        font-weight: 600;
+        background: rgba(40, 10, 28, 0.5);
+        border: 1px solid rgba(255, 150, 190, 0.3);
+        border-radius: 20px;
+        padding: 6px 14px;
+        text-shadow: 0 1px 3px #000;
+        pointer-events: none;
+      }
+      #prompt {
+        position: fixed;
+        left: 50%;
+        bottom: 23%;
+        transform: translateX(-50%);
+        z-index: 12;
+        color: #fff;
+        font-size: 15px;
+        background: rgba(255, 90, 140, 0.3);
+        border: 1px solid rgba(255, 170, 200, 0.6);
+        border-radius: 30px;
+        padding: 10px 22px;
+        text-shadow: 0 1px 4px #000;
+        opacity: 0;
+        transition: opacity 0.25s ease;
+        pointer-events: none;
+        white-space: nowrap;
+      }
+      #prompt.show {
+        opacity: 1;
+      }
+      body.touch #prompt.show {
+        pointer-events: auto;
+        cursor: pointer;
+      } /* tap the label to open it */
+
+      /* ─────────── Music button ─────────── */
+      #music-btn {
+        position: fixed;
+        top: 62px;
+        right: max(16px, env(safe-area-inset-right));
+        z-index: 13;
+        width: 42px;
+        height: 42px;
+        border-radius: 50%;
+        cursor: pointer;
+        color: #fff;
+        font-size: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(255, 100, 150, 0.25);
+        border: 1px solid rgba(255, 170, 200, 0.5);
+        text-shadow: 0 1px 3px #000;
+        user-select: none;
+      }
+      #music-btn.off {
+        opacity: 0.55;
+      }
+      body.touch #hud {
+        display: none;
+      }
+      body.touch #title {
+        font-size: 0.92em;
+      }
+
+      /* ─────────── Touch controls (phones) ─────────── */
+      #look-layer {
+        position: fixed;
+        inset: 0;
+        z-index: 8;
+        display: none;
+        touch-action: none;
+      }
+      body.touch #look-layer {
+        display: block;
+      }
+      #touch {
+        position: fixed;
+        inset: 0;
+        z-index: 11;
+        display: none;
+        pointer-events: none;
+      }
+      body.touch #touch.on {
+        display: block;
+      }
+      #joystick {
+        position: fixed;
+        left: max(20px, env(safe-area-inset-left));
+        bottom: max(28px, env(safe-area-inset-bottom));
+        width: 128px;
+        height: 128px;
+        border-radius: 50%;
+        pointer-events: auto;
+        touch-action: none;
+        background: radial-gradient(
+          circle,
+          rgba(255, 150, 190, 0.16),
+          rgba(255, 150, 190, 0.04)
+        );
+        border: 1px solid rgba(255, 160, 200, 0.4);
+      }
+      #joy-knob {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 54px;
+        height: 54px;
+        margin: -27px 0 0 -27px;
+        border-radius: 50%;
+        background: radial-gradient(circle, #ff9ec2, #ff5d83);
+        box-shadow: 0 0 18px rgba(255, 110, 160, 0.8);
+      }
+      .tbtn {
+        position: fixed;
+        width: 62px;
+        height: 62px;
+        border-radius: 50%;
+        pointer-events: auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 22px;
+        color: #fff;
+        background: rgba(255, 100, 150, 0.22);
+        border: 1px solid rgba(255, 170, 200, 0.5);
+        text-shadow: 0 1px 3px #000;
+        user-select: none;
+        touch-action: none;
+      }
+      .tbtn:active {
+        background: rgba(255, 100, 150, 0.48);
+      }
+      #btn-up {
+        right: max(20px, env(safe-area-inset-right));
+        bottom: 178px;
+      }
+      #btn-down {
+        right: max(20px, env(safe-area-inset-right));
+        bottom: 106px;
+      }
+      #btn-boost {
+        right: max(20px, env(safe-area-inset-right));
+        bottom: 34px;
+        font-size: 20px;
+      }
+      /* the heart only shows up once she's close enough — and it's made special */
+      #btn-action {
+        right: max(16px, env(safe-area-inset-right));
+        bottom: 250px;
+        width: 88px;
+        height: 88px;
+        font-size: 40px;
+        color: #fff;
+        background: radial-gradient(circle at 50% 38%, #ff85ab, #ff2d63);
+        border: 2px solid rgba(255, 224, 236, 0.95);
+        box-shadow: 0 0 26px rgba(255, 90, 150, 0.85);
+        text-shadow: 0 2px 8px rgba(120, 0, 40, 0.55);
+        display: none;
+      }
+      #btn-action.live {
+        display: flex;
+        animation:
+          heartbeat 1s ease-in-out infinite,
+          glowpulse 1.6s ease-in-out infinite;
+      }
+      #btn-action.live::before {
+        content: "";
+        position: absolute;
+        inset: -12px;
+        border-radius: 50%;
+        pointer-events: none;
+        border: 2px solid rgba(255, 160, 195, 0.75);
+        animation: ripple 1.5s ease-out infinite;
+      }
+      @keyframes heartbeat {
+        0%,
+        100% {
+          transform: scale(1);
+        }
+        14% {
+          transform: scale(1.2);
+        }
+        28% {
+          transform: scale(1.02);
+        }
+        42% {
+          transform: scale(1.13);
+        }
+        56% {
+          transform: scale(1);
+        }
+      }
+      @keyframes glowpulse {
+        0%,
+        100% {
+          box-shadow: 0 0 26px rgba(255, 90, 150, 0.8);
+        }
+        50% {
+          box-shadow: 0 0 46px rgba(255, 130, 175, 1);
+        }
+      }
+      @keyframes ripple {
+        0% {
+          transform: scale(0.85);
+          opacity: 0.85;
+        }
+        100% {
+          transform: scale(1.6);
+          opacity: 0;
+        }
+      }
+      @keyframes pulseBtn {
+        0%,
+        100% {
+          box-shadow: 0 0 22px rgba(255, 90, 150, 0.7);
+        }
+        50% {
+          box-shadow: 0 0 36px rgba(255, 120, 170, 1);
+        }
+      }
+
+      /* ─────────── Content panels (gift / secret / mood / portrait / story) ─────────── */
+      .panel {
+        position: fixed;
+        inset: 0;
+        z-index: 60;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(10, 2, 8, 0.78);
+        backdrop-filter: blur(6px);
+        padding: 20px;
+      }
+      .panel.show {
+        display: flex;
+        animation: fadeIn 0.3s ease;
+      }
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+      .panel-card {
+        position: relative;
+        max-width: 560px;
+        width: 100%;
+        max-height: 84vh;
+        overflow: auto;
+        background: linear-gradient(
+          160deg,
+          rgba(64, 20, 46, 0.97),
+          rgba(28, 8, 20, 0.98)
+        );
+        border: 1px solid rgba(255, 150, 190, 0.42);
+        border-radius: 22px;
+        padding: 34px 26px 28px;
+        color: #ffe6ef;
+        text-align: center;
+        direction: rtl;
+        box-shadow: 0 22px 64px rgba(255, 60, 120, 0.28);
+      }
+      .panel-card h2 {
+        color: #ff9ec2;
+        font-size: 23px;
+        margin-bottom: 12px;
+      }
+      .panel-card .emoji-head {
+        font-size: 54px;
+        display: block;
+        margin-bottom: 6px;
+      }
+      .panel-card .big-msg {
+        font-size: 21px;
+        line-height: 1.85;
+        color: #fff0f6;
+      }
+      .panel-card p {
+        font-size: 15.5px;
+        line-height: 1.95;
+        margin: 10px 0;
+        color: #f3cfe0;
+      }
+      .panel-close {
+        position: absolute;
+        top: 12px;
+        left: 14px;
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        background: rgba(255, 100, 150, 0.25);
+        border: 1px solid rgba(255, 170, 200, 0.5);
+        color: #fff;
+        font-size: 17px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .portrait-img {
+        width: 100%;
+        max-width: 420px;
+        border-radius: 16px;
+        border: 3px solid rgba(255, 180, 210, 0.6);
+        box-shadow: 0 0 40px rgba(255, 90, 150, 0.5);
+        margin: 0 auto 14px;
+        display: block;
+      }
+      .mood-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        justify-content: center;
+        margin: 18px 0 4px;
+      }
+      .mood-pick {
+        cursor: pointer;
+        background: rgba(255, 150, 190, 0.12);
+        border: 1px solid rgba(255, 160, 200, 0.35);
+        border-radius: 16px;
+        padding: 12px 12px;
+        min-width: 80px;
+        transition:
+          transform 0.15s,
+          background 0.15s;
+      }
+      .mood-pick:hover,
+      .mood-pick:active {
+        transform: scale(1.08);
+        background: rgba(255, 150, 190, 0.3);
+      }
+      .mood-pick .e {
+        font-size: 34px;
+        display: block;
+      }
+      .mood-pick .l {
+        font-size: 13px;
+        margin-top: 4px;
+        color: #ffd0e4;
+      }
+      .panel-btn {
+        margin-top: 18px;
+        display: inline-block;
+        cursor: pointer;
+        color: #fff;
+        font-size: 15px;
+        background: rgba(255, 90, 140, 0.36);
+        border: 1px solid rgba(255, 170, 200, 0.6);
+        border-radius: 30px;
+        padding: 10px 26px;
+        user-select: none;
+      }
+      .panel-btn:active {
+        background: rgba(255, 90, 140, 0.6);
+      }
+      .timeline-item {
+        text-align: right;
+        border-right: 3px solid rgba(255, 150, 190, 0.5);
+        padding: 4px 14px 4px 0;
+        margin: 14px 0;
+      }
+      .timeline-item .td {
+        color: #ff9ec2;
+        font-size: 13px;
+        margin-bottom: 4px;
+        font-weight: 600;
+      }
+      .timeline-item .tt {
+        font-size: 15px;
+        line-height: 1.85;
+        color: #f3cfe0;
+      }
+
+      /* ─────────── Breathing overlay ─────────── */
+      #breathe {
+        position: fixed;
+        inset: 0;
+        z-index: 65;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        direction: rtl;
+        background: radial-gradient(
+          circle at 50% 45%,
+          rgba(54, 16, 42, 0.92),
+          rgba(8, 2, 6, 0.97)
+        );
+      }
+      #breathe.show {
+        display: flex;
+      }
+      #breathe .bclose {
+        position: absolute;
+        top: 16px;
+        left: 18px;
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: rgba(255, 100, 150, 0.25);
+        border: 1px solid rgba(255, 170, 200, 0.5);
+        color: #fff;
+        font-size: 18px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      #breathe .circle {
+        width: 180px;
+        height: 180px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 56px;
+        background: radial-gradient(circle, #ff7da0, #ff2d5e);
+        box-shadow: 0 0 60px rgba(255, 90, 150, 0.8);
+        transition:
+          transform 0.25s linear,
+          background 0.6s ease;
+      }
+      #breathe .phase {
+        font-size: 30px;
+        margin-top: 34px;
+        color: #fff;
+        font-weight: 700;
+        min-height: 38px;
+      }
+      #breathe .timer {
+        font-size: 22px;
+        color: #ffd0e4;
+        margin-top: 6px;
+        min-height: 26px;
+      }
+      #breathe .cyc {
+        font-size: 13px;
+        color: #e3a9c4;
+        margin-top: 8px;
+        min-height: 18px;
+      }
+
+      /* ─────────── Final celebration ─────────── */
+      #celebrate {
+        position: fixed;
+        inset: 0;
+        z-index: 70;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        direction: rtl;
+        background: radial-gradient(
+          circle,
+          rgba(64, 20, 46, 0.93),
+          rgba(12, 2, 8, 0.97)
+        );
+      }
+      #celebrate.show {
+        display: flex;
+      }
+      #celebrate .c-card {
+        color: #ffe6ef;
+        max-width: 480px;
+        padding: 24px;
+      }
+      #celebrate h1 {
+        font-size: clamp(26px, 7vw, 38px);
+        color: #ff9ec2;
+        text-shadow: 0 0 26px rgba(255, 90, 150, 0.85);
+        margin-bottom: 14px;
+      }
+      #celebrate p {
+        font-size: 17px;
+        line-height: 1.9;
+        color: #f3cfe0;
+      }
+      #celebrate .panel-btn {
+        margin-top: 22px;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="app"></canvas>
+    <div class="flash" id="flash"></div>
+
+    <div id="hud">
+      <div><b>Infinite Rose City ♥  /b></div>
+      <div>
+        <span class="key">W</span><span class="key">A</span
+        ><span class="key">S</span><span class="key">D</span> move &nbsp;
+        <span class="key">⇧</span> boost &nbsp; <span class="key">Q</span
+        ><span class="key">E</span> down / up
+      </div>
+      <div>🕐 time follows your real clock</div>
+      <div>
+        <span class="key">1</span> gentle &nbsp; <span class="key">2</span> rosy
+        &nbsp; <span class="key">3</span> petal storm 🌹
+      </div>
+      <div>Mouse — look around &nbsp; <span class="key">Esc</span> release</div>
+      <div>
+        <span class="key">F</span> open a surprise ✨ — fly to the glowing
+        beacons 🌹
+      </div>
+    </div>
+
+    <div id="title">
+      <h1>ROSE CITY ♥</h1>
+    </div>
+
+    <div id="stats"></div>
+
+    <div id="overlay">
+      <div class="card">
+        <div class="go">Enter Rose City</div>
+      </div>
+    </div>
+
+    <!-- ♥ Loading: Welcome to Rose Dream Land ♥ -->
+    <div id="loading">
+      <div class="rose">🌹</div>
+      <h1>Rose Dream City</h1>
+      <div class="barwrap"><div class="bar" id="load-bar"></div></div>
+      <div class="pct" id="load-pct">0%</div>
+    </div>
+
+    <!-- discovery counter + interaction prompt -->
+    <div id="discovery">
+      <span id="disc-count">0</span> / <span id="disc-total">7</span> 💗
+    </div>
+    <div id="prompt"></div>
+
+    <!-- ambient music -->
+    <div id="music-btn" class="off" title="موسيقى">♪</div>
+
+    <!-- on-screen controls for phones -->
+    <div id="look-layer"></div>
+    <div id="touch">
+      <div id="joystick"><div id="joy-knob"></div></div>
+      <div class="tbtn" id="btn-up">▲</div>
+      <div class="tbtn" id="btn-down">▼</div>
+      <div class="tbtn" id="btn-boost">⚡</div>
+      <div class="tbtn" id="btn-action">♥</div>
+    </div>
+
+    <!-- generic content panel -->
+    <div class="panel" id="panel">
+      <div class="panel-card" id="panel-card">
+        <div class="panel-close" id="panel-close">✕</div>
+        <div id="panel-body"></div>
+      </div>
+    </div>
+
+    <!-- breathing overlay -->
+    <div id="breathe">
+      <div class="bclose" id="breathe-close">✕</div>
+      <div class="circle" id="breathe-circle">🌹</div>
+      <div class="phase" id="breathe-phase">جاهزة؟</div>
+      <div class="timer" id="breathe-timer"></div>
+      <div class="cyc" id="breathe-cyc">خليني ساعدك تسترخي 💜</div>
+      <div class="panel-btn" id="breathe-start">يلا نتنفس سوا</div>
+    </div>
+
+    <!-- final celebration -->
+    <div id="celebrate"><div class="c-card" id="celebrate-card"></div></div>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+          "firebase/app": "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js",
+          "firebase/firestore": "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js"
+        }
+      }
+    </script>
+
+    <!-- same visit + click tracking as the original Rose site (sets window.trackButtonClick) -->
+    <script type="module" src="../analytics.js"></script>
+
+    <script type="module">
+      import * as THREE from "three";
+      import { Sky } from "three/addons/objects/Sky.js";
+      // Real love-words from the original Rose project — re-used as the city's treasures.
+      import { dailyMessages, moodMessages } from "../messages.js";
+
+      // ----------------------------------------------------------------------------
+      // Renderer / Scene / Camera
+      // ----------------------------------------------------------------------------
+      const canvas = document.getElementById("app");
+      // Touch device? → phones get full on-screen controls + lighter settings so the
+      // dream land stays buttery even on a pocket GPU.
+      let isTouch =
+        matchMedia("(pointer: coarse)").matches ||
+        "ontouchstart" in window ||
+        navigator.maxTouchPoints > 0;
+      if (isTouch) document.body.classList.add("touch");
+
+      const renderer = new THREE.WebGLRenderer({
+        canvas,
+        antialias: !isTouch,
+        powerPreference: "high-performance",
+      });
+      renderer.setPixelRatio(
+        Math.min(window.devicePixelRatio, isTouch ? 1.6 : 2),
+      );
+      renderer.setSize(innerWidth, innerHeight);
+      renderer.shadowMap.enabled = !isTouch; // shadows are costly on phones
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 0.62;
+
+      const scene = new THREE.Scene();
+      const FOG_COLOR = new THREE.Color(0x1c0c18);
+      scene.fog = new THREE.FogExp2(FOG_COLOR, 0.0065);
+      scene.background = FOG_COLOR.clone();
+
+      const camera = new THREE.PerspectiveCamera(
+        70,
+        innerWidth / innerHeight,
+        0.5,
+        2000,
+      );
+      camera.position.set(0, 28, 0);
+
+      // uNight (0 = full day, 1 = full night) drives every artificial light source —
+      // window glow, lamp pools, street lights. Shared between the facade & ground
+      // shaders so the whole city lights up at dusk and dims at dawn.
+      const uNight = { value: 1.0 };
+
+      // ----------------------------------------------------------------------------
+      // Sky dome — parametric, animated across the day/night cycle (see updateEnv)
+      // ----------------------------------------------------------------------------
+      const sky = new Sky();
+      sky.scale.setScalar(10000);
+      scene.add(sky);
+      const skyU = sky.material.uniforms;
+      skyU.mieDirectionalG.value = 0.85;
+      const sun = new THREE.Vector3();
+      function setSun(elevDeg, aziDeg) {
+        const phi = THREE.MathUtils.degToRad(90 - elevDeg);
+        const theta = THREE.MathUtils.degToRad(aziDeg);
+        sun.setFromSphericalCoords(1, phi, theta);
+        skyU.sunPosition.value.copy(sun);
+      }
+
+      // ----------------------------------------------------------------------------
+      // Lighting — one celestial key light (sun by day) + sky/ground ambient
+      // ----------------------------------------------------------------------------
+      const hemi = new THREE.HemisphereLight(0xffc7dd, 0x281820, 0.6);
+      scene.add(hemi);
+
+      const keyLight = new THREE.DirectionalLight(0xffffff, 1.0);
+      keyLight.castShadow = true;
+      keyLight.shadow.mapSize.set(2048, 2048);
+      keyLight.shadow.camera.near = 10;
+      keyLight.shadow.camera.far = 700;
+      const sc = 320;
+      keyLight.shadow.camera.left = -sc;
+      keyLight.shadow.camera.right = sc;
+      keyLight.shadow.camera.top = sc;
+      keyLight.shadow.camera.bottom = -sc;
+      keyLight.shadow.bias = -0.0004;
+      scene.add(keyLight);
+      scene.add(keyLight.target);
+
+      // faint cool moon fill so night scenes aren't pitch black
+      const moonFill = new THREE.DirectionalLight(0xd8a8c8, 0.0);
+      scene.add(moonFill);
+      scene.add(moonFill.target);
+
+      // Lightning light — bursts during strikes
+      const lightning = new THREE.PointLight(0xff9ec2, 0, 1600, 1.4);
+      lightning.position.set(0, 320, 0);
+      scene.add(lightning);
+
+      // Pool of real point lights that snap to the nearest street-lamp nodes each
+      // frame, so the street around you is genuinely lit (the rest is emissive only).
+      const lampLights = [];
+      for (let i = 0; i < 9; i++) {
+        const L = new THREE.PointLight(0xff6090, 0, 40, 1.8);
+        scene.add(L);
+        lampLights.push(L);
+      }
+
+      // ----------------------------------------------------------------------------
+      // Celestial bodies — a visible sun and moon disc that ride the sky, plus stars
+      // ----------------------------------------------------------------------------
+      function glowTexture(stops) {
+        const c = document.createElement("canvas");
+        c.width = c.height = 128;
+        const g = c.getContext("2d");
+        const grad = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+        for (const [o, col] of stops) grad.addColorStop(o, col);
+        g.fillStyle = grad;
+        g.fillRect(0, 0, 128, 128);
+        const t = new THREE.CanvasTexture(c);
+        return t;
+      }
+      const sunTex = glowTexture([
+        [0, "rgba(255,250,235,1)"],
+        [0.18, "rgba(255,240,200,0.95)"],
+        [0.4, "rgba(255,180,110,0.45)"],
+        [1, "rgba(255,150,90,0)"],
+      ]);
+
+      // A painted blue moon: sphere-shaded body with maria, craters and a soft halo.
+      function makeMoonTexture() {
+        const s = 512,
+          c = document.createElement("canvas");
+        c.width = c.height = s;
+        const g = c.getContext("2d");
+        const cx = s / 2,
+          cy = s / 2,
+          R = s * 0.4;
+
+        // soft neutral halo
+        const halo = g.createRadialGradient(cx, cy, R * 0.85, cx, cy, s * 0.5);
+        halo.addColorStop(0, "rgba(240,238,228,0.26)");
+        halo.addColorStop(1, "rgba(225,222,212,0)");
+        g.fillStyle = halo;
+        g.fillRect(0, 0, s, s);
+
+        g.save();
+        g.beginPath();
+        g.arc(cx, cy, R, 0, 7);
+        g.clip(); // everything below stays on the disc
+
+        // realistic moon body — warm grey, lit from upper-left
+        const body = g.createRadialGradient(
+          cx - R * 0.32,
+          cy - R * 0.32,
+          R * 0.1,
+          cx,
+          cy,
+          R * 1.15,
+        );
+        body.addColorStop(0, "#f8f5ed");
+        body.addColorStop(0.55, "#dad5c8");
+        body.addColorStop(1, "#9f9a8c");
+        g.fillStyle = body;
+        g.fillRect(0, 0, s, s);
+
+        // dark grey maria patches
+        const blob = (x, y, r, a) => {
+          const gr = g.createRadialGradient(x, y, 0, x, y, r);
+          gr.addColorStop(0, `rgba(122,117,104,${a})`);
+          gr.addColorStop(1, "rgba(122,117,104,0)");
+          g.fillStyle = gr;
+          g.beginPath();
+          g.arc(x, y, r, 0, 7);
+          g.fill();
+        };
+        blob(cx - R * 0.18, cy - R * 0.22, R * 0.5, 0.42);
+        blob(cx + R * 0.32, cy + R * 0.08, R * 0.38, 0.36);
+        blob(cx + R * 0.02, cy + R * 0.42, R * 0.32, 0.3);
+
+        // craters: grey fill with a faint bright rim
+        const craters = [
+          [-0.4, 0.3, 0.11],
+          [0.36, -0.36, 0.085],
+          [0.1, 0.16, 0.06],
+          [-0.16, 0.46, 0.05],
+          [0.46, 0.3, 0.06],
+          [-0.46, -0.1, 0.05],
+          [0.22, -0.08, 0.045],
+        ];
+        for (const [dx, dy, rr] of craters) {
+          const x = cx + dx * R,
+            y = cy + dy * R,
+            r = rr * R;
+          g.fillStyle = "rgba(108,103,92,0.5)";
+          g.beginPath();
+          g.arc(x, y, r, 0, 7);
+          g.fill();
+          g.strokeStyle = "rgba(252,249,240,0.4)";
+          g.lineWidth = Math.max(1, r * 0.16);
+          g.beginPath();
+          g.arc(x, y, r * 0.94, 0, 7);
+          g.stroke();
+        }
+
+        // ---- only "Rose" engraved into the moon — clear & carved ----
+        g.save();
+        g.textAlign = "center";
+        g.textBaseline = "middle";
+        g.font = `italic 700 ${Math.floor(R * 0.52)}px Georgia, "Palatino Linotype", serif`;
+        const ey = cy + R * 0.05;
+        g.fillStyle = "rgba(255,255,248,0.72)";
+        g.fillText("Rose", cx + R * 0.015, ey + R * 0.02); // lit lower rim
+        g.fillStyle = "rgba(70,66,58,0.92)";
+        g.fillText("Rose", cx, ey); // carved recess
+        g.fillStyle = "rgba(28,26,22,0.42)";
+        g.fillText("Rose", cx - R * 0.01, ey - R * 0.013); // shadowed upper edge
+        g.restore();
+
+        // terminator shading toward lower-right for a 3D feel
+        const term = g.createRadialGradient(
+          cx + R * 0.55,
+          cy + R * 0.55,
+          R * 0.15,
+          cx + R * 0.55,
+          cy + R * 0.55,
+          R * 1.7,
+        );
+        term.addColorStop(0, "rgba(22,20,16,0)");
+        term.addColorStop(1, "rgba(12,10,8,0.5)");
+        g.fillStyle = term;
+        g.fillRect(0, 0, s, s);
+        g.restore();
+
+        return new THREE.CanvasTexture(c);
+      }
+      const moonTex = makeMoonTexture();
+
+      const sunDisc = new THREE.Sprite(
+        new THREE.SpriteMaterial({
+          map: sunTex,
+          transparent: true,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          fog: false,
+          opacity: 0,
+        }),
+      );
+      sunDisc.scale.set(170, 170, 1);
+      scene.add(sunDisc);
+
+      // NormalBlending so it reads as a solid body (the halo glow is baked in)
+      const moonDisc = new THREE.Sprite(
+        new THREE.SpriteMaterial({
+          map: moonTex,
+          transparent: true,
+          depthWrite: false,
+          fog: false,
+          opacity: 0,
+        }),
+      );
+      moonDisc.scale.set(170, 170, 1);
+      scene.add(moonDisc);
+
+      // soft glow halo behind the moon that swells gently every little while
+      const moonGlowTex = glowTexture([
+        [0, "rgba(248,247,240,0.85)"],
+        [0.35, "rgba(232,230,222,0.4)"],
+        [0.7, "rgba(220,218,210,0.15)"],
+        [1, "rgba(220,218,210,0)"],
+      ]);
+      const moonGlow = new THREE.Sprite(
+        new THREE.SpriteMaterial({
+          map: moonGlowTex,
+          transparent: true,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          fog: false,
+          opacity: 0,
+        }),
+      );
+      moonGlow.scale.set(215, 215, 1);
+      scene.add(moonGlow);
+
+      const SKY_DIST = 1300; // how far the discs/stars sit from the camera
+      const sunDir = new THREE.Vector3();
+      const moonDir = new THREE.Vector3();
+
+      // Star field on a big sphere that follows the camera; fades in at night.
+      // Tiny round points with per-star size, colour and twinkle — most are faint
+      // pinpricks, a few are brighter, so the sky reads as real rather than dotty.
+      const STAR_COUNT = 4200;
+      const starGeo = new THREE.BufferGeometry();
+      const sPos = new Float32Array(STAR_COUNT * 3);
+      const sSize = new Float32Array(STAR_COUNT);
+      const sCol = new Float32Array(STAR_COUNT * 3);
+      const sPhase = new Float32Array(STAR_COUNT);
+      const _sc = new THREE.Color();
+      for (let i = 0; i < STAR_COUNT; i++) {
+        const u = Math.random(),
+          v = Math.random();
+        const theta = u * Math.PI * 2;
+        const phi = Math.acos(2 * v - 1);
+        const rr = 1500;
+        sPos[i * 3] = rr * Math.sin(phi) * Math.cos(theta);
+        sPos[i * 3 + 1] = Math.abs(rr * Math.cos(phi)) * 0.92 + 30; // keep above horizon
+        sPos[i * 3 + 2] = rr * Math.sin(phi) * Math.sin(theta);
+        // mostly tiny (cube-biased), occasional brighter star
+        const t = Math.random();
+        sSize[i] = 0.6 + t * t * t * 2.6;
+        sPhase[i] = Math.random() * Math.PI * 2;
+        // colour temperature: most blue-white, a few warm
+        const warm = Math.random();
+        if (warm > 0.86)
+          _sc.setRGB(1.0, 0.85, 0.7); // warm
+        else if (warm > 0.6)
+          _sc.setRGB(1.0, 0.98, 0.95); // white
+        else _sc.setRGB(0.8, 0.88, 1.0); // blue-white
+        const b = 0.55 + Math.random() * 0.45;
+        sCol[i * 3] = _sc.r * b;
+        sCol[i * 3 + 1] = _sc.g * b;
+        sCol[i * 3 + 2] = _sc.b * b;
+      }
+      starGeo.setAttribute("position", new THREE.BufferAttribute(sPos, 3));
+      starGeo.setAttribute("aSize", new THREE.BufferAttribute(sSize, 1));
+      starGeo.setAttribute("aColor", new THREE.BufferAttribute(sCol, 3));
+      starGeo.setAttribute("aPhase", new THREE.BufferAttribute(sPhase, 1));
+
+      const starMat = new THREE.ShaderMaterial({
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        fog: false,
+        uniforms: {
+          uOpacity: { value: 0 },
+          uTime: { value: 0 },
+          uDPR: { value: renderer.getPixelRatio() },
+        },
+        vertexShader: `
+    attribute float aSize;
+    attribute vec3 aColor;
+    attribute float aPhase;
+    uniform float uTime;
+    uniform float uDPR;
+    varying vec3 vColor;
+    varying float vTw;
+    void main() {
+      vColor = aColor;
+      // gentle twinkle, faster for smaller stars
+      vTw = 0.7 + 0.3 * sin(uTime * (1.5 + aSize) + aPhase);
+      vec4 mv = modelViewMatrix * vec4(position, 1.0);
+      gl_PointSize = aSize * uDPR;        // fixed pixel size — stays tiny & crisp
+      gl_Position = projectionMatrix * mv;
+    }`,
+        fragmentShader: `
+    uniform float uOpacity;
+    varying vec3 vColor;
+    varying float vTw;
+    void main() {
+      // soft round star with a tight core
+      float d = length(gl_PointCoord - 0.5);
+      float a = smoothstep(0.5, 0.0, d);
+      a *= a;
+      gl_FragColor = vec4(vColor * vTw, a * uOpacity);
+    }`,
+      });
+      const stars = new THREE.Points(starGeo, starMat);
+      stars.frustumCulled = false;
+      scene.add(stars);
+      let starTime = 0;
+
+      // ----------------------------------------------------------------------------
+      // ♥ LOVE & ROSES ♥ — the city's romantic soul
+      // Canvas-painted textures shared everywhere: the "روز / Rose ♥" sign that
+      // floats over every building, glowing hearts that drift through the streets,
+      // and soft rose petals raining down over the whole skyline.
+      // ----------------------------------------------------------------------------
+
+      // Beautiful glowing rooftop signs — a mix of Arabic روز and Latin Rose, in many
+      // colours, drawn big & clean. Each building picks one variant (see buildChunk).
+      function makeLabel(lines, glow) {
+        const w = 512,
+          h = 256,
+          cv = document.createElement("canvas");
+        cv.width = w;
+        cv.height = h;
+        const g = cv.getContext("2d");
+        g.clearRect(0, 0, w, h);
+        g.textAlign = "center";
+        g.textBaseline = "middle";
+        const n = lines.length;
+        lines.forEach((ln, i) => {
+          const y = n === 1 ? h * 0.52 : i === 0 ? h * 0.41 : h * 0.75;
+          g.shadowColor = glow;
+          g.shadowBlur = 30;
+          g.fillStyle = ln.color;
+          g.font = ln.font;
+          g.fillText(ln.t, w / 2, y);
+        });
+        const t = new THREE.CanvasTexture(cv);
+        t.anisotropy = 4;
+        return t;
+      }
+      const AR = (px) => `900 ${px}px "Segoe UI", Tahoma, "Arial", sans-serif`;
+      const EN = (px) =>
+        `italic 600 ${px}px Georgia, "Palatino Linotype", serif`;
+      // palette of romantic colours for the signs
+      const LC = {
+        white: "#fff2f8",
+        blush: "#ffd0e4",
+        pink: "#ff9ec2",
+        red: "#ff5d83",
+        gold: "#ffe1a8",
+        purple: "#cda8ff",
+        sky: "#bfe0ff",
+        mint: "#c6f7e2",
+      };
+      const LABEL_VARIANTS = [
+        makeLabel(
+          [{ t: "Rose", font: EN(132), color: LC.white }],
+          "rgba(255,110,165,0.95)",
+        ),
+        makeLabel(
+          [{ t: "روز", font: AR(150), color: LC.blush }],
+          "rgba(255,90,150,0.95)",
+        ),
+        makeLabel(
+          [{ t: "♥ Rose ♥", font: EN(92), color: LC.pink }],
+          "rgba(255,120,175,0.95)",
+        ),
+        makeLabel(
+          [{ t: "♥ روز ♥", font: AR(108), color: LC.gold }],
+          "rgba(255,180,90,0.9)",
+        ),
+        makeLabel(
+          [{ t: "Rose", font: EN(120), color: LC.purple }],
+          "rgba(170,120,255,0.95)",
+        ),
+        makeLabel(
+          [{ t: "روز", font: AR(150), color: LC.red }],
+          "rgba(255,70,110,0.95)",
+        ),
+        makeLabel(
+          [{ t: "Rose", font: EN(120), color: LC.sky }],
+          "rgba(120,180,255,0.9)",
+        ),
+        makeLabel(
+          [{ t: "روز", font: AR(140), color: LC.mint }],
+          "rgba(130,240,200,0.85)",
+        ),
+        makeLabel(
+          [
+            { t: "روز", font: AR(92), color: LC.white },
+            { t: "Rose", font: EN(62), color: LC.blush },
+          ],
+          "rgba(255,110,165,0.95)",
+        ),
+      ];
+      const LABEL_MATS = LABEL_VARIANTS.map(
+        (tex) =>
+          new THREE.SpriteMaterial({
+            map: tex,
+            transparent: true,
+            depthWrite: false,
+            opacity: 0.96,
+          }),
+      );
+      const labelAspect = 0.5;
+
+      // A soft, self-glowing heart with a top highlight. c1=tip, c2=top.
+      function makeHeartTexture(c1, c2) {
+        const s = 128,
+          cv = document.createElement("canvas");
+        cv.width = cv.height = s;
+        const g = cv.getContext("2d");
+        const glow = g.createRadialGradient(
+          s / 2,
+          s / 2,
+          0,
+          s / 2,
+          s / 2,
+          s / 2,
+        );
+        glow.addColorStop(0, "rgba(255,150,190,0.50)");
+        glow.addColorStop(0.6, "rgba(255,120,170,0.16)");
+        glow.addColorStop(1, "rgba(255,120,170,0)");
+        g.fillStyle = glow;
+        g.fillRect(0, 0, s, s);
+        g.save();
+        g.translate(s / 2, s * 0.46);
+        g.scale(s * 0.0145, s * 0.0145);
+        g.beginPath();
+        g.moveTo(0, 26);
+        g.bezierCurveTo(28, 2, 20, -28, 0, -12);
+        g.bezierCurveTo(-20, -28, -28, 2, 0, 26);
+        g.closePath();
+        const grad = g.createLinearGradient(0, -28, 0, 28);
+        grad.addColorStop(0, c2);
+        grad.addColorStop(1, c1);
+        g.fillStyle = grad;
+        g.shadowColor = "rgba(255,80,130,0.8)";
+        g.shadowBlur = 12;
+        g.fill();
+        g.shadowBlur = 0;
+        g.beginPath();
+        g.fillStyle = "rgba(255,255,255,0.42)";
+        g.ellipse(-8, -6, 5, 8, -0.5, 0, 7);
+        g.fill();
+        g.restore();
+        return new THREE.CanvasTexture(cv);
+      }
+      const heartTexA = makeHeartTexture("#ff2d5e", "#ff7da0"); // deep rose
+      const heartTexB = makeHeartTexture("#ff6f91", "#ffd0de"); // blush pink
+
+      // Soft white rose petal — tinted per-particle in the shader.
+      function makePetalTexture() {
+        const s = 64,
+          cv = document.createElement("canvas");
+        cv.width = cv.height = s;
+        const g = cv.getContext("2d");
+        g.translate(s / 2, s / 2);
+        g.rotate(-0.6);
+        g.beginPath();
+        g.moveTo(0, -24);
+        g.bezierCurveTo(18, -14, 16, 16, 0, 26);
+        g.bezierCurveTo(-16, 16, -18, -14, 0, -24);
+        g.closePath();
+        const grad = g.createRadialGradient(-4, -4, 1, 0, 0, 28);
+        grad.addColorStop(0, "rgba(255,255,255,1)");
+        grad.addColorStop(0.55, "rgba(255,255,255,0.9)");
+        grad.addColorStop(1, "rgba(255,255,255,0)");
+        g.fillStyle = grad;
+        g.fill();
+        return new THREE.CanvasTexture(cv);
+      }
+      const petalTex = makePetalTexture();
+
+      // ---- Falling rose petals ---------------------------------------------------
+      // Always present (love is in the air); density swells with the "petal storm".
+      const PETAL_COUNT = 1600;
+      const PETAL_BOX = 190,
+        PETAL_H = 170;
+      const petalGeo = new THREE.BufferGeometry();
+      const pPos = new Float32Array(PETAL_COUNT * 3);
+      const pCol = new Float32Array(PETAL_COUNT * 3);
+      const pSize = new Float32Array(PETAL_COUNT);
+      const pPhase = new Float32Array(PETAL_COUNT);
+      const pSpin = new Float32Array(PETAL_COUNT);
+      const pFall = new Float32Array(PETAL_COUNT);
+      const PETAL_PALETTE = [
+        [1.0, 0.3, 0.45],
+        [1.0, 0.55, 0.72],
+        [1.0, 0.78, 0.86],
+        [1.0, 0.42, 0.58],
+        [1.0, 0.95, 0.97],
+      ];
+      for (let i = 0; i < PETAL_COUNT; i++) {
+        pPos[i * 3] = (Math.random() - 0.5) * PETAL_BOX * 2;
+        pPos[i * 3 + 1] = Math.random() * PETAL_H;
+        pPos[i * 3 + 2] = (Math.random() - 0.5) * PETAL_BOX * 2;
+        const col = PETAL_PALETTE[(Math.random() * PETAL_PALETTE.length) | 0];
+        const b = 0.82 + Math.random() * 0.18;
+        pCol[i * 3] = col[0] * b;
+        pCol[i * 3 + 1] = col[1] * b;
+        pCol[i * 3 + 2] = col[2] * b;
+        pSize[i] = 1.6 + Math.random() * 2.6;
+        pPhase[i] = Math.random() * 6.283;
+        pSpin[i] = (0.2 + Math.random() * 0.6) * (Math.random() < 0.5 ? -1 : 1);
+        pFall[i] = 6 + Math.random() * 7;
+      }
+      petalGeo.setAttribute("position", new THREE.BufferAttribute(pPos, 3));
+      petalGeo.setAttribute("aColor", new THREE.BufferAttribute(pCol, 3));
+      petalGeo.setAttribute("aSize", new THREE.BufferAttribute(pSize, 1));
+      const petalMat = new THREE.ShaderMaterial({
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.NormalBlending,
+        uniforms: {
+          uTex: { value: petalTex },
+          uOpacity: { value: 0.9 },
+          uPix: { value: innerHeight * renderer.getPixelRatio() * 0.72 },
+        },
+        vertexShader: `
+    attribute float aSize;
+    attribute vec3 aColor;
+    varying vec3 vColor;
+    uniform float uPix;
+    void main() {
+      vColor = aColor;
+      vec4 mv = modelViewMatrix * vec4(position, 1.0);
+      gl_PointSize = aSize * uPix / max(-mv.z, 1.0);
+      gl_Position = projectionMatrix * mv;
+    }`,
+        fragmentShader: `
+    uniform sampler2D uTex;
+    uniform float uOpacity;
+    varying vec3 vColor;
+    void main() {
+      vec4 t = texture2D(uTex, gl_PointCoord);
+      if (t.a < 0.02) discard;
+      gl_FragColor = vec4(vColor, t.a * uOpacity);
+    }`,
+      });
+      const petals = new THREE.Points(petalGeo, petalMat);
+      petals.frustumCulled = false;
+      scene.add(petals);
+
+      function updatePetals(dt, t) {
+        const px = camera.position.x,
+          py = camera.position.y,
+          pz = camera.position.z;
+        const arr = petalGeo.attributes.position.array;
+        for (let i = 0; i < PETAL_COUNT; i++) {
+          const j = i * 3;
+          arr[j + 1] -= pFall[i] * dt; // drift down
+          arr[j] += Math.sin(t * pSpin[i] * 2.0 + pPhase[i]) * dt * 4.0; // sway
+          arr[j + 2] += Math.cos(t * pSpin[i] * 1.7 + pPhase[i]) * dt * 4.0;
+          if (arr[j + 1] < py - PETAL_H * 0.5) {
+            // recycle to top
+            arr[j + 1] = py + PETAL_H * 0.5;
+            arr[j] = px + (Math.random() - 0.5) * PETAL_BOX * 2;
+            arr[j + 2] = pz + (Math.random() - 0.5) * PETAL_BOX * 2;
+          }
+          const dxp = arr[j] - px; // keep band on camera
+          if (dxp > PETAL_BOX) arr[j] -= PETAL_BOX * 2;
+          else if (dxp < -PETAL_BOX) arr[j] += PETAL_BOX * 2;
+          const dzp = arr[j + 2] - pz;
+          if (dzp > PETAL_BOX) arr[j + 2] -= PETAL_BOX * 2;
+          else if (dzp < -PETAL_BOX) arr[j + 2] += PETAL_BOX * 2;
+        }
+        petalGeo.attributes.position.needsUpdate = true;
+      }
+
+      // ---- Drifting glowing hearts ----------------------------------------------
+      // A flock of hearts that rise, sway and pulse through the city around you.
+      const HEART_RANGE = 165;
+      const floatingHearts = [];
+      function seedHeart(hb, lowStart) {
+        hb.ox = (Math.random() - 0.5) * HEART_RANGE * 2;
+        hb.oz = (Math.random() - 0.5) * HEART_RANGE * 2;
+        hb.y = lowStart ? 2 + Math.random() * 22 : Math.random() * HEART_RANGE;
+        hb.speed = 3 + Math.random() * 5;
+        hb.phase = Math.random() * 6.283;
+        hb.sway = 6 + Math.random() * 11;
+        hb.size = 5 + Math.random() * 9;
+        hb.sprite.scale.set(hb.size, hb.size, 1);
+      }
+      for (let i = 0; i < 30; i++) {
+        const mat = new THREE.SpriteMaterial({
+          map: i % 2 ? heartTexB : heartTexA,
+          transparent: true,
+          depthWrite: false,
+          blending: THREE.NormalBlending,
+        });
+        const sprite = new THREE.Sprite(mat);
+        const hb = { sprite };
+        seedHeart(hb, false);
+        scene.add(sprite);
+        floatingHearts.push(hb);
+      }
+      function updateHearts(dt, t) {
+        for (const hb of floatingHearts) {
+          hb.y += hb.speed * dt;
+          if (hb.y > HEART_RANGE) seedHeart(hb, true);
+          const sx = Math.sin(t * 0.6 + hb.phase) * hb.sway;
+          const sz = Math.cos(t * 0.5 + hb.phase * 1.3) * hb.sway;
+          hb.sprite.position.set(
+            camera.position.x + hb.ox + sx,
+            hb.y + 6,
+            camera.position.z + hb.oz + sz,
+          );
+          hb.sprite.material.opacity =
+            (0.45 + 0.45 * Math.sin(t * 1.5 + hb.phase)) * 0.9;
+          hb.sprite.material.rotation = Math.sin(t * 0.4 + hb.phase) * 0.16;
+        }
+      }
+
+      // ----------------------------------------------------------------------------
+      // Ground (wet reflective-ish street)
+      // ----------------------------------------------------------------------------
+      // Procedural street grid baked into the ground: asphalt roads between the
+      // building lots, painted lane markings, and warm pools of light under every
+      // street lamp (lamps sit on the grid nodes — see buildChunk). Uses world XZ
+      // so the streets stay anchored while the plane follows the camera.
+      const groundMat = new THREE.MeshStandardMaterial({
+        color: 0x0d0509,
+        roughness: 0.32,
+        metalness: 0.8,
+      });
+      groundMat.onBeforeCompile = (shader) => {
+        shader.uniforms.uNight = uNight;
+        shader.vertexShader = shader.vertexShader
+          .replace(
+            "#include <common>",
+            `#include <common>\n      varying vec3 vWPos;`,
+          )
+          .replace(
+            "#include <worldpos_vertex>",
+            `#include <worldpos_vertex>\n      vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;`,
+          );
+
+        shader.fragmentShader = shader.fragmentShader
+          .replace(
+            "#include <common>",
+            `#include <common>\n      varying vec3 vWPos;\n      uniform float uNight;`,
+          )
+          .replace(
+            "#include <emissivemap_fragment>",
+            `#include <emissivemap_fragment>
+      const float TILE = 26.0;
+      const float ROADHW = 4.0;        // road half-width (m)
+      vec2 g = vWPos.xz;
+      vec2 q = g / TILE;
+      float fx = fract(q.x), fz = fract(q.y);
+      float dx = min(fx, 1.0 - fx) * TILE;   // metres to nearest N-S road centre
+      float dz = min(fz, 1.0 - fz) * TILE;   // metres to nearest E-W road centre
+      float onX = step(dx, ROADHW);
+      float onZ = step(dz, ROADHW);
+      float road = max(onX, onZ);
+
+      vec3 asphalt  = vec3(0.022, 0.014, 0.020);
+      vec3 sidewalk = vec3(0.042, 0.030, 0.038);
+      diffuseColor.rgb = mix(sidewalk, asphalt, road);
+
+      // dashed yellow centre lines down the middle of each road
+      float dashV = step(dx, 0.32) * onX * step(0.5, fract(g.y / 4.0));
+      float dashH = step(dz, 0.32) * onZ * step(0.5, fract(g.x / 4.0));
+      // solid white kerb lines at the road edges
+      float kerb = step(abs(dx - ROADHW), 0.18) * onX + step(abs(dz - ROADHW), 0.18) * onZ;
+      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.62, 0.30, 0.42), clamp(dashV + dashH, 0.0, 1.0));
+      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.38, 0.30, 0.34), clamp(kerb, 0.0, 1.0) * road);
+
+      // rose-pink light pool under each lamp (lamps are on the grid nodes)
+      vec2 node = floor(q + 0.5) * TILE;
+      float dn = distance(g, node);
+      float pool = smoothstep(11.0, 0.0, dn);
+      totalEmissiveRadiance += pool * pool * vec3(1.0, 0.40, 0.58) * 1.2 * uNight;
+      totalEmissiveRadiance += clamp(dashV + dashH, 0.0, 1.0) * vec3(0.85, 0.35, 0.5) * (0.18 + 0.32 * uNight);`,
+          );
+      };
+      const ground = new THREE.Mesh(
+        new THREE.PlaneGeometry(4000, 4000),
+        groundMat,
+      );
+      ground.rotation.x = -Math.PI / 2;
+      ground.receiveShadow = true;
+      scene.add(ground);
+
+      // ----------------------------------------------------------------------------
+      // Deterministic pseudo-random — city is reproducible per tile
+      // ----------------------------------------------------------------------------
+      function hash(x, y, seed = 0) {
+        let h = x * 374761393 + y * 668265263 + seed * 1442695040888963407;
+        h = (h ^ (h >> 13)) * 1274126177;
+        h = h ^ (h >> 16);
+        return ((h >>> 0) % 100000) / 100000;
+      }
+
+      // ----------------------------------------------------------------------------
+      // Infinite city via chunked instanced buildings
+      // ----------------------------------------------------------------------------
+      const TILE = 26; // size of one city lot (incl. road gap)
+      const BUILD = 18; // building footprint within lot
+      const CHUNK = 6; // lots per chunk side
+      const CHUNK_SIZE = TILE * CHUNK;
+      const VIEW_CHUNKS = isTouch ? 3 : 4; // radius of chunks kept loaded (smaller on phones)
+      const MAX_PER_CHUNK = CHUNK * CHUNK;
+
+      // Shared box geometry (unit cube, origin at base center)
+      const boxGeo = new THREE.BoxGeometry(1, 1, 1);
+      boxGeo.translate(0, 0.5, 0);
+
+      const chunks = new Map(); // key "cx,cz" -> { group, bodies, geo }
+      const dummy = new THREE.Object3D();
+      const tmpColor = new THREE.Color();
+
+      // One shared material for every building. A procedural facade shader carves
+      // real window grids into each face and lights a random subset — scale-aware,
+      // so a 12m shop and a 180m tower both get correctly-sized windows.
+      const uCityTime = { value: 0 }; // drives the blinking rooftop beacons
+      const bodyMat = new THREE.MeshStandardMaterial({
+        color: 0x150a12,
+        roughness: 0.58,
+        metalness: 0.5,
+      });
+      bodyMat.onBeforeCompile = (shader) => {
+        shader.vertexShader = shader.vertexShader
+          .replace(
+            "#include <common>",
+            `#include <common>
+      attribute vec3 aDims;      // building world size (w,h,d)
+      attribute vec2 aSeed;      // per-building randomness
+      varying vec3 vLP;
+      varying vec3 vDims;
+      varying vec3 vONormal;
+      varying vec2 vSeed;`,
+          )
+          .replace(
+            "#include <begin_vertex>",
+            `#include <begin_vertex>
+      vLP = position; vDims = aDims; vONormal = normal; vSeed = aSeed;`,
+          );
+
+        shader.uniforms.uNight = uNight;
+        shader.uniforms.uTime = uCityTime;
+        shader.fragmentShader = shader.fragmentShader
+          .replace(
+            "#include <common>",
+            `#include <common>
+      varying vec3 vLP;
+      varying vec3 vDims;
+      varying vec3 vONormal;
+      varying vec2 vSeed;
+      uniform float uNight;
+      uniform float uTime;
+      float rnd(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233))) * 43758.5453123); }`,
+          )
+          .replace(
+            "#include <emissivemap_fragment>",
+            `#include <emissivemap_fragment>
+      vec3 an = abs(vONormal);
+      if (an.y < 0.5) {                                   // ---- vertical facade ----
+        float wh = vLP.y * vDims.y;                       // metres up the wall
+        float wu = (an.x > an.z) ? (vLP.z + 0.5) * vDims.z : (vLP.x + 0.5) * vDims.x;
+        float face = (an.x > an.z) ? 0.0 : 1.0;
+        const float CW = 2.3, CH = 3.1;                   // window cell size (m)
+        vec2 cell = vec2(fract(wu / CW), fract(wh / CH));
+        float fx = floor(wu / CW), fy = floor(wh / CH);
+
+        // glass panes (thicker sill at the bottom of each pane reads as depth)
+        float pane = step(0.12, cell.x) * step(cell.x, 0.88)
+                   * step(0.13, cell.y) * step(cell.y, 0.86);
+        float ground = step(wh, CH * 1.6);                // ground floor = lobby / storefront
+        pane *= step(CH * 0.45, wh);                      // skip the base slab
+
+        // concrete slab band darkens the gap between every storey
+        float band = smoothstep(0.0, 0.10, cell.y) * smoothstep(1.0, 0.90, cell.y);
+        vec3 concrete = diffuseColor.rgb * (0.78 + 0.22 * band);
+
+        // lit windows CLUSTER by floor & column (whole floors/strips glow, not noise)
+        float rWin   = rnd(vec2(fx + face * 53.0 + vSeed.x * 131.0, fy - vSeed.y * 71.0));
+        float rFloor = rnd(vec2(fy * 1.3 + vSeed.x * 7.0, face * 3.0 + 11.0));
+        float rCol   = rnd(vec2(fx * 2.1 + vSeed.y * 5.0, face * 9.0 + 3.0));
+        float litMix = 0.45 * rWin + 0.35 * rFloor + 0.20 * rCol;
+        float lit = step(mix(0.92, 0.64, uNight), litMix);  // fewer windows lit
+        lit = max(lit, ground * step(0.6, rWin));           // a few lit lobbies
+
+        // frame / concrete
+        diffuseColor.rgb = mix(concrete * 0.55, concrete, 0.30 + 0.70 * pane);
+        // dark glass where unlit, with a faint cool sky reflection toward the top
+        vec3 glass = vec3(0.05, 0.022, 0.04) + vec3(0.04, 0.05, 0.10) * (1.0 - cell.y);
+        diffuseColor.rgb = mix(diffuseColor.rgb, glass, pane * (1.0 - lit));
+
+        // warm rose interiors, brighter near the ceiling
+        float warm = step(0.42, rnd(vec2(fx * 1.7 + vSeed.x, fy * 0.6 + vSeed.y)));
+        vec3 wcol = mix(vec3(1.0, 0.46, 0.62), vec3(1.0, 0.80, 0.87), warm);
+        float dim = 0.6 + 0.4 * rnd(vec2(fx + fy * 2.0, vSeed.x + 1.0));
+        float ceilG = 0.72 + 0.28 * cell.y;
+        totalEmissiveRadiance += pane * lit * wcol * 1.5 * dim * ceilG * (0.25 + 0.75 * uNight);
+      } else if (vONormal.y > 0.5) {                      // ---- rooftop ----
+        float edge = max(abs(vLP.x), abs(vLP.z));
+        float parapet = smoothstep(0.42, 0.5, edge);      // raised rim around the deck
+        diffuseColor.rgb *= mix(0.38, 0.72, parapet);
+        if (vDims.y > 55.0) {                             // blinking red aviation beacon
+          float beacon = step(edge, 0.09);
+          float blink = step(0.5, fract(uTime * 0.45 + vSeed.x));
+          totalEmissiveRadiance += beacon * blink * vec3(2.2, 0.04, 0.04);
+        }
+      } else {
+        diffuseColor.rgb *= 0.4;                           // dark underside
+      }`,
+          );
+      };
+
+      // ---- Street lamps ----------------------------------------------------------
+      // Shared geometry/materials for every lamp; one InstancedMesh pair per chunk.
+      const poleGeo = new THREE.CylinderGeometry(0.12, 0.17, 7, 6);
+      poleGeo.translate(0, 3.5, 0);
+      const headGeo = new THREE.BoxGeometry(1.3, 0.5, 0.7);
+      headGeo.translate(0, 6.95, 0);
+      const lampPoleMat = new THREE.MeshStandardMaterial({
+        color: 0x141821,
+        roughness: 0.5,
+        metalness: 0.85,
+      });
+      const lampHeadMat = new THREE.MeshStandardMaterial({
+        color: 0x060304,
+        emissive: 0xff5d83,
+        emissiveIntensity: 2.8,
+        roughness: 1,
+        metalness: 0,
+      });
+      const LAMP_OFF = 4.7; // lamp offset from the grid node onto the sidewalk
+      function lampBroken(gx, gz) {
+        return hash(gx, gz, 11) < 0.12;
+      }
+
+      function buildChunk(cx, cz) {
+        const group = new THREE.Group();
+
+        // Per-chunk geometry clone so we can attach per-building instanced attributes.
+        const geo = boxGeo.clone();
+        const aDims = new THREE.InstancedBufferAttribute(
+          new Float32Array(MAX_PER_CHUNK * 3),
+          3,
+        );
+        const aSeed = new THREE.InstancedBufferAttribute(
+          new Float32Array(MAX_PER_CHUNK * 2),
+          2,
+        );
+        geo.setAttribute("aDims", aDims);
+        geo.setAttribute("aSeed", aSeed);
+
+        const bodies = new THREE.InstancedMesh(geo, bodyMat, MAX_PER_CHUNK);
+        bodies.castShadow = true;
+        bodies.receiveShadow = true;
+        bodies.instanceColor = new THREE.InstancedBufferAttribute(
+          new Float32Array(MAX_PER_CHUNK * 3),
+          3,
+        );
+
+        let n = 0;
+        for (let lx = 0; lx < CHUNK; lx++) {
+          for (let lz = 0; lz < CHUNK; lz++) {
+            const gx = cx * CHUNK + lx;
+            const gz = cz * CHUNK + lz;
+            const r = hash(gx, gz, 1);
+
+            // some lots are little parks / empty
+            if (r < 0.08) continue;
+
+            const wx = gx * TILE + TILE / 2;
+            const wz = gz * TILE + TILE / 2;
+
+            const h1 = hash(gx, gz, 2);
+            const h2 = hash(gx, gz, 3);
+            // mostly mid-rise, occasional tall spikes; quantise to floor heights
+            let height = 9 + h1 * 38 + Math.pow(h2, 6) * 165;
+            height = Math.round(height / 3.1) * 3.1;
+            const fw = BUILD * (0.55 + hash(gx, gz, 4) * 0.45);
+            const fd = BUILD * (0.55 + hash(gx, gz, 5) * 0.45);
+            const jitterX = (hash(gx, gz, 6) - 0.5) * (TILE - BUILD) * 0.5;
+            const jitterZ = (hash(gx, gz, 7) - 0.5) * (TILE - BUILD) * 0.5;
+
+            dummy.position.set(wx + jitterX, 0, wz + jitterZ);
+            dummy.scale.set(fw, height, fd);
+            dummy.rotation.set(0, 0, 0);
+            dummy.updateMatrix();
+            bodies.setMatrixAt(n, dummy.matrix);
+
+            // subtle rose-tinted concrete variation (warm reddish stone)
+            const shade = 0.045 + hash(gx, gz, 8) * 0.05;
+            tmpColor.setRGB(shade * 1.32, shade * 0.94, shade * 1.06);
+            bodies.setColorAt(n, tmpColor);
+
+            // feed real dimensions + seed to the facade shader
+            aDims.setXYZ(n, fw, height, fd);
+            aSeed.setXY(n, hash(gx, gz, 9) * 17.0, hash(gx, gz, 10) * 23.0);
+
+            // ♥ floating روز / Rose sign — each building gets one of the colourful variants
+            const lv = (hash(gx, gz, 12) * LABEL_MATS.length) | 0;
+            const sign = new THREE.Sprite(LABEL_MATS[lv]);
+            const lw = 16,
+              lh = lw * labelAspect;
+            sign.scale.set(lw, lh, 1);
+            sign.position.set(
+              wx + jitterX,
+              height + lh * 0.55 + 3,
+              wz + jitterZ,
+            );
+            group.add(sign);
+
+            n++;
+          }
+        }
+        bodies.count = n;
+        bodies.instanceMatrix.needsUpdate = true;
+        aDims.needsUpdate = true;
+        aSeed.needsUpdate = true;
+        if (bodies.instanceColor) bodies.instanceColor.needsUpdate = true;
+        group.add(bodies);
+
+        // Street lamps — one per lot corner (on the grid node), some broken/dark.
+        const poles = new THREE.InstancedMesh(
+          poleGeo,
+          lampPoleMat,
+          MAX_PER_CHUNK,
+        );
+        poles.castShadow = true;
+        const heads = new THREE.InstancedMesh(
+          headGeo,
+          lampHeadMat,
+          MAX_PER_CHUNK,
+        );
+        let m = 0;
+        for (let lx = 0; lx < CHUNK; lx++) {
+          for (let lz = 0; lz < CHUNK; lz++) {
+            const gx = cx * CHUNK + lx;
+            const gz = cz * CHUNK + lz;
+            if (lampBroken(gx, gz)) continue;
+            dummy.position.set(gx * TILE + LAMP_OFF, 0, gz * TILE + LAMP_OFF);
+            dummy.scale.set(1, 1, 1);
+            dummy.rotation.set(0, 0, 0);
+            dummy.updateMatrix();
+            poles.setMatrixAt(m, dummy.matrix);
+            heads.setMatrixAt(m, dummy.matrix);
+            m++;
+          }
+        }
+        poles.count = m;
+        heads.count = m;
+        poles.instanceMatrix.needsUpdate = true;
+        heads.instanceMatrix.needsUpdate = true;
+        group.add(poles);
+        group.add(heads);
+
+        scene.add(group);
+        return { group, bodies, geo, poles, heads };
+      }
+
+      function updateChunks() {
+        const ccx = Math.floor(camera.position.x / CHUNK_SIZE);
+        const ccz = Math.floor(camera.position.z / CHUNK_SIZE);
+        const needed = new Set();
+
+        for (let dx = -VIEW_CHUNKS; dx <= VIEW_CHUNKS; dx++) {
+          for (let dz = -VIEW_CHUNKS; dz <= VIEW_CHUNKS; dz++) {
+            if (dx * dx + dz * dz > (VIEW_CHUNKS + 0.5) * (VIEW_CHUNKS + 0.5))
+              continue;
+            const cx = ccx + dx,
+              cz = ccz + dz;
+            const key = cx + "," + cz;
+            needed.add(key);
+            if (!chunks.has(key)) chunks.set(key, buildChunk(cx, cz));
+          }
+        }
+        // remove far chunks
+        for (const [key, ch] of chunks) {
+          if (!needed.has(key)) {
+            scene.remove(ch.group);
+            ch.geo.dispose(); // per-chunk geometry (shared material is kept)
+            ch.bodies.dispose();
+            ch.poles.dispose();
+            ch.heads.dispose();
+            chunks.delete(key);
+          }
+        }
+      }
+
+      // ----------------------------------------------------------------------------
+      // Rain — slanted streaks (line segments) that recycle in a box around the camera
+      // ----------------------------------------------------------------------------
+      const RAIN_COUNT = 11000;
+      const RAIN_BOX = 240; // half-extent around camera
+      const RAIN_H = 200;
+      const STREAK = 4.5; // base streak length (m)
+      const RDIR = new THREE.Vector3(0.16, -1, 0.07).normalize(); // wind-slanted fall
+
+      const rainGeo = new THREE.BufferGeometry();
+      const rPos = new Float32Array(RAIN_COUNT * 2 * 3); // 2 verts per streak
+      const rBase = new Float32Array(RAIN_COUNT * 3); // leading (bottom) point
+      const rVel = new Float32Array(RAIN_COUNT);
+      for (let i = 0; i < RAIN_COUNT; i++) {
+        rBase[i * 3] = (Math.random() - 0.5) * RAIN_BOX * 2;
+        rBase[i * 3 + 1] = (Math.random() - 0.5) * RAIN_H;
+        rBase[i * 3 + 2] = (Math.random() - 0.5) * RAIN_BOX * 2;
+        rVel[i] = 1.3 + Math.random() * 1.5;
+      }
+      rainGeo.setAttribute("position", new THREE.BufferAttribute(rPos, 3));
+      const rainMat = new THREE.LineBasicMaterial({
+        color: 0xffb8d2,
+        transparent: true,
+        opacity: 0.22,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      const rain = new THREE.LineSegments(rainGeo, rainMat);
+      rain.frustumCulled = false;
+      scene.add(rain);
+
+      function updateRain(dt) {
+        const px = camera.position.x,
+          py = camera.position.y,
+          pz = camera.position.z;
+        const p = rainGeo.attributes.position.array;
+        const fall = 330 * dt;
+        for (let i = 0; i < RAIN_COUNT; i++) {
+          const j = i * 3,
+            k = i * 6;
+          const v = rVel[i];
+          let bx = rBase[j] + RDIR.x * fall * v;
+          let by = rBase[j + 1] + RDIR.y * fall * v;
+          let bz = rBase[j + 2] + RDIR.z * fall * v;
+          if (by < py - RAIN_H * 0.5) {
+            // recycle near top of the band
+            by = py + RAIN_H * 0.5;
+            bx = px + (Math.random() - 0.5) * RAIN_BOX * 2;
+            bz = pz + (Math.random() - 0.5) * RAIN_BOX * 2;
+          }
+          // keep the band centered on the camera horizontally
+          if (bx - px > RAIN_BOX) bx -= RAIN_BOX * 2;
+          else if (bx - px < -RAIN_BOX) bx += RAIN_BOX * 2;
+          if (bz - pz > RAIN_BOX) bz -= RAIN_BOX * 2;
+          else if (bz - pz < -RAIN_BOX) bz += RAIN_BOX * 2;
+
+          rBase[j] = bx;
+          rBase[j + 1] = by;
+          rBase[j + 2] = bz;
+
+          // streak from leading point back along the fall direction (longer if faster)
+          const sl = STREAK * v;
+          p[k] = bx;
+          p[k + 1] = by;
+          p[k + 2] = bz;
+          p[k + 3] = bx - RDIR.x * sl;
+          p[k + 4] = by - RDIR.y * sl;
+          p[k + 5] = bz - RDIR.z * sl;
+        }
+        rainGeo.attributes.position.needsUpdate = true;
+      }
+
+      // ----------------------------------------------------------------------------
+      // Lightning system
+      // ----------------------------------------------------------------------------
+      const flashEl = document.getElementById("flash");
+      let nextStrike = 2 + Math.random() * 4;
+      let strikeT = 0;
+      let strikeSeq = [];
+
+      function scheduleStrike() {
+        // a burst is a few quick sub-flashes
+        const count = 2 + Math.floor(Math.random() * 3);
+        strikeSeq = [];
+        let t = 0;
+        for (let i = 0; i < count; i++) {
+          strikeSeq.push({
+            t,
+            power: 0.5 + Math.random() * 0.9,
+            dur: 0.06 + Math.random() * 0.12,
+          });
+          t += 0.05 + Math.random() * 0.18;
+        }
+        // reposition lightning source somewhere on the sky around the camera
+        const ang = Math.random() * Math.PI * 2;
+        const dist = 200 + Math.random() * 400;
+        lightning.position.set(
+          camera.position.x + Math.cos(ang) * dist,
+          260 + Math.random() * 160,
+          camera.position.z + Math.sin(ang) * dist,
+        );
+        strikeT = 0;
+      }
+
+      function updateLightning(dt) {
+        nextStrike -= dt;
+        if (nextStrike <= 0) {
+          if (storm > 0.15) scheduleStrike(); // no lightning when the sky is calm
+          // calmer skies → longer gaps between strikes
+          nextStrike = (3 + Math.random() * 7) / Math.max(storm, 0.12);
+        }
+        strikeT += dt;
+        let intensity = 0;
+        let screen = 0;
+        for (const s of strikeSeq) {
+          const local = strikeT - s.t;
+          if (local >= 0 && local < s.dur) {
+            const k = 1 - local / s.dur; // decay within sub-flash
+            intensity = Math.max(intensity, s.power * k * 6);
+            screen = Math.max(screen, s.power * k * 0.5); // gentler rose shimmer
+          }
+        }
+        lightning.intensity = intensity;
+        flashEl.style.opacity = screen.toFixed(3);
+      }
+
+      // ----------------------------------------------------------------------------
+      // Pointer-lock fly controls
+      // ----------------------------------------------------------------------------
+      const keys = {};
+      addEventListener("keydown", (e) => {
+        keys[e.code] = true;
+      });
+      addEventListener("keyup", (e) => {
+        keys[e.code] = false;
+      });
+
+      let yaw = 0,
+        pitch = 0;
+      let locked = false;
+      const overlay = document.getElementById("overlay");
+
+      // On phones we never use pointer lock — touch look + joystick drive everything.
+      overlay.addEventListener("click", enterCity);
+      canvas.addEventListener("click", () => {
+        if (started && !isTouch && !uiPaused) canvas.requestPointerLock();
+      });
+
+      document.addEventListener("pointerlockchange", () => {
+        locked = document.pointerLockElement === canvas;
+      });
+      document.addEventListener("mousemove", (e) => {
+        if (!locked || uiPaused) return;
+        yaw -= e.movementX * 0.0022;
+        pitch -= e.movementY * 0.0022;
+        pitch = Math.max(
+          -Math.PI / 2 + 0.05,
+          Math.min(Math.PI / 2 - 0.05, pitch),
+        );
+      });
+
+      const vel = new THREE.Vector3();
+      const forward = new THREE.Vector3();
+      const right = new THREE.Vector3();
+
+      function updateCamera(dt) {
+        const e = new THREE.Euler(pitch, yaw, 0, "YXZ");
+        camera.quaternion.setFromEuler(e);
+
+        forward.set(0, 0, -1).applyEuler(e);
+        right.set(1, 0, 0).applyEuler(e);
+
+        const boost =
+          keys["ShiftLeft"] || keys["ShiftRight"] || touchBoost ? 4.2 : 1;
+        const accel = 90 * boost;
+        const wish = new THREE.Vector3();
+        if (!uiPaused) {
+          if (keys["KeyW"]) wish.add(forward);
+          if (keys["KeyS"]) wish.sub(forward);
+          if (keys["KeyD"]) wish.add(right);
+          if (keys["KeyA"]) wish.sub(right);
+          if (keys["KeyE"] || keys["Space"] || touchUp) wish.y += 1;
+          if (keys["KeyQ"] || keys["ControlLeft"] || touchDown) wish.y -= 1;
+          // virtual joystick (phones): y up on stick = forward, x = strafe
+          if (joyX || joyY) {
+            wish.addScaledVector(forward, -joyY);
+            wish.addScaledVector(right, joyX);
+          }
+        }
+        if (wish.lengthSq() > 0) {
+          wish.normalize();
+          vel.addScaledVector(wish, accel * dt);
+        }
+
+        vel.multiplyScalar(Math.pow(0.0026, dt)); // damping
+        camera.position.addScaledVector(vel, dt);
+        if (camera.position.y < 2) {
+          camera.position.y = 2;
+          vel.y = Math.max(0, vel.y);
+        }
+      }
+
+      // Snap the dynamic lamp lights to the 3x3 nearest grid nodes around the camera.
+      // They fade out as you climb (no point lighting the street from 100m up).
+      function updateLampLights() {
+        const baseX = Math.round(camera.position.x / TILE);
+        const baseZ = Math.round(camera.position.z / TILE);
+        const reach =
+          camera.position.y < 70
+            ? 1
+            : camera.position.y < 120
+              ? 1 - (camera.position.y - 70) / 50
+              : 0;
+        let i = 0;
+        for (let ox = -1; ox <= 1; ox++) {
+          for (let oz = -1; oz <= 1; oz++) {
+            const L = lampLights[i++];
+            const gx = baseX + ox,
+              gz = baseZ + oz;
+            L.position.set(gx * TILE + LAMP_OFF, 6.4, gz * TILE + LAMP_OFF);
+            L.intensity = lampBroken(gx, gz) ? 0 : 6 * reach * uNight.value;
+          }
+        }
+      }
+
+      // ----------------------------------------------------------------------------
+      // Day / night cycle + weather mood
+      // ----------------------------------------------------------------------------
+      let timeOfDay = 0.74; // start at a romantic rose-gold dusk
+      let autoTime = true; // auto-advance the clock
+      const DAY_LEN = 200; // seconds for one full day/night cycle (slow & dreamy)
+      let storm = 0.28,
+        stormTarget = 0.28; // here "storm" = petal density: 0 calm, 1 petal storm 🌹
+
+      // The moon rides its own, very slow orbit — independent of the sun — so it
+      // drifts almost imperceptibly across the sky and stays up most of the time.
+      let moonT = 0.18;
+      const MOON_LEN = 1600; // seconds for one full moon sweep (very slow)
+
+      const clamp = THREE.MathUtils.clamp,
+        lerp = THREE.MathUtils.lerp,
+        d2r = THREE.MathUtils.degToRad;
+      const C_FOG_DAY = new THREE.Color(0xe7b3ca),
+        C_FOG_NIGHT = new THREE.Color(0x1c0c18);
+      const C_KEY_WARM = new THREE.Color(0xff8fae),
+        C_KEY_NOON = new THREE.Color(0xffe9ef);
+      const C_SKY_DAY = new THREE.Color(0xffc7dd),
+        C_SKY_NIGHT = new THREE.Color(0x2a1530);
+      const C_GND_DAY = new THREE.Color(0x4a3340),
+        C_GND_NIGHT = new THREE.Color(0x0a0608);
+      const _fog = new THREE.Color();
+
+      // discrete controls: P pause clock, 1/2/3 weather moods
+      addEventListener("keydown", (e) => {
+        if (e.code === "KeyP") autoTime = !autoTime;
+        else if (e.code === "Digit1") stormTarget = 0.0;
+        else if (e.code === "Digit2") stormTarget = 0.5;
+        else if (e.code === "Digit3") stormTarget = 1.0;
+      });
+
+      function updateEnv(dt) {
+        // The world's time follows the REAL clock — it only turns to day when it's
+        // actually daytime where she is, so romantic nights stay night.
+        const _now = new Date();
+        timeOfDay =
+          (_now.getHours() * 3600 +
+            _now.getMinutes() * 60 +
+            _now.getSeconds()) /
+          86400;
+        storm += (stormTarget - storm) * clamp(dt * 0.5, 0, 1); // ease mood changes
+
+        const ang = timeOfDay * Math.PI * 2;
+        const sunElev = 62 * Math.sin(ang - Math.PI / 2); // degrees
+        const sunAzi = 90 + timeOfDay * 360;
+        setSun(sunElev, sunAzi); // sets `sun` + sky shader
+
+        // moon on its own slow orbit — always well above the horizon
+        moonT += dt / MOON_LEN;
+        const moonElev = 40 + 22 * Math.sin(moonT * Math.PI * 2);
+        const moonAzi = 40 + moonT * 360;
+
+        const dayF = clamp((sunElev + 3) / 12, 0, 1); // 0 night, 1 day
+        const nightF = 1 - dayF;
+        uNight.value = nightF;
+        const lowSun = clamp(1 - sunElev / 22, 0, 1) * dayF; // golden-hour warmth
+
+        // sky character: clear blue vs grey storm overcast
+        skyU.turbidity.value = lerp(7, 24, storm);
+        skyU.rayleigh.value = lerp(2.4, 0.35, storm);
+        skyU.mieCoefficient.value = lerp(0.005, 0.03, storm);
+
+        // sun key light
+        keyLight.color.copy(C_KEY_NOON).lerp(C_KEY_WARM, lowSun);
+        keyLight.intensity = 1.25 * dayF * (1 - 0.5 * storm);
+        keyLight.position.copy(camera.position).addScaledVector(sun, 300);
+        keyLight.target.position.copy(camera.position);
+
+        // blue moonlight fill, strongest at night
+        moonDir.setFromSphericalCoords(1, d2r(90 - moonElev), d2r(moonAzi));
+        moonFill.intensity = (0.08 + nightF * 0.4) * (1 - 0.4 * storm);
+        moonFill.position.copy(camera.position).addScaledVector(moonDir, 300);
+        moonFill.target.position.copy(camera.position);
+
+        // sky/ground ambient
+        hemi.intensity = lerp(0.3, 0.7, dayF) * (1 - 0.2 * storm);
+        hemi.color.copy(C_SKY_NIGHT).lerp(C_SKY_DAY, dayF);
+        hemi.groundColor.copy(C_GND_NIGHT).lerp(C_GND_DAY, dayF);
+
+        // fog / background / exposure all track time + storm
+        _fog
+          .copy(C_FOG_NIGHT)
+          .lerp(C_FOG_DAY, dayF)
+          .multiplyScalar(1 - 0.5 * storm);
+        scene.fog.color.copy(_fog);
+        scene.background.copy(_fog);
+        scene.fog.density = 0.003 + 0.0042 * storm + 0.0008 * nightF;
+        renderer.toneMappingExposure =
+          lerp(0.5, 0.92, dayF) * (1 - 0.18 * storm);
+
+        // visible sun & moon discs ride the sky around the camera
+        sunDisc.position.copy(camera.position).addScaledVector(sun, SKY_DIST);
+        sunDisc.material.opacity =
+          clamp((sunElev + 2) / 9, 0, 1) * (1 - 0.85 * storm);
+        moonDisc.position
+          .copy(camera.position)
+          .addScaledVector(moonDir, SKY_DIST);
+        // bright at night, a faint daytime moon, dimmed by cloud cover
+        const moonPulse = Math.pow(Math.max(0, Math.sin(starTime * 0.32)), 3.0); // swells every ~20s
+        moonDisc.material.opacity = clamp(
+          (0.25 + 0.85 * nightF) * (1 - 0.4 * storm),
+          0,
+          1,
+        );
+        moonGlow.position.copy(moonDisc.position);
+        moonGlow.material.opacity =
+          (0.04 + 0.26 * moonPulse) * nightF * (1 - 0.6 * storm);
+        moonGlow.material.rotation = starTime * 0.05;
+        stars.position.copy(camera.position);
+        starTime += dt;
+        starMat.uniforms.uTime.value = starTime;
+        uCityTime.value = starTime;
+        starMat.uniforms.uOpacity.value = nightF * (1 - 0.9 * storm);
+
+        // lamp glow strength + storm-scaled rain density
+        lampHeadMat.emissiveIntensity = lerp(0.3, 2.9, nightF);
+        // rain is on by default — always a gentle drizzle, heavier in a storm
+        const rainAmt = clamp(0.5 + 0.5 * storm, 0, 1);
+        rainGeo.setDrawRange(0, Math.floor(RAIN_COUNT * rainAmt) * 2);
+        rainMat.opacity = 0.2 + 0.18 * clamp(storm, 0, 1);
+
+        // rose petals always fall; the "petal storm" just sends down more of them
+        petals.geometry.setDrawRange(
+          0,
+          Math.floor(PETAL_COUNT * (0.5 + 0.5 * clamp(storm, 0, 1))),
+        );
+        petalMat.uniforms.uOpacity.value = 0.72 + 0.23 * clamp(storm, 0, 1);
+      }
+
+      function clockLabel() {
+        const h = Math.floor(timeOfDay * 24);
+        const m = Math.floor(((timeOfDay * 24) % 1) * 60);
+        const mood =
+          storm < 0.2 ? "gentle" : storm < 0.65 ? "rosy" : "petal storm";
+        const phase = uNight.value > 0.5 ? "night" : "day";
+        return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")} ${phase} · ${mood} ♥`;
+      }
+
+      // ----------------------------------------------------------------------------
+      // Loop
+      // ----------------------------------------------------------------------------
+      const statsEl = document.getElementById("stats");
+      const clock = new THREE.Clock();
+      let frames = 0,
+        fpsT = 0,
+        fps = 0;
+
+      function animate() {
+        requestAnimationFrame(animate);
+        const dt = Math.min(clock.getDelta(), 0.05);
+
+        updateCamera(dt);
+        updateEnv(dt);
+        updateChunks();
+        updateRain(dt);
+        updateLightning(dt);
+        updateLampLights();
+        updatePetals(dt, starTime);
+        updateHearts(dt, starTime);
+        updateBalloons(dt, starTime);
+        updateShootStars(dt);
+        updateSurprises(starTime, dt);
+
+        // ground follows the camera so the infinite world stays lit
+        ground.position.set(camera.position.x, 0, camera.position.z);
+
+        renderer.render(scene, camera);
+
+        frames++;
+        fpsT += dt;
+        if (fpsT >= 0.5) {
+          fps = Math.round(frames / fpsT);
+          frames = 0;
+          fpsT = 0;
+        }
+        statsEl.textContent =
+          `${fps} fps · ${clockLabel()} · alt ${camera.position.y.toFixed(0)}m · ` +
+          `pos ${camera.position.x.toFixed(0)},${camera.position.z.toFixed(0)}`;
+      }
+
+      addEventListener("resize", () => {
+        camera.aspect = innerWidth / innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(innerWidth, innerHeight);
+        petalMat.uniforms.uPix.value =
+          innerHeight * renderer.getPixelRatio() * 0.72;
+      });
+
+      // ============================================================================
+      // ♥♥♥  ROSE DREAM LAND — adventures, surprises & phone controls  ♥♥♥
+      // Every feature of the original "Rose" site reborn as a glowing landmark she
+      // can fly to and discover. Loading screen, full touch controls, gift box of
+      // love-words, mood garden, breathing rose, secret heart, portrait & story.
+      // ============================================================================
+
+      // ---- shared interaction state ---------------------------------------------
+      let started = false; // has she entered the city?
+      let uiPaused = false; // a panel / breathing / celebration is open
+      let joyX = 0,
+        joyY = 0; // virtual joystick (phones)
+      let touchUp = false,
+        touchDown = false,
+        touchBoost = false;
+      let nearest = null; // closest surprise in reach
+      let portraitReady = Promise.resolve(true);
+
+      const promptEl = document.getElementById("prompt");
+      const actBtn = document.getElementById("btn-action");
+      const panel = document.getElementById("panel");
+      const panelBody = document.getElementById("panel-body");
+
+      // ---- enter the city + ambient music ---------------------------------------
+      let music = null;
+      const musicBtn = document.getElementById("music-btn");
+      function startMusic() {
+        if (!music) {
+          music = new Audio("../music.mp3");
+          music.loop = true;
+          music.volume = 0.45;
+        }
+        music
+          .play()
+          .then(() => musicBtn.classList.remove("off"))
+          .catch(() => {});
+      }
+      musicBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (!music) {
+          startMusic();
+          return;
+        }
+        if (music.paused) {
+          music.play();
+          musicBtn.classList.remove("off");
+        } else {
+          music.pause();
+          musicBtn.classList.add("off");
+        }
+      });
+      function enterCity() {
+        if (started) return;
+        started = true;
+        overlay.classList.add("hidden");
+        document.getElementById("touch").classList.add("on");
+        // music does NOT auto-start — it only plays when she taps the ♪ button
+        if (!isTouch) canvas.requestPointerLock();
+        track("🌹 Entered Rose Dream Land");
+      }
+
+      // ---- phone controls: joystick, touch-look, fly buttons --------------------
+      const joyEl = document.getElementById("joystick");
+      const knob = document.getElementById("joy-knob");
+      let joyId = null;
+      joyEl.addEventListener(
+        "touchstart",
+        (e) => {
+          joyId = e.changedTouches[0].identifier;
+          e.preventDefault();
+        },
+        { passive: false },
+      );
+      joyEl.addEventListener(
+        "touchmove",
+        (e) => {
+          for (const t of e.changedTouches) {
+            if (t.identifier !== joyId) continue;
+            const r = joyEl.getBoundingClientRect();
+            let dx = t.clientX - (r.left + r.width / 2),
+              dy = t.clientY - (r.top + r.height / 2);
+            const max = r.width * 0.42,
+              len = Math.hypot(dx, dy);
+            if (len > max) {
+              dx = (dx / len) * max;
+              dy = (dy / len) * max;
+            }
+            knob.style.transform = `translate(${dx}px,${dy}px)`;
+            joyX = dx / max;
+            joyY = dy / max;
+          }
+          e.preventDefault();
+        },
+        { passive: false },
+      );
+      function joyEnd(e) {
+        for (const t of e.changedTouches)
+          if (t.identifier === joyId) {
+            joyId = null;
+            joyX = joyY = 0;
+            knob.style.transform = "translate(0,0)";
+          }
+      }
+      joyEl.addEventListener("touchend", joyEnd);
+      joyEl.addEventListener("touchcancel", joyEnd);
+
+      const lookEl = document.getElementById("look-layer");
+      let lookId = null,
+        lookX = 0,
+        lookY = 0;
+      lookEl.addEventListener(
+        "touchstart",
+        (e) => {
+          if (lookId !== null) return;
+          const t = e.changedTouches[0];
+          lookId = t.identifier;
+          lookX = t.clientX;
+          lookY = t.clientY;
+        },
+        { passive: true },
+      );
+      lookEl.addEventListener(
+        "touchmove",
+        (e) => {
+          for (const t of e.changedTouches) {
+            if (t.identifier !== lookId) continue;
+            const dx = t.clientX - lookX,
+              dy = t.clientY - lookY;
+            lookX = t.clientX;
+            lookY = t.clientY;
+            if (uiPaused) continue;
+            yaw -= dx * 0.005;
+            pitch -= dy * 0.005;
+            pitch = Math.max(
+              -Math.PI / 2 + 0.05,
+              Math.min(Math.PI / 2 - 0.05, pitch),
+            );
+          }
+        },
+        { passive: true },
+      );
+      function lookEnd(e) {
+        for (const t of e.changedTouches)
+          if (t.identifier === lookId) lookId = null;
+      }
+      lookEl.addEventListener("touchend", lookEnd);
+      lookEl.addEventListener("touchcancel", lookEnd);
+
+      function holdBtn(id, set) {
+        const el = document.getElementById(id);
+        el.addEventListener(
+          "touchstart",
+          (e) => {
+            e.preventDefault();
+            set(true);
+          },
+          { passive: false },
+        );
+        el.addEventListener(
+          "touchend",
+          (e) => {
+            e.preventDefault();
+            set(false);
+          },
+          { passive: false },
+        );
+        el.addEventListener("touchcancel", () => set(false));
+        el.addEventListener("mousedown", () => set(true));
+        el.addEventListener("mouseup", () => set(false));
+        el.addEventListener("mouseleave", () => set(false));
+      }
+      holdBtn("btn-up", (v) => (touchUp = v));
+      holdBtn("btn-down", (v) => (touchDown = v));
+      holdBtn("btn-boost", (v) => (touchBoost = v));
+      actBtn.addEventListener(
+        "touchstart",
+        (e) => {
+          e.preventDefault();
+          interact();
+        },
+        { passive: false },
+      );
+      actBtn.addEventListener("click", () => interact());
+      addEventListener("keydown", (e) => {
+        if (e.code === "KeyF" || e.code === "Enter") interact();
+      });
+
+      // Any touch at all → switch to on-screen controls (covers real phones + DevTools
+      // device mode toggled after load, where the initial detection can miss).
+      function enableTouchMode() {
+        isTouch = true;
+        if (!document.body.classList.contains("touch")) {
+          document.body.classList.add("touch");
+          if (started) document.getElementById("touch").classList.add("on");
+        }
+      }
+      addEventListener("touchstart", enableTouchMode, { passive: true });
+
+      function interact() {
+        if (!uiPaused && nearest) activateSurprise(nearest);
+      }
+      // On phones, tapping the floating label itself opens the surprise (so she always knows how).
+      promptEl.addEventListener("click", () => interact());
+
+      // ---- panels (pause flight, release pointer lock while reading) ------------
+      document
+        .getElementById("panel-close")
+        .addEventListener("click", closePanel);
+      panel.addEventListener("click", (e) => {
+        if (e.target === panel) closePanel();
+      });
+      function pauseUI() {
+        uiPaused = true;
+        if (!isTouch) document.exitPointerLock();
+      }
+      function resumeUI() {
+        uiPaused = false;
+      }
+      function openPanel(html) {
+        panelBody.innerHTML = html;
+        panel.classList.add("show");
+        pauseUI();
+      }
+      function closePanel() {
+        panel.classList.remove("show");
+        resumeUI();
+      }
+
+      // ---- celebratory emoji burst from screen centre ---------------------------
+      function screenBurst(set, n = 26) {
+        for (let i = 0; i < n; i++)
+          setTimeout(() => {
+            const p = document.createElement("div");
+            p.textContent = set[(Math.random() * set.length) | 0];
+            p.style.cssText =
+              "position:fixed;left:50%;top:50%;font-size:24px;pointer-events:none;z-index:210;transition:all 1.8s ease-out;opacity:1;";
+            document.body.appendChild(p);
+            const ang = Math.random() * Math.PI * 2,
+              dist = 120 + Math.random() * 230;
+            requestAnimationFrame(() => {
+              p.style.transform = `translate(${Math.cos(ang) * dist}px,${Math.sin(ang) * dist}px) rotate(${Math.random() * 360}deg) scale(.4)`;
+              p.style.opacity = "0";
+            });
+            setTimeout(() => p.remove(), 1900);
+          }, i * 22);
+      }
+
+      // ---- content from the real Rose project -----------------------------------
+      const SECRET_LETTER = [
+        "وحاسس فيكي تماماً، لأني من النوع اللي بيقرا الوجع حتى لما يكون مخبّى ورا ابتسامة.",
+        "أنا هون، مو لأني أقوى من العاصفة، ولا لأني فاهم كل شي عم يصير،",
+        "أنا هون لأنو ببساطة… قلبي ما بيعرف يسكن بمكان غيرك.",
+        "والمطر اللي برّا ما بيسأل عن أسمائنا، ولا بيهمّو مين كنّا مبارح… بس بينزل، وبيغسل التعب.",
+        "مو لازم نفهم كل شي، ولا نحسب كل خطوة؛ أحلى الأشياء بتيجي لما نرخي إيدينا شوي ونثق 😌",
+        "كل حرف هون كتبتو إلك… مشان تعرفي إنو مهما علا الموج، في إيد ما رح تتركك تغرقي.",
+        "وبالآخر… مهما حسّيتي حالك لحالك، تذكري إنّي معك. دايماً. 💜",
+      ];
+      const LOVE_REASONS = [
+        "بحبك لأنك بتشوفي الجمال بأبسط الأشياء",
+        "بحبك لأن ضحكتك بتنسيني كل تعب الدنيا",
+        "بحبك لأنك قوية حتى وانتي تعبانة",
+        "بحبك لأن قلبك طيب أكتر مما بتتخيلي",
+        "بحبك لأنك بتفهميني بدون ما احكي",
+        "بحبك لأنك بتخليني أحسن نسخة من حالي",
+        "بحبك لأن صوتك بيطمّن قلبي",
+        "بحبك لأنك صبورة وحنونة بنفس الوقت",
+        "بحبك لأنك إنتي… وهاد أكتر من كافي",
+        "بحبك لأنك وطن ما بتوه فيه",
+        "بحبك لأن وجودك بيحوّل اليوم العادي لذكرى",
+        "بحبك لأنك أمان قلبي مهما صار",
+      ];
+      const WISHES = [
+        "تمنّيت إنك تكوني دايماً بخير 🌠",
+        "تمنّيت إن كل أحلامك تتحقق 🌠",
+        "تمنّيت إن الفرح ما يفارق قلبك 🌠",
+        "تمنّيت نضل سوا مهما بعدت المسافة 🌠",
+        "تمنّيت تشوفي حالك متل ما أنا بشوفك… أجمل شي 🌠",
+      ];
+      // The golden box holds the messages she picked in messages.js — the
+      // happiness → courage sections — pulled straight from dailyMessages.
+      const LOVE_YOU = dailyMessages.slice(10, 121);
+      let hasGoldenKey = false;
+      let hasPurpleKey = false;
+      const MOODS = [
+        { key: "مبسوطة", e: "😊" },
+        { key: "مرتاحة", e: "😌" },
+        { key: "عادي", e: "😐" },
+        { key: "تعبانة", e: "😔" },
+        { key: "مخنوقة", e: "😢" },
+      ];
+      const pickFrom = (a) => a[(Math.random() * a.length) | 0];
+
+      // Telegram/Firebase tracking — same hook the original Rose site uses.
+      function track(name) {
+        try {
+          if (window.trackButtonClick) window.trackButtonClick(name);
+        } catch (e) {}
+      }
+
+      // ---- panel content openers -------------------------------------------------
+      function openGift() {
+        const msg = pickFrom(dailyMessages);
+        openPanel(`<span class="emoji-head">🎁</span><h2>رسالة من القلب</h2>
+    <p class="big-msg">${msg}</p>`);
+        screenBurst(["💜", "💕", "✨", "🌟", "💫"]);
+        track(`💌 Gift message: ${msg}`);
+      }
+      function openSecret() {
+        openPanel(
+          `<span class="emoji-head">💖</span><h2>سرّ القوة</h2>${SECRET_LETTER.map((p) => `<p>${p}</p>`).join("")}`,
+        );
+        track("💖 Opened the secret letter");
+      }
+      function openReasons() {
+        const r = pickFrom(LOVE_REASONS);
+        openPanel(`<span class="emoji-head">💝</span><h2>أسباب حبّي لكِ</h2>
+    <p class="big-msg">${r}</p>
+    <div class="panel-btn" id="reasonNext">💗 سبب تاني</div>`);
+        document
+          .getElementById("reasonNext")
+          .addEventListener("click", openReasons);
+        screenBurst(["💝", "💗", "💞", "✨"]);
+        track(`💝 Reason: ${r}`);
+      }
+      function openWish() {
+        const w = pickFrom(WISHES);
+        openPanel(`<span class="emoji-head">🌠</span><h2>نجمة الأمنية</h2>
+    <p>سكّري عينيكي واطلبي أمنية…</p>
+    <p class="big-msg">${w}</p>
+    <div class="panel-btn" id="wishMore">⭐ أمنية تانية</div>`);
+        document.getElementById("wishMore").addEventListener("click", () => {
+          openWish();
+          shootingStar();
+        });
+        screenBurst(["⭐", "🌠", "✨", "💫"]);
+        shootingStar();
+        track(`🌠 Made a wish: ${w}`);
+      }
+      function openLockedBox() {
+        openPanel(`<svg width="62" height="62" viewBox="0 0 24 24" style="display:block;margin:0 auto 10px">
+      <path d="M7 10V8a5 5 0 0 1 10 0v2" stroke="#ffe08a" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+      <rect x="5" y="10" width="14" height="10" rx="2.6" fill="#ffcf40"/>
+      <circle cx="12" cy="14.4" r="1.7" fill="#5a3d00"/>
+      <rect x="11.2" y="14.4" width="1.6" height="3.6" rx="0.8" fill="#5a3d00"/>
+    </svg>
+    <p class="big-msg">🔑 Golden key needed</p>`);
+        screenBurst(["🔑", "💛", "✨"]);
+        track("🔒 Tried the golden box (locked)");
+      }
+      function openGoldenBox() {
+        const m = pickFrom(LOVE_YOU);
+        openPanel(`<span class="emoji-head">💛</span><h2>الصندوق الذهبي</h2>
+    <p class="big-msg">${m}</p>
+    <div class="panel-btn" id="loveMore">💗 بحبك تانية</div>`);
+        document
+          .getElementById("loveMore")
+          .addEventListener("click", openGoldenBox);
+        screenBurst(["💛", "💗", "💖", "✨", "🌟"]);
+        track(`💛 بحبك: ${m}`);
+      }
+      function collectKey(s) {
+        if (hasGoldenKey) return;
+        hasGoldenKey = true;
+        s.gone = true;
+        s.obj.visible = false;
+        s.marker.visible = false;
+        s.beam.visible = false;
+        screenBurst(["🔑", "✨", "💛", "🌟"]);
+        openPanel(`<span class="emoji-head">🔑</span><h2>المفتاح الذهبي</h2>
+    <p class="big-msg">Golden Key found!</p>`);
+        track("🔑 Got the golden key");
+      }
+      function openLockedSecret() {
+        openPanel(`<svg width="62" height="62" viewBox="0 0 24 24" style="display:block;margin:0 auto 10px">
+      <path d="M7 10V8a5 5 0 0 1 10 0v2" stroke="#b988ff" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+      <rect x="5" y="10" width="14" height="10" rx="2.6" fill="#9b5cff"/>
+      <circle cx="12" cy="14.4" r="1.7" fill="#36105f"/>
+      <rect x="11.2" y="14.4" width="1.6" height="3.6" rx="0.8" fill="#36105f"/>
+    </svg>
+    <p class="big-msg">🔑 Purple key needed</p>`);
+        screenBurst(["💜", "🔒", "✨"]);
+        track("🔒 Tried the secret (locked)");
+      }
+      function collectPurpleKey(s) {
+        if (hasPurpleKey) return;
+        hasPurpleKey = true;
+        s.gone = true;
+        s.obj.visible = false;
+        s.marker.visible = false;
+        s.beam.visible = false;
+        screenBurst(["🔑", "✨", "💜", "🌟"]);
+        openPanel(`<span class="emoji-head">🔑</span><h2>المفتاح البنفسجي</h2>
+    <p class="big-msg">Purple Key found!</p>`);
+        track("🔑 Got the purple key");
+      }
+      function openMood() {
+        openPanel(`<span class="emoji-head">🌈</span><h2>كيف مزاجك اليوم؟</h2>
+    <div class="mood-grid">${MOODS.map((m) => `<div class="mood-pick" data-k="${m.key}"><span class="e">${m.e}</span><span class="l">${m.key}</span></div>`).join("")}</div>`);
+        panelBody
+          .querySelectorAll(".mood-pick")
+          .forEach((el) =>
+            el.addEventListener("click", () => pickMood(el.dataset.k)),
+          );
+      }
+      function pickMood(k) {
+        const msg = pickFrom(moodMessages[k] || ["🌸"]);
+        const tired = k === "تعبانة" || k === "مخنوقة";
+        const emo = (MOODS.find((m) => m.key === k) || {}).e || "🌸";
+        openPanel(`<span class="emoji-head">${emo}</span><p class="big-msg">${msg}</p>
+    ${
+      tired
+        ? '<div class="panel-btn" id="toBreathe">🌬️ تعي نتنفس سوا</div>'
+        : '<div class="panel-btn" id="moodBack">🌈 رجوع للمزاج</div>'
+    }`);
+        screenBurst(["🌸", "💜", "✨"]);
+        const b = document.getElementById("toBreathe");
+        if (b)
+          b.addEventListener("click", () => {
+            closePanel();
+            openBreathe();
+          });
+        const mb = document.getElementById("moodBack");
+        if (mb) mb.addEventListener("click", openMood);
+        track(`🌈 Mood "${k}": ${msg}`);
+      }
+      function openPortrait() {
+        openPanel(`<span class="emoji-head">🌹</span>
+    <img class="portrait-img" src="../rose.jpg" alt="rose" onerror="this.style.display='none'">
+    <p class="big-msg">Rose 💗</p>`);
+        track("🌹 Opened the rose portrait");
+      }
+
+      // ---- breathing rose (4-7-8, 3 cycles — from the real breathe.js) -----------
+      const breatheEl = document.getElementById("breathe");
+      const bCircle = document.getElementById("breathe-circle"),
+        bPhase = document.getElementById("breathe-phase");
+      const bTimer = document.getElementById("breathe-timer"),
+        bCyc = document.getElementById("breathe-cyc");
+      const bStart = document.getElementById("breathe-start");
+      let bActive = false,
+        bProg = 0,
+        bCycle = 0,
+        bLast = 0,
+        bRAF = 0;
+      function openBreathe() {
+        breatheEl.classList.add("show");
+        pauseUI();
+        bActive = false;
+        bProg = 0;
+        bCycle = 0;
+        bPhase.textContent = "جاهزة؟";
+        bPhase.style.color = "#fff";
+        bTimer.textContent = "";
+        bCyc.textContent = "خليني ساعدك تسترخي 💜";
+        bStart.style.display = "inline-block";
+        bStart.textContent = "يلا نتنفس سوا";
+        bCircle.style.transform = "scale(1)";
+      }
+      function startBreatheRun() {
+        bActive = true;
+        bProg = 0;
+        bCycle = 0;
+        bLast = 0;
+        bStart.style.display = "none";
+        bLoop();
+        track("🧘 Breathing exercise started");
+      }
+      function bLoop() {
+        if (!bActive) return;
+        bRAF = requestAnimationFrame(bLoop);
+        const now = performance.now();
+        if (!bLast) bLast = now;
+        const dt = (now - bLast) / 1000;
+        bLast = now;
+        const IN = 4,
+          HOLD = 7,
+          OUT = 8,
+          TOT = IN + HOLD + OUT;
+        bProg += dt;
+        if (bProg >= TOT) {
+          bProg = 0;
+          bCycle++;
+          if (bCycle >= 3) {
+            finishBreathe();
+            return;
+          }
+        }
+        let scale, phase, color, rem;
+        if (bProg < IN) {
+          scale = 1 + (bProg / IN) * 0.8;
+          phase = "شهيق";
+          color = "#90EE90";
+          rem = Math.ceil(IN - bProg);
+        } else if (bProg < IN + HOLD) {
+          scale = 1.8;
+          phase = "احبسي";
+          color = "#FFD700";
+          rem = Math.ceil(IN + HOLD - bProg);
+        } else {
+          scale = 1.8 - ((bProg - IN - HOLD) / OUT) * 0.8;
+          phase = "زفير";
+          color = "#87CEEB";
+          rem = Math.ceil(TOT - bProg);
+        }
+        bCircle.style.transform = `scale(${scale})`;
+        bCircle.style.background = `radial-gradient(circle, ${color}, #ff2d5e)`;
+        bPhase.textContent = phase;
+        bPhase.style.color = color;
+        bTimer.textContent = rem;
+        bCyc.textContent = `الدورة ${bCycle + 1} من 3`;
+      }
+      function finishBreathe() {
+        bActive = false;
+        bCircle.style.transform = "scale(1)";
+        bPhase.textContent = "أحسن؟ 🌹";
+        bPhase.style.color = "#ff9ec2";
+        bTimer.textContent = "";
+        bCyc.textContent = "اذا حسيتي براحة، طيري كمّلي اكتشفي 💜";
+        bStart.style.display = "inline-block";
+        bStart.textContent = "إعادة 🔁";
+        screenBurst(["🌹", "💜", "✨", "🌸"]);
+        track("🧘 Breathing completed (3 cycles)");
+      }
+      bStart.addEventListener("click", startBreatheRun);
+      document.getElementById("breathe-close").addEventListener("click", () => {
+        bActive = false;
+        if (bRAF) cancelAnimationFrame(bRAF);
+        breatheEl.classList.remove("show");
+        resumeUI();
+      });
+
+      // ---- discovery tracking + final celebration -------------------------------
+      const discovered = new Set();
+      const discCountEl = document.getElementById("disc-count");
+      function markDiscovered(id) {
+        const s = surprises.find((x) => x.id === id);
+        if (!s || s.foundCounted) return;
+        s.found = true;
+        if (!s.counted) return; // the golden key etc. aren't part of the count
+        s.foundCounted = true;
+        discovered.add(id);
+        discCountEl.textContent = discovered.size;
+        track(
+          `✨ Discovered surprise: ${id} (${discovered.size}/${countedTotal})`,
+        );
+        if (discovered.size >= countedTotal) setTimeout(celebrate, 900);
+      }
+      function celebrate() {
+        const el = document.getElementById("celebrate"),
+          card = document.getElementById("celebrate-card");
+        card.innerHTML = `<h1>اكتشفتي كل أرض حلم الورد 🌹</h1>
+    <p>كل وردة، وكل قلب، وكل رسالة هون… كانت إلك انتي 💜<br>المهم تعرفي إني دايماً معك.</p>
+    <div class="panel-btn" id="celebClose">كمّلي الطيران 🕊️</div>`;
+        el.classList.add("show");
+        pauseUI();
+        document.getElementById("celebClose").addEventListener("click", () => {
+          el.classList.remove("show");
+          resumeUI();
+        });
+        track("🎉 Found ALL surprises in Rose Dream Land!");
+        let n = 0;
+        const iv = setInterval(() => {
+          screenBurst(["🌹", "💜", "💕", "✨", "🌟", "🌸"]);
+          if (++n > 6) clearInterval(iv);
+        }, 500);
+      }
+
+      // ---- building the surprise landmarks --------------------------------------
+      const surpriseRoot = new THREE.Group();
+      scene.add(surpriseRoot);
+      const P = (x, z) => new THREE.Vector3(x, 0, z);
+
+      function emojiTex(emoji) {
+        const px = 160,
+          c = document.createElement("canvas");
+        c.width = c.height = px;
+        const g = c.getContext("2d");
+        g.font = `${Math.floor(px * 0.72)}px "Segoe UI Emoji", "Apple Color Emoji", serif`;
+        g.textAlign = "center";
+        g.textBaseline = "middle";
+        g.fillText(emoji, px / 2, px / 2 + px * 0.05);
+        return new THREE.CanvasTexture(c);
+      }
+      function emojiSprite(emoji) {
+        return new THREE.Sprite(
+          new THREE.SpriteMaterial({
+            map: emojiTex(emoji),
+            transparent: true,
+            depthWrite: false,
+            depthTest: false,
+            fog: false,
+          }),
+        );
+      }
+      function setEmoji(sprite, emoji) {
+        sprite.material.map.dispose();
+        sprite.material.map = emojiTex(emoji);
+        sprite.material.needsUpdate = true;
+      }
+      // A hand-drawn PURPLE padlock (so the secret's lock isn't the gold emoji).
+      function makeLockTexture() {
+        const s = 200,
+          c = document.createElement("canvas");
+        c.width = c.height = s;
+        const g = c.getContext("2d");
+        const cx = s / 2;
+        g.lineWidth = 22;
+        g.strokeStyle = "#b988ff";
+        g.lineCap = "round";
+        g.beginPath();
+        g.arc(cx, s * 0.4, 34, Math.PI, 0);
+        g.stroke();
+        g.beginPath();
+        g.moveTo(cx - 34, s * 0.4);
+        g.lineTo(cx - 34, s * 0.52);
+        g.moveTo(cx + 34, s * 0.4);
+        g.lineTo(cx + 34, s * 0.52);
+        g.stroke();
+        const bx = s * 0.26,
+          by = s * 0.5,
+          bw = s * 0.48,
+          bh = s * 0.4,
+          r = 18;
+        g.fillStyle = "#9b5cff";
+        g.beginPath();
+        g.moveTo(bx + r, by);
+        g.arcTo(bx + bw, by, bx + bw, by + bh, r);
+        g.arcTo(bx + bw, by + bh, bx, by + bh, r);
+        g.arcTo(bx, by + bh, bx, by, r);
+        g.arcTo(bx, by, bx + bw, by, r);
+        g.closePath();
+        g.fill();
+        g.fillStyle = "#36105f";
+        g.beginPath();
+        g.arc(cx, by + bh * 0.42, 12, 0, 7);
+        g.fill();
+        g.fillRect(cx - 5, by + bh * 0.42, 10, 22);
+        return new THREE.CanvasTexture(c);
+      }
+      function makeBeam(pos, color) {
+        const g = new THREE.CylinderGeometry(0.85, 0.85, 260, 10, 1, true);
+        g.translate(0, 130, 0);
+        const m = new THREE.MeshBasicMaterial({
+          color,
+          transparent: true,
+          opacity: 0.14,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+          fog: true,
+        });
+        const mesh = new THREE.Mesh(g, m);
+        mesh.position.set(pos.x, 0, pos.z);
+        surpriseRoot.add(mesh);
+        return mesh;
+      }
+      function heartShape() {
+        const s = new THREE.Shape();
+        s.moveTo(0, -0.5);
+        s.bezierCurveTo(0, -0.3, -0.5, 0, -0.5, 0);
+        s.bezierCurveTo(-1.1, 0, -1.1, -0.7, -1.1, -0.7);
+        s.bezierCurveTo(-1.1, -1.1, -0.8, -1.54, 0, -1.9);
+        s.bezierCurveTo(0.8, -1.54, 1.1, -1.1, 1.1, -0.7);
+        s.bezierCurveTo(1.1, -0.7, 1.1, 0, 0.5, 0);
+        s.bezierCurveTo(0.2, 0, 0, -0.3, 0, -0.5);
+        return s;
+      }
+      const SM = (c, emi) =>
+        new THREE.MeshStandardMaterial({
+          color: c,
+          emissive: c,
+          emissiveIntensity: emi,
+          roughness: 0.45,
+          metalness: 0.25,
+        });
+
+      function buildGift(pos) {
+        const grp = new THREE.Group();
+        grp.position.copy(pos);
+        const box = new THREE.Mesh(
+          new THREE.BoxGeometry(2, 2, 2),
+          SM(0xff5d83, 0.25),
+        );
+        box.position.y = 1;
+        grp.add(box);
+        const lid = new THREE.Mesh(
+          new THREE.BoxGeometry(2.2, 0.3, 2.2),
+          SM(0xba94ff, 0.35),
+        );
+        lid.position.y = 2.15;
+        grp.add(lid);
+        const rib = new THREE.BoxGeometry(0.26, 2.05, 2.32);
+        const r1 = new THREE.Mesh(rib, SM(0xffd700, 0.4));
+        r1.position.y = 1;
+        grp.add(r1);
+        const r2 = r1.clone();
+        r2.rotation.y = Math.PI / 2;
+        grp.add(r2);
+        const bow = new THREE.Mesh(
+          new THREE.SphereGeometry(0.34, 16, 16),
+          SM(0xffd700, 0.5),
+        );
+        bow.position.y = 2.45;
+        grp.add(bow);
+        grp.scale.setScalar(3.2);
+        surpriseRoot.add(grp);
+        return { grp, lid };
+      }
+      function buildMood(pos) {
+        const grp = new THREE.Group();
+        grp.position.copy(pos);
+        const core = new THREE.Mesh(
+          new THREE.IcosahedronGeometry(2.4, 1),
+          SM(0xff7db0, 0.7),
+        );
+        core.position.y = 8;
+        grp.add(core);
+        const ring = new THREE.Mesh(
+          new THREE.TorusGeometry(4, 0.18, 12, 60),
+          SM(0xff9ec2, 0.85),
+        );
+        ring.position.y = 8;
+        ring.rotation.x = Math.PI / 2;
+        grp.add(ring);
+        surpriseRoot.add(grp);
+        return { grp, core, ring };
+      }
+      function starShape() {
+        const s = new THREE.Shape();
+        const spikes = 5,
+          outer = 1,
+          inner = 0.46;
+        for (let i = 0; i < spikes * 2; i++) {
+          const r = i % 2 ? inner : outer,
+            a = (i / (spikes * 2)) * Math.PI * 2 - Math.PI / 2;
+          const x = Math.cos(a) * r,
+            y = Math.sin(a) * r;
+          if (i === 0) s.moveTo(x, y);
+          else s.lineTo(x, y);
+        }
+        s.closePath();
+        return s;
+      }
+      function buildReasons(pos) {
+        const grp = new THREE.Group();
+        grp.position.copy(pos);
+        const geo = new THREE.ExtrudeGeometry(heartShape(), {
+          depth: 0.5,
+          bevelEnabled: true,
+          bevelSize: 0.08,
+          bevelThickness: 0.08,
+          steps: 1,
+          bevelSegments: 2,
+        });
+        geo.center();
+        const big = new THREE.Mesh(geo, SM(0xff4f8b, 0.85));
+        big.scale.setScalar(2.2);
+        big.position.y = 9;
+        grp.add(big);
+        const orb = [];
+        for (let i = 0; i < 3; i++) {
+          const h = new THREE.Mesh(geo, SM(0xff9ec2, 0.7));
+          h.scale.setScalar(0.8);
+          h.position.y = 9;
+          grp.add(h);
+          orb.push(h);
+        }
+        surpriseRoot.add(grp);
+        return { grp, big, orb };
+      }
+      function buildStar(pos) {
+        const grp = new THREE.Group();
+        grp.position.copy(pos);
+        const geo = new THREE.ExtrudeGeometry(starShape(), {
+          depth: 0.3,
+          bevelEnabled: true,
+          bevelSize: 0.06,
+          bevelThickness: 0.06,
+          steps: 1,
+          bevelSegments: 2,
+        });
+        geo.center();
+        const star = new THREE.Mesh(geo, SM(0xffe07a, 0.95));
+        star.scale.setScalar(2.8);
+        star.position.y = 9;
+        grp.add(star);
+        surpriseRoot.add(grp);
+        return { grp, star };
+      }
+      const GOLD = (e) =>
+        new THREE.MeshStandardMaterial({
+          color: 0xffd24a,
+          emissive: 0xc8920a,
+          emissiveIntensity: e,
+          roughness: 0.28,
+          metalness: 0.9,
+        });
+      function buildGoldenBox(pos) {
+        const grp = new THREE.Group();
+        grp.position.copy(pos);
+        const box = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), GOLD(0.25));
+        box.position.y = 1;
+        grp.add(box);
+        const lid = new THREE.Mesh(
+          new THREE.BoxGeometry(2.2, 0.42, 2.2),
+          GOLD(0.35),
+        );
+        lid.position.y = 2.2;
+        grp.add(lid);
+        const lockMat = new THREE.MeshStandardMaterial({
+          color: 0x4a3300,
+          emissive: 0xffd24a,
+          emissiveIntensity: 0.5,
+          metalness: 1,
+          roughness: 0.3,
+        });
+        const lock = new THREE.Mesh(
+          new THREE.BoxGeometry(0.5, 0.6, 0.26),
+          lockMat,
+        );
+        lock.position.set(0, 1.0, 1.06);
+        grp.add(lock);
+        const shackle = new THREE.Mesh(
+          new THREE.TorusGeometry(0.2, 0.06, 8, 16, Math.PI),
+          lockMat,
+        );
+        shackle.position.set(0, 1.34, 1.06);
+        grp.add(shackle);
+        grp.scale.setScalar(3.4);
+        surpriseRoot.add(grp);
+        return { grp, lid, lock, shackle };
+      }
+      const PURPLE = (e) =>
+        new THREE.MeshStandardMaterial({
+          color: 0x9b5cff,
+          emissive: 0x6a2fd0,
+          emissiveIntensity: e,
+          roughness: 0.3,
+          metalness: 0.85,
+        });
+      function buildKeyShape(pos, matFn) {
+        const grp = new THREE.Group();
+        grp.position.copy(pos);
+        const spin = new THREE.Group();
+        spin.position.y = 9;
+        grp.add(spin);
+        const ring = new THREE.Mesh(
+          new THREE.TorusGeometry(1, 0.3, 14, 26),
+          matFn(0.6),
+        );
+        ring.position.y = 1.6;
+        spin.add(ring);
+        const shaft = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.22, 0.22, 3.2, 10),
+          matFn(0.6),
+        );
+        shaft.position.y = -0.6;
+        spin.add(shaft);
+        const t1 = new THREE.Mesh(
+          new THREE.BoxGeometry(0.85, 0.3, 0.3),
+          matFn(0.6),
+        );
+        t1.position.set(0.45, -1.9, 0);
+        spin.add(t1);
+        const t2 = new THREE.Mesh(
+          new THREE.BoxGeometry(0.55, 0.3, 0.3),
+          matFn(0.6),
+        );
+        t2.position.set(0.3, -1.4, 0);
+        spin.add(t2);
+        grp.scale.setScalar(1.7);
+        surpriseRoot.add(grp);
+        return { grp, spin };
+      }
+      function buildGoldenKey(pos) {
+        return buildKeyShape(pos, GOLD);
+      }
+      function buildPurpleKey(pos) {
+        return buildKeyShape(pos, PURPLE);
+      }
+      // Roof finder — reproduces buildChunk's height/jitter so a surprise sits on a real rooftop.
+      function buildingTop(gx, gz) {
+        if (hash(gx, gz, 1) < 0.08) return null; // empty lot
+        const h1 = hash(gx, gz, 2),
+          h2 = hash(gx, gz, 3);
+        let height = 9 + h1 * 38 + Math.pow(h2, 6) * 165;
+        height = Math.round(height / 3.1) * 3.1;
+        const wx =
+          gx * TILE + TILE / 2 + (hash(gx, gz, 6) - 0.5) * (TILE - BUILD) * 0.5;
+        const wz =
+          gz * TILE + TILE / 2 + (hash(gx, gz, 7) - 0.5) * (TILE - BUILD) * 0.5;
+        return { x: wx, z: wz, top: height };
+      }
+      function pickRoof(cx, cz, ring) {
+        let best = null;
+        for (let gx = cx - ring; gx <= cx + ring; gx++)
+          for (let gz = cz - ring; gz <= cz + ring; gz++) {
+            const r = buildingTop(gx, gz);
+            if (r && (!best || r.top > best.top)) best = r;
+          }
+        return (
+          best || { x: cx * TILE + TILE / 2, z: cz * TILE + TILE / 2, top: 60 }
+        );
+      }
+      function buildSecret(pos) {
+        const grp = new THREE.Group();
+        grp.position.copy(pos);
+        const geo = new THREE.ExtrudeGeometry(heartShape(), {
+          depth: 0.5,
+          bevelEnabled: true,
+          bevelSize: 0.08,
+          bevelThickness: 0.08,
+          steps: 1,
+          bevelSegments: 2,
+        });
+        geo.center();
+        const heart = new THREE.Mesh(geo, SM(0xff1f5a, 0.7));
+        heart.scale.setScalar(2.4);
+        heart.position.y = 9;
+        grp.add(heart);
+        surpriseRoot.add(grp);
+        return { grp, heart };
+      }
+      function buildPortrait(pos) {
+        const grp = new THREE.Group();
+        grp.position.copy(pos);
+        let res;
+        portraitReady = new Promise((r) => (res = r));
+        const tex = new THREE.TextureLoader().load(
+          "../rose.jpg",
+          () => res(true),
+          undefined,
+          () => res(false),
+        );
+        tex.colorSpace = THREE.SRGBColorSpace;
+        const w = 18,
+          h = 22;
+        const frame = new THREE.Mesh(
+          new THREE.PlaneGeometry(w + 2, h + 2),
+          SM(0xffd700, 0.45),
+        );
+        frame.material.side = THREE.DoubleSide;
+        const pic = new THREE.Mesh(
+          new THREE.PlaneGeometry(w, h),
+          new THREE.MeshBasicMaterial({
+            map: tex,
+            side: THREE.DoubleSide,
+            toneMapped: false,
+          }),
+        );
+        pic.position.z = 0.12;
+        frame.add(pic);
+        frame.position.y = 11;
+        grp.add(frame);
+        surpriseRoot.add(grp);
+        return { grp, frame };
+      }
+
+      // ---- floating balloons (ambient love, rising through the city) ------------
+      const balloonRoot = new THREE.Group();
+      scene.add(balloonRoot);
+      const BAL_COLORS = [
+        0xff5d83, 0xff9ec2, 0xffd700, 0xff2d5e, 0xba94ff, 0xffffff,
+      ];
+      const balloons = [];
+      // Balloon skin: the balloon colour + a glossy highlight + روز / Rose on the front.
+      function makeBalloonTexture(css) {
+        const s = 256,
+          cv = document.createElement("canvas");
+        cv.width = cv.height = s;
+        const g = cv.getContext("2d");
+        g.fillStyle = css;
+        g.fillRect(0, 0, s, s);
+        const hl = g.createRadialGradient(
+          s * 0.34,
+          s * 0.28,
+          4,
+          s * 0.5,
+          s * 0.5,
+          s * 0.78,
+        );
+        hl.addColorStop(0, "rgba(255,255,255,0.5)");
+        hl.addColorStop(0.35, "rgba(255,255,255,0.1)");
+        hl.addColorStop(1, "rgba(255,255,255,0)");
+        g.fillStyle = hl;
+        g.fillRect(0, 0, s, s);
+        g.textAlign = "center";
+        g.textBaseline = "middle";
+        g.lineJoin = "round";
+        const draw = (tx, font, y) => {
+          g.font = font;
+          g.lineWidth = 6;
+          g.strokeStyle = "rgba(55,8,28,0.6)";
+          g.strokeText(tx, s / 2, y);
+          g.fillStyle = "rgba(255,255,255,0.97)";
+          g.fillText(tx, s / 2, y);
+        };
+        draw("روز", '900 78px "Segoe UI", Tahoma, sans-serif', s * 0.42);
+        draw("Rose", "italic 700 50px Georgia, serif", s * 0.63);
+        return new THREE.CanvasTexture(cv);
+      }
+      function makeBalloon(color) {
+        const g = new THREE.Group();
+        const css = "#" + color.toString(16).padStart(6, "0");
+        const tex = makeBalloonTexture(css);
+        const mat = new THREE.MeshStandardMaterial({
+          map: tex,
+          emissiveMap: tex,
+          emissive: 0xffffff,
+          emissiveIntensity: 0.4,
+          color: 0xffffff,
+          roughness: 0.25,
+          metalness: 0.1,
+        });
+        const body = new THREE.Mesh(new THREE.SphereGeometry(1, 26, 26), mat);
+        body.scale.set(1, 1.25, 1);
+        g.add(body);
+        const tieMat = new THREE.MeshStandardMaterial({
+          color,
+          emissive: color,
+          emissiveIntensity: 0.4,
+          roughness: 0.25,
+          metalness: 0.1,
+        });
+        const tie = new THREE.Mesh(
+          new THREE.ConeGeometry(0.16, 0.32, 8),
+          tieMat,
+        );
+        tie.position.y = -1.32;
+        tie.rotation.x = Math.PI;
+        g.add(tie);
+        const str = new THREE.Line(
+          new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(0, -1.45, 0),
+            new THREE.Vector3(0, -5, 0),
+          ]),
+          new THREE.LineBasicMaterial({
+            color: 0xffd0e4,
+            transparent: true,
+            opacity: 0.5,
+          }),
+        );
+        g.add(str);
+        return g;
+      }
+      const BAL_RANGE = 130;
+      // Balloons are anchored in the WORLD (not stuck to the camera) so she can fly
+      // into them. They rise up around her, recycle in low when they drift off, and pop on contact.
+      function seedBalloon(b, fromBelow) {
+        const cam = camera.position;
+        const ang = Math.random() * Math.PI * 2;
+        const dist = 22 + Math.random() * (BAL_RANGE - 22);
+        b.bx = cam.x + Math.cos(ang) * dist;
+        b.bz = cam.z + Math.sin(ang) * dist;
+        b.by = fromBelow
+          ? cam.y - 30 - Math.random() * 50
+          : cam.y - 50 + Math.random() * 110;
+        b.speed = 4 + Math.random() * 5;
+        b.phase = Math.random() * 6.283;
+        b.sway = 2 + Math.random() * 4;
+        b.size = 3.6 + Math.random() * 2.6;
+        b.group.scale.setScalar(b.size);
+      }
+      for (let i = 0; i < 9; i++) {
+        const g = makeBalloon(BAL_COLORS[i % BAL_COLORS.length]);
+        balloonRoot.add(g);
+        const b = { group: g };
+        seedBalloon(b, false);
+        balloons.push(b);
+      }
+      function updateBalloons(dt, t) {
+        const cam = camera.position;
+        for (const b of balloons) {
+          b.by += b.speed * dt; // rise (world-anchored)
+          const sx = Math.sin(t * 0.5 + b.phase) * b.sway,
+            sz = Math.cos(t * 0.4 + b.phase) * b.sway;
+          b.group.position.set(b.bx + sx, b.by, b.bz + sz);
+          // turn the روز/Rose face toward the camera so the name stays readable
+          b.group.rotation.y = Math.atan2(
+            b.group.position.z - cam.z,
+            cam.x - b.group.position.x,
+          );
+          b.group.rotation.z = Math.sin(t * 0.5 + b.phase) * 0.08;
+          const dx = b.group.position.x - cam.x,
+            dy = b.by - cam.y,
+            dz = b.group.position.z - cam.z;
+          const pop = b.size * 1.1 + 3;
+          if (dx * dx + dy * dy + dz * dz < pop * pop) {
+            // 🎈💥 she bumped into it
+            screenBurst(["🎈", "💥", "💗", "✨", "🌸"], 20);
+            seedBalloon(b, true);
+          } else if (
+            b.by > cam.y + BAL_RANGE ||
+            Math.hypot(dx, dz) > BAL_RANGE * 1.4
+          ) {
+            seedBalloon(b, true); // drifted off → float a fresh one in low
+          }
+        }
+      }
+
+      // ---- shooting stars (for the wishing star) --------------------------------
+      const shootStars = [];
+      function shootingStar() {
+        const sp = emojiSprite("🌠");
+        sp.scale.set(16, 16, 1);
+        const base = camera.position;
+        const start = new THREE.Vector3(
+          base.x - 130,
+          base.y + 90,
+          base.z - 150,
+        );
+        const end = new THREE.Vector3(base.x + 130, base.y + 40, base.z - 150);
+        sp.position.copy(start);
+        scene.add(sp);
+        shootStars.push({ sp, t: 0, start, end });
+      }
+      function updateShootStars(dt) {
+        for (let i = shootStars.length - 1; i >= 0; i--) {
+          const s = shootStars[i];
+          s.t += dt / 1.8;
+          if (s.t >= 1) {
+            scene.remove(s.sp);
+            s.sp.material.map.dispose();
+            s.sp.material.dispose();
+            shootStars.splice(i, 1);
+            continue;
+          }
+          s.sp.position.lerpVectors(s.start, s.end, s.t);
+          s.sp.material.opacity = Math.sin(s.t * Math.PI);
+        }
+      }
+
+      const surprises = [];
+      function addSurprise(cfg) {
+        const beam = makeBeam(cfg.pos, cfg.color);
+        const marker = cfg.markerTex
+          ? new THREE.Sprite(
+              new THREE.SpriteMaterial({
+                map: cfg.markerTex,
+                transparent: true,
+                depthWrite: false,
+                depthTest: false,
+                fog: false,
+              }),
+            )
+          : emojiSprite(cfg.emoji);
+        marker.scale.set(8, 8, 1);
+        marker.position.set(cfg.pos.x, cfg.markerY, cfg.pos.z);
+        surpriseRoot.add(marker);
+        surprises.push({
+          id: cfg.id,
+          icon: cfg.emoji,
+          label: cfg.label,
+          center: new THREE.Vector3(cfg.pos.x, cfg.centerY, cfg.pos.z),
+          radius: cfg.radius || 34,
+          beam,
+          marker,
+          markerYBase: cfg.markerY,
+          update: cfg.update,
+          activate: cfg.activate,
+          obj: cfg.obj || null,
+          counted: cfg.counted !== false,
+          found: false,
+          foundCounted: false,
+          gone: false,
+          opened: false,
+        });
+      }
+      function activateSurprise(s) {
+        const res = s.activate(s);
+        if (res !== false) markDiscovered(s.id);
+      }
+
+      // --- street-level surprises (fly straight to them) ---
+      const gift = buildGift(P(0, -52));
+      addSurprise({
+        id: "gift",
+        emoji: "🎁",
+        label: "افتحي الهدية",
+        color: 0xba94ff,
+        pos: P(0, -52),
+        centerY: 9,
+        markerY: 16,
+        radius: 36,
+        update: (s, t) => {
+          gift.grp.rotation.y = t * 0.4;
+          gift.grp.position.y = Math.sin(t * 1.2) * 0.6;
+          s.lo = (s.lo || 0) + ((s.opened ? 1 : 0) - (s.lo || 0)) * 0.1;
+          gift.lid.position.y = 2.15 + s.lo * 1.4;
+          gift.lid.rotation.z = -s.lo * 0.5;
+        },
+        activate: (s) => {
+          s.opened = true;
+          openGift();
+        },
+      });
+
+      const mood = buildMood(P(-80, 0));
+      addSurprise({
+        id: "mood",
+        emoji: "🌈",
+        label: "حديقة المزاج",
+        color: 0xff9ec2,
+        pos: P(-80, 0),
+        centerY: 12,
+        markerY: 18,
+        radius: 36,
+        update: (s, t) => {
+          mood.ring.rotation.z = t * 0.6;
+          mood.core.position.y = 8 + Math.sin(t * 1.5) * 0.5;
+          mood.grp.rotation.y = t * 0.2;
+        },
+        activate: () => openMood(),
+      });
+
+      const sec = buildSecret(P(80, 0));
+      addSurprise({
+        id: "secret",
+        emoji: "🔒",
+        markerTex: makeLockTexture(),
+        label: "سرّ القوة",
+        color: 0x9b5cff,
+        pos: P(80, 0),
+        centerY: 12,
+        markerY: 18,
+        radius: 36,
+        update: (s, t) => {
+          sec.grp.rotation.y = Math.sin(t * 0.5) * 0.4;
+          sec.heart.scale.setScalar(2.4 * (1 + Math.sin(t * 1.3) * 0.06));
+        },
+        activate: (s) => {
+          if (!hasPurpleKey) {
+            openLockedSecret();
+            return false;
+          }
+          setEmoji(s.marker, "💖");
+          openSecret();
+        },
+      });
+
+      // --- rooftop surprises (high up — fly upward with ▲ / E / Shift to reach them) ---
+      const ROOF_A = pickRoof(2, 1, 1),
+        ROOF_B = pickRoof(-2, -1, 1),
+        ROOF_C = pickRoof(1, 2, 1);
+
+      const por = buildPortrait(
+        new THREE.Vector3(ROOF_A.x, ROOF_A.top, ROOF_A.z),
+      );
+      addSurprise({
+        id: "portrait",
+        emoji: "🖼️",
+        label: "لوحة الورد",
+        color: 0xffd0a0,
+        pos: new THREE.Vector3(ROOF_A.x, ROOF_A.top, ROOF_A.z),
+        centerY: ROOF_A.top + 11,
+        markerY: ROOF_A.top + 20,
+        radius: 46,
+        update: (s, t) => {
+          por.frame.rotation.y = Math.sin(t * 0.25) * 0.5;
+          por.frame.position.y = 11 + Math.sin(t * 0.8) * 0.7;
+        },
+        activate: () => openPortrait(),
+      });
+
+      const rea = buildReasons(
+        new THREE.Vector3(ROOF_B.x, ROOF_B.top, ROOF_B.z),
+      );
+      addSurprise({
+        id: "reasons",
+        emoji: "💝",
+        label: "أسباب حبّي لكِ",
+        color: 0xff4f8b,
+        pos: new THREE.Vector3(ROOF_B.x, ROOF_B.top, ROOF_B.z),
+        centerY: ROOF_B.top + 10,
+        markerY: ROOF_B.top + 18,
+        radius: 42,
+        update: (s, t) => {
+          rea.big.scale.setScalar(2.2 * (1 + Math.sin(t * 1.2) * 0.06));
+          rea.grp.rotation.y = t * 0.3;
+          rea.orb.forEach((h, i) => {
+            const a = t * 1.2 + i * 2.1;
+            h.position.set(
+              Math.cos(a) * 4,
+              9 + Math.sin(t * 2 + i) * 0.6,
+              Math.sin(a) * 4,
+            );
+            h.rotation.y = a;
+          });
+        },
+        activate: () => openReasons(),
+      });
+
+      const star = buildStar(new THREE.Vector3(ROOF_C.x, ROOF_C.top, ROOF_C.z));
+      addSurprise({
+        id: "wish",
+        emoji: "⭐",
+        label: "نجمة الأمنية",
+        color: 0xffe07a,
+        pos: new THREE.Vector3(ROOF_C.x, ROOF_C.top, ROOF_C.z),
+        centerY: ROOF_C.top + 10,
+        markerY: ROOF_C.top + 18,
+        radius: 42,
+        update: (s, t) => {
+          star.star.rotation.y = t * 0.8;
+          star.star.rotation.z = Math.sin(t * 0.6) * 0.2;
+        },
+        activate: () => openWish(),
+      });
+
+      // --- the locked golden box (street) + its golden key (hidden on a rooftop) ---
+      const gbox = buildGoldenBox(P(-52, -52));
+      addSurprise({
+        id: "goldenbox",
+        emoji: "🔐",
+        label: "الصندوق الذهبي",
+        color: 0xffd24a,
+        obj: gbox.grp,
+        pos: P(-52, -52),
+        centerY: 11,
+        markerY: 18,
+        radius: 38,
+        update: (s, t) => {
+          gbox.grp.rotation.y = t * 0.3;
+          gbox.grp.position.y = Math.sin(t * 1.1) * 0.5;
+          s.lo = (s.lo || 0) + ((s.opened ? 1 : 0) - (s.lo || 0)) * 0.1;
+          gbox.lid.position.y = 2.2 + s.lo * 1.5;
+          gbox.lid.rotation.z = -s.lo * 0.5;
+          gbox.lock.visible = !s.opened;
+          gbox.shackle.visible = !s.opened;
+        },
+        activate: (s) => {
+          if (!hasGoldenKey) {
+            openLockedBox();
+            return false;
+          }
+          s.opened = true;
+          setEmoji(s.marker, "💛");
+          openGoldenBox();
+        },
+      });
+
+      const ROOF_K = pickRoof(2, -2, 1);
+      const gkey = buildGoldenKey(
+        new THREE.Vector3(ROOF_K.x, ROOF_K.top, ROOF_K.z),
+      );
+      addSurprise({
+        id: "goldenkey",
+        emoji: "🔑",
+        label: "المفتاح الذهبي",
+        color: 0xffe07a,
+        counted: false,
+        obj: gkey.grp,
+        pos: new THREE.Vector3(ROOF_K.x, ROOF_K.top, ROOF_K.z),
+        centerY: ROOF_K.top + 10,
+        markerY: ROOF_K.top + 18,
+        radius: 42,
+        update: (s, t) => {
+          if (s.gone) return;
+          gkey.spin.rotation.y = t * 1.3;
+          gkey.spin.rotation.z = Math.sin(t * 0.8) * 0.25;
+        },
+        activate: (s) => collectKey(s),
+      });
+
+      const ROOF_PK = pickRoof(-2, 2, 1);
+      const pkey = buildPurpleKey(
+        new THREE.Vector3(ROOF_PK.x, ROOF_PK.top, ROOF_PK.z),
+      );
+      addSurprise({
+        id: "purplekey",
+        emoji: "🔑",
+        label: "المفتاح البنفسجي",
+        color: 0x9b5cff,
+        counted: false,
+        obj: pkey.grp,
+        pos: new THREE.Vector3(ROOF_PK.x, ROOF_PK.top, ROOF_PK.z),
+        centerY: ROOF_PK.top + 10,
+        markerY: ROOF_PK.top + 18,
+        radius: 42,
+        update: (s, t) => {
+          if (s.gone) return;
+          pkey.spin.rotation.y = t * 1.3;
+          pkey.spin.rotation.z = Math.sin(t * 0.8) * 0.25;
+        },
+        activate: (s) => collectPurpleKey(s),
+      });
+
+      const countedTotal = surprises.filter((s) => s.counted).length;
+      document.getElementById("disc-total").textContent = countedTotal;
+
+      function updateSurprises(t) {
+        for (const s of surprises) {
+          if (s.gone) continue;
+          s.update(s, t);
+          const targetOp = s.found
+            ? 0.04
+            : 0.12 + 0.06 * Math.sin(t * 2 + s.center.x);
+          s.beam.material.opacity += (targetOp - s.beam.material.opacity) * 0.1;
+          s.marker.position.y =
+            s.markerYBase + Math.sin(t * 1.5 + s.center.z) * 0.6;
+        }
+        if (!started || uiPaused) {
+          promptEl.classList.remove("show");
+          actBtn.classList.remove("live");
+          nearest = null;
+          return;
+        }
+        let best = null,
+          bestD = 1e9;
+        for (const s of surprises) {
+          if (s.gone) continue;
+          const d = camera.position.distanceTo(s.center);
+          if (d < s.radius && d < bestD) {
+            best = s;
+            bestD = d;
+          }
+        }
+        nearest = best;
+        // no text prompt — the special glowing ♥ button is the only cue
+        if (best) actBtn.classList.add("live");
+        else actBtn.classList.remove("live");
+      }
+
+      // ---- welcome loader --------------------------------------------------------
+      function runLoader() {
+        const bar = document.getElementById("load-bar"),
+          pct = document.getElementById("load-pct"),
+          loadingEl = document.getElementById("loading");
+        let target = 0.15,
+          val = 0,
+          done = false;
+        const creep = setInterval(() => {
+          target = Math.min(0.9, target + 0.08);
+        }, 180);
+        (function tick() {
+          val += (target - val) * 0.18;
+          const p = Math.round(val * 100);
+          bar.style.width = p + "%";
+          pct.textContent = p + "%";
+          if (done && p >= 99) {
+            bar.style.width = "100%";
+            pct.textContent = "100%";
+            loadingEl.classList.add("gone");
+            return;
+          }
+          requestAnimationFrame(tick);
+        })();
+        const finish = () => {
+          clearInterval(creep);
+          target = 1;
+          done = true;
+        };
+        portraitReady.then(finish);
+        setTimeout(finish, 2600);
+      }
+
+      updateChunks();
+      runLoader();
+      animate();
+    </script>
+  </body>
+</html>
