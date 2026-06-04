@@ -209,6 +209,23 @@
         text-shadow: 0 1px 3px #000;
         pointer-events: none;
       }
+      #kisses {
+        position: fixed;
+        top: 12px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 12;
+        color: #ffe0ec;
+        font-size: 14px;
+        font-weight: 600;
+        background: rgba(40, 10, 28, 0.5);
+        border: 1px solid rgba(255, 120, 150, 0.4);
+        border-radius: 20px;
+        padding: 6px 14px;
+        text-shadow: 0 1px 3px #000;
+        pointer-events: none;
+        white-space: nowrap;
+      }
       #prompt {
         position: fixed;
         left: 50%;
@@ -684,6 +701,57 @@
       #celebrate .panel-btn {
         margin-top: 22px;
       }
+
+      /* ─────────── 101-kiss reward ─────────── */
+      #kissreward {
+        position: fixed;
+        inset: 0;
+        z-index: 72;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        direction: rtl;
+        background: radial-gradient(
+          circle,
+          rgba(80, 14, 40, 0.95),
+          rgba(14, 2, 8, 0.98)
+        );
+      }
+      #kissreward.show {
+        display: flex;
+      }
+      #kissreward .k-card {
+        color: #ffe6ef;
+        max-width: 460px;
+        padding: 24px;
+      }
+      #kissreward .big-kiss {
+        font-size: clamp(90px, 28vw, 150px);
+        filter: drop-shadow(0 8px 28px rgba(255, 60, 110, 0.8));
+        animation: kissBeat 0.9s ease-in-out infinite;
+      }
+      @keyframes kissBeat {
+        0%, 100% { transform: scale(1); }
+        15% { transform: scale(1.22) rotate(-4deg); }
+        30% { transform: scale(1.04); }
+        45% { transform: scale(1.14) rotate(4deg); }
+      }
+      #kissreward h1 {
+        font-size: clamp(24px, 7vw, 34px);
+        color: #ff7da0;
+        text-shadow: 0 0 26px rgba(255, 70, 120, 0.9);
+        margin: 8px 0 12px;
+      }
+      #kissreward p {
+        font-size: 17px;
+        line-height: 1.95;
+        color: #f6d4e2;
+      }
+      #kissreward .panel-btn {
+        margin-top: 20px;
+        font-size: 26px;
+      }
     </style>
   </head>
   <body>
@@ -734,6 +802,7 @@
     <div id="discovery">
       <span id="disc-count">0</span> / <span id="disc-total">7</span> 💗
     </div>
+    <div id="kisses">💋 <span id="kiss-count">0</span> / 101</div>
     <div id="prompt"></div>
 
     <!-- ambient music -->
@@ -769,6 +838,9 @@
 
     <!-- final celebration -->
     <div id="celebrate"><div class="c-card" id="celebrate-card"></div></div>
+
+    <!-- the 101-kiss reward -->
+    <div id="kissreward"><div class="k-card" id="kissreward-card"></div></div>
 
     <script type="importmap">
       {
@@ -2220,6 +2292,7 @@
         updateHearts(dt, starTime);
         updateBalloons(dt, starTime);
         updateShootStars(dt);
+        updateKisses(starTime);
         updateSurprises(starTime, dt);
 
         // ground follows the camera so the infinite world stays lit
@@ -2674,7 +2747,7 @@
       }
       function openPortrait() {
         openPanel(`<span class="emoji-head">🌹</span>
-    <img class="portrait-img" src="../rose.jpg" alt="rose" onerror="this.style.display='none'">
+    <img class="portrait-img" src="./rose.png" alt="rose" onerror="this.style.display='none'">
     <p class="big-msg">Rose 💗</p>`);
         track("🌹 Opened the rose portrait");
       }
@@ -3176,7 +3249,7 @@
         let res;
         portraitReady = new Promise((r) => (res = r));
         const tex = new THREE.TextureLoader().load(
-          "../rose.jpg",
+          "../rose.png",
           () => res(true),
           undefined,
           () => res(false),
@@ -3376,6 +3449,60 @@
           }
           s.sp.position.lerpVectors(s.start, s.end, s.t);
           s.sp.material.opacity = Math.sin(s.t * Math.PI);
+        }
+      }
+
+      // ---- collectible red kisses 💋 (in the roads & above the buildings) ----
+      // Small world-anchored kisses she flies through; collect 101 for a real one.
+      const kissRoot = new THREE.Group(); scene.add(kissRoot);
+      const KISS_RANGE = 120, KISS_GOAL = 101;
+      const kisses = [];
+      let kissCount = 0, kissDone = false;
+      const kissCountEl = document.getElementById('kiss-count');
+      function seedKiss(k) {
+        const cam = camera.position;
+        const ang = Math.random() * Math.PI * 2;
+        const dist = 16 + Math.random() * (KISS_RANGE - 16);
+        k.bx = cam.x + Math.cos(ang) * dist;
+        k.bz = cam.z + Math.sin(ang) * dist;
+        // half hover just over the streets, half float up among the rooftops
+        k.by = Math.random() < 0.5 ? (3 + Math.random() * 9) : (25 + Math.random() * 85);
+        k.phase = Math.random() * 6.283;
+      }
+      for (let i = 0; i < 50; i++) {
+        const sp = emojiSprite('💋'); sp.scale.set(2.2, 2.2, 1);   // small
+        sp.material.depthTest = true;   // buildings hide kisses that are behind them
+        kissRoot.add(sp);
+        const k = { sp }; seedKiss(k); kisses.push(k);
+      }
+      function kissReward() {
+        const el = document.getElementById('kissreward'), card = document.getElementById('kissreward-card');
+        card.innerHTML = `<div class="big-kiss">💋</div>
+          <h1>بوسة حقيقية إلك</h1>
+          <p>جمعتي 101 بوسة 💋<br>هاي وحدة حقيقية مني… لإنك تستاهلي كل بوسة بالدنيا 💗<br>
+          <span style="opacity:.75">A real kiss, just for you.</span></p>
+          <div class="panel-btn" id="kissClose">💗</div>`;
+        el.classList.add('show'); pauseUI();
+        document.getElementById('kissClose').addEventListener('click', () => { el.classList.remove('show'); resumeUI(); });
+        let n = 0; const iv = setInterval(() => { screenBurst(['💋','💗','❤️','💕','✨'], 24); if (++n > 5) clearInterval(iv); }, 450);
+        track('💋 Collected 101 kisses → a real kiss');
+      }
+      function updateKisses(t) {
+        if (!started || uiPaused) return;
+        const cam = camera.position;
+        for (const k of kisses) {
+          k.sp.position.set(k.bx, k.by + Math.sin(t * 2 + k.phase) * 0.5, k.bz);
+          const dx = k.bx - cam.x, dy = k.by - cam.y, dz = k.bz - cam.z;
+          if (dx * dx + dy * dy + dz * dz < 25) {                 // collected (within ~5m)
+            if (!kissDone) {
+              kissCount++; kissCountEl.textContent = kissCount;
+              screenBurst(['💋', '💗'], 5);
+              if (kissCount >= KISS_GOAL) { kissDone = true; kissCountEl.textContent = '101 ❤'; kissReward(); }
+            }
+            seedKiss(k);                                          // respawn a fresh one nearby
+          } else if (Math.hypot(dx, dz) > KISS_RANGE * 1.5 || k.by < cam.y - 150 || k.by > cam.y + 170) {
+            seedKiss(k);                                          // drifted off → recycle near her
+          }
         }
       }
 
