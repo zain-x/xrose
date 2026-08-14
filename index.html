@@ -416,6 +416,44 @@
         bottom: 34px;
         font-size: 20px;
       }
+      /* 🦸‍♀️ one tap above the joystick turns her into Super-Woman */
+      #btn-hero {
+        left: max(20px, env(safe-area-inset-left));
+        bottom: 190px;
+        font-size: 26px;
+        background: radial-gradient(
+          circle at 50% 38%,
+          rgba(255, 95, 95, 0.5),
+          rgba(180, 20, 60, 0.45)
+        );
+        border: 2px solid rgba(255, 210, 120, 0.8);
+        box-shadow: 0 0 18px rgba(255, 80, 120, 0.7);
+      }
+      #btn-hero.on {
+        background: radial-gradient(circle at 50% 38%, #ffd76a, #ff2d5e);
+        box-shadow: 0 0 26px rgba(255, 200, 90, 0.95);
+      }
+      /* 🚀 turbo — appears only while Super-Woman is on; HOLD it to boost */
+      #btn-fly-boost {
+        display: none;
+        left: max(20px, env(safe-area-inset-left));
+        bottom: 262px;
+        font-size: 26px;
+        background: radial-gradient(
+          circle at 50% 38%,
+          rgba(186, 123, 255, 0.55),
+          rgba(106, 31, 216, 0.5)
+        );
+        border: 2px solid rgba(220, 190, 255, 0.85);
+        box-shadow: 0 0 18px rgba(155, 77, 255, 0.75);
+      }
+      #btn-fly-boost.on {
+        display: flex;
+      }
+      #btn-fly-boost:active {
+        background: radial-gradient(circle at 50% 38%, #d9b8ff, #9b4dff);
+        box-shadow: 0 0 30px rgba(186, 123, 255, 1);
+      }
       /* the heart only shows up once she's close enough — and it's made special */
       #btn-action {
         right: max(16px, env(safe-area-inset-right));
@@ -646,6 +684,52 @@
         color: #f3cfe0;
       }
 
+      /* ─────────── date invitation (the envelope in مقهى روز) ─────────── */
+      .date-row {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin: 16px 0 4px;
+      }
+      .date-row input[type="date"],
+      .date-row input[type="time"],
+      .date-row select {
+        -webkit-appearance: none;
+        appearance: none;
+        /* vivid rose — the pickers pop out of the panel instead of hiding in it */
+        background: linear-gradient(180deg, #ff6d92, #d63384);
+        border: 2px solid #ffd0e4;
+        border-radius: 12px;
+        color: #ffffff;
+        font-size: 16px;
+        font-weight: 700;
+        padding: 10px 14px;
+        outline: none;
+        color-scheme: dark;
+        font-family: inherit;
+        text-align: center;
+        box-shadow: 0 0 16px rgba(255, 110, 160, 0.55);
+        cursor: pointer;
+      }
+      .date-row select option {
+        background: #2a0f1e;
+        color: #ffe6ef;
+      }
+      .date-row input[type="date"]::-webkit-calendar-picker-indicator,
+      .date-row input[type="time"]::-webkit-calendar-picker-indicator {
+        filter: invert(1) drop-shadow(0 0 3px rgba(255, 255, 255, 0.9));
+        cursor: pointer;
+        transform: scale(1.25);
+      }
+      .panel-btn.ghost {
+        background: rgba(255, 150, 190, 0.08);
+        border-color: rgba(255, 160, 200, 0.3);
+        color: #e3a9c4;
+        margin-right: 10px;
+        transition: transform 0.18s ease;
+      }
+
       /* ─────────── Breathing overlay ─────────── */
       #breathe {
         position: fixed;
@@ -823,6 +907,11 @@
         🧗‍♀️ keep pushing into any tower — she climbs it like a spider;
         <span class="key">Space</span> leaps off the wall
       </div>
+      <div>
+        🦸‍♀️ <span class="key">G</span> وضع سوبر وومن — she flies!
+        <span class="key">Space</span> rise, <span class="key">C</span> dive,
+        hold 🚀 turbo
+      </div>
       <div>🕐 time follows your real clock</div>
       <div>
         <span class="key">1</span> gentle &nbsp; <span class="key">2</span> rosy
@@ -832,6 +921,10 @@
       <div>
         <span class="key">F</span> open a surprise ✨ — fly to the glowing
         beacons 🌹
+      </div>
+      <div>
+        ☕ three street cafés hide between the towers — a sealed envelope
+        waits inside <b>مقهى روز</b> 💌
       </div>
       <div>
         🚗 the <b>Rose VIP Car</b> waits under the red beam —
@@ -887,9 +980,12 @@
       <div class="tbtn" id="btn-up">▲</div>
       <div class="tbtn" id="btn-down">▼</div>
       <div class="tbtn" id="btn-boost">⚡</div>
+      <div class="tbtn" id="btn-hero">🦸‍♀️</div>
       <div class="tbtn" id="btn-action">♥</div>
       <div class="tbtn" id="btn-vehicle" style="display: none">🚗</div>
     </div>
+    <!-- 🚀 super-woman turbo — lives OUTSIDE #touch so desktop mice get it too -->
+    <div class="tbtn" id="btn-fly-boost" title="سرعة إضافية — اضغطي مطولاً">🚀</div>
 
     <!-- generic content panel -->
     <div class="panel" id="panel">
@@ -959,10 +1055,10 @@
       renderer.shadowMap.enabled = !isTouch; // shadows are costly on phones
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 0.62;
+      renderer.toneMappingExposure = 0.82;
 
       const scene = new THREE.Scene();
-      const FOG_COLOR = new THREE.Color(0x2b3448);
+      const FOG_COLOR = new THREE.Color(0x3a4560);
       scene.fog = new THREE.FogExp2(FOG_COLOR, 0.0065);
       scene.background = FOG_COLOR.clone();
 
@@ -1713,6 +1809,54 @@
         [1.0, 0.85, 0.4], // gold
       ];
 
+      // ♥ Hand-placed street-level clearings — little rose plazas & the cafés.
+      // Declared up here so the very first towerSpec() call already keeps these
+      // lots empty (they're built later, see "ROSE PLAZAS & STREET CAFÉS").
+      const PLAZA_LOTS = [
+        [-1, 2],
+        [2, -2],
+        [-3, -2],
+        [1, 4],
+      ];
+      const CAFES = [
+        // each café has its OWN menu — روز is famous for the cheesecake 🍰
+        {
+          gx: 1, gz: 1, ar: "مقهى روز", en: "Rose Café", accent: "#ff5d83", glow: 0xff5d83, envelope: true,
+          items: [
+            "🍰 تشيز كيك روز ......... ١٦",
+            "☕ قهوة الورد ......... ١٢",
+            "🍓 لاتيه الفراولة ......... ١٤",
+            "🌹 موكا الورد ......... ١٣",
+            "🍪 كوكيز القلوب ......... ٨",
+          ],
+        },
+        {
+          gx: -2, gz: 0, ar: "مقهى القمر", en: "Moon Café", accent: "#8fc4ff", glow: 0x8fc4ff,
+          items: [
+            "🌙 لاتيه القمر ......... ١٤",
+            "⭐ آيس كوفي النجوم ......... ١٢",
+            "🍫 كيك الشوكولاتة ......... ١٥",
+            "🥐 كروسان بالزبدة ......... ٩",
+            "🧋 ميلك شيك الليل ......... ١٣",
+          ],
+        },
+        {
+          gx: 0, gz: -3, ar: "مقهى الياسمين", en: "Jasmine Café", accent: "#9fe8c4", glow: 0x9fe8c4,
+          items: [
+            "🌼 شاي ياسمين ......... ١٠",
+            "🍃 شاي نعناع ......... ٨",
+            "🍯 بقلاوة بالفستق ......... ١٢",
+            "🧁 كب كيك الياسمين ......... ٩",
+            "🍊 عصير برتقال طازج ......... ٩",
+          ],
+        },
+      ];
+      function clearedLot(gx, gz) {
+        for (const p of PLAZA_LOTS) if (p[0] === gx && p[1] === gz) return true;
+        for (const c of CAFES) if (c.gx === gx && c.gz === gz) return true;
+        return false;
+      }
+
       // One shared description of every tower — the chunk builder, the rooftop
       // pickers, the poster placer AND the collision check all read the SAME
       // shape so nothing drifts. Cached because collision asks every frame.
@@ -1731,6 +1875,8 @@
       }
       function computeTowerSpec(gx, gz) {
         if (inAirport(gx, gz)) return null; // ✈️ Rose Airfield — a clearing in the towers
+        if (inPark(gx, gz)) return null; // 🌳 Rose Park — a WIDE green clearing with the playgrounds
+        if (clearedLot(gx, gz)) return null; // 🌹 a rose plaza or a street café lives here
         if (hash(gx, gz, 1) < 0.05) return null; // rare empty lot
         const h1 = hash(gx, gz, 2);
         const h2 = hash(gx, gz, 3);
@@ -2514,13 +2660,13 @@
         lerp = THREE.MathUtils.lerp,
         d2r = THREE.MathUtils.degToRad;
       const C_FOG_DAY = new THREE.Color(0xa8b6cc),
-        C_FOG_NIGHT = new THREE.Color(0x2b3448);
+        C_FOG_NIGHT = new THREE.Color(0x3a4560); // lighter dusk-blue so nights stay readable
       const C_KEY_WARM = new THREE.Color(0xffb08f),
         C_KEY_NOON = new THREE.Color(0xf2ecff);
       const C_SKY_DAY = new THREE.Color(0xc9d6ee),
-        C_SKY_NIGHT = new THREE.Color(0x46506a);
+        C_SKY_NIGHT = new THREE.Color(0x5b6789);
       const C_GND_DAY = new THREE.Color(0x4a4034),
-        C_GND_NIGHT = new THREE.Color(0x1d1712);
+        C_GND_NIGHT = new THREE.Color(0x2b231d);
       const _fog = new THREE.Color();
 
       // discrete controls: P pause clock, 1/2/3 weather moods
@@ -2529,6 +2675,8 @@
         else if (e.code === "Digit1") stormTarget = 0.0;
         else if (e.code === "Digit2") stormTarget = 0.5;
         else if (e.code === "Digit3") stormTarget = 1.0;
+        else if (e.code === "KeyG" && vehMode !== "car" && vehMode !== "plane")
+          toggleSuperWoman(); // 🦸‍♀️ only on foot
       });
 
       function updateEnv(dt) {
@@ -2570,12 +2718,12 @@
 
         // blue moonlight fill, strongest at night
         moonDir.setFromSphericalCoords(1, d2r(90 - moonElev), d2r(moonAzi));
-        moonFill.intensity = (0.08 + nightF * 0.4) * (1 - 0.4 * storm);
+        moonFill.intensity = (0.12 + nightF * 0.55) * (1 - 0.4 * storm);
         moonFill.position.copy(camera.position).addScaledVector(moonDir, 300);
         moonFill.target.position.copy(camera.position);
 
         // sky/ground ambient
-        hemi.intensity = lerp(0.5, 0.7, dayF) * (1 - 0.2 * storm);
+        hemi.intensity = lerp(0.68, 0.75, dayF) * (1 - 0.2 * storm);
         hemi.color.copy(C_SKY_NIGHT).lerp(C_SKY_DAY, dayF);
         hemi.groundColor.copy(C_GND_NIGHT).lerp(C_GND_DAY, dayF);
 
@@ -2586,9 +2734,9 @@
           .multiplyScalar(1 - 0.5 * storm);
         scene.fog.color.copy(_fog);
         scene.background.copy(_fog);
-        scene.fog.density = 0.0033 + 0.0042 * storm + 0.001 * nightF;
+        scene.fog.density = 0.0033 + 0.0042 * storm + 0.0004 * nightF;
         renderer.toneMappingExposure =
-          lerp(0.68, 0.92, dayF) * (1 - 0.18 * storm);
+          lerp(0.82, 0.95, dayF) * (1 - 0.18 * storm);
 
         // visible sun & moon discs ride the sky around the camera
         sunDisc.position.copy(camera.position).addScaledVector(sun, SKY_DIST);
@@ -2666,6 +2814,7 @@
         updateShootStars(dt);
         updateKisses(starTime);
         updateGifPosters();
+        updatePark(dt, starTime);
         updateSurprises(starTime, dt);
         updateVehicles(dt, starTime);
         updateRadar(starTime);
@@ -2871,6 +3020,17 @@
       holdBtn("btn-up", (v) => (touchUp = v));
       holdBtn("btn-down", (v) => (touchDown = v));
       holdBtn("btn-boost", (v) => (touchBoost = v));
+      holdBtn("btn-fly-boost", (v) => (heroBoost = v)); // 🚀 hold = turbo flight
+      // 🦸‍♀️ one tap → Super-Woman (▲/▼ then fly her up & down)
+      {
+        const heroBtn = document.getElementById("btn-hero");
+        const heroTap = (e) => {
+          if (e) e.preventDefault();
+          if (vehMode !== "car" && vehMode !== "plane") toggleSuperWoman();
+        };
+        heroBtn.addEventListener("touchstart", heroTap, { passive: false });
+        heroBtn.addEventListener("click", () => heroTap());
+      }
       actBtn.addEventListener(
         "touchstart",
         (e) => {
@@ -3138,6 +3298,106 @@
     <img class="portrait-img" src="./rose.png" alt="rose" onerror="this.style.display='none'">
     <p class="big-msg">Rose 💗</p>`);
         track("🌹 Opened the rose portrait");
+      }
+
+      // ---- the sealed envelope in مقهى روز — a date she picks but can't refuse 💌 ----
+      function fmtDateAr(iso) {
+        try {
+          return new Date(iso + "T12:00:00").toLocaleDateString("ar", {
+            weekday: "long",
+            day: "numeric",
+            month: "long",
+          });
+        } catch (e) {
+          return iso;
+        }
+      }
+      function openEnvelope() {
+        const min = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
+        // she picks ANY hour she likes — the native 12h picker shows AM/PM
+        // (stored 24h "19:00", always SHOWN 12h "7:00 مساءً")
+        const fmt12 = (t) => {
+          const h = +t.slice(0, 2);
+          const h12 = ((h + 11) % 12) + 1;
+          return `${h12}:${t.slice(3)} ${h < 12 ? "صباحاً" : "مساءً"}`;
+        };
+        openPanel(`<span class="emoji-head">💌</span><h2>دعوة رسمية</h2>
+    <p>الدعوة على تشيز كيك روز 🍰<br>اختاري اليوم والساعة</p>
+    <div class="date-row">
+      <input type="date" id="dateDay" min="${min}" />
+      <input type="time" id="dateTimeSel" />
+    </div>
+    <div class="panel-btn" id="dateYes">تم، موعدنا 💜</div>
+    <div class="panel-btn ghost" id="dateNo">بعتذر 🙈</div>`);
+        const day = document.getElementById("dateDay");
+        const timeSel = document.getElementById("dateTimeSel");
+        const yes = document.getElementById("dateYes");
+        const no = document.getElementById("dateNo");
+        let dodges = 0,
+          surrendered = false;
+        const NO_LINES = [
+          "لأ… ما في رفض 😌",
+          "الزر عم يهرب منك 🙈",
+          "قلتلك، ما بتقدري ترفضي 💜",
+        ];
+        function accept() {
+          // both the day AND the free-pick time must be chosen
+          let missing = false;
+          for (const el of [day, timeSel])
+            if (!el.value) {
+              el.style.borderColor = "#ff2d5e";
+              el.style.boxShadow = "0 0 14px rgba(255,45,94,0.7)";
+              missing = true;
+            }
+          if (missing) {
+            screenBurst(["📅", "🌹"], 8);
+            return;
+          }
+          const d = day.value,
+            tm = timeSel.value;
+          openPanel(`<span class="emoji-head">💜</span><h2>الموعد اتحدّد</h2>
+    <p class="big-msg">${fmtDateAr(d)}<br>الساعة ${fmt12(tm)}</p>
+    <div class="panel-btn" id="dateDone">👍</div>`);
+          document
+            .getElementById("dateDone")
+            .addEventListener("click", closePanel);
+          screenBurst(["💌", "💜", "🌹", "✨", "💕"]);
+          track(`💌 Date night confirmed: ${d} ${tm}`);
+          try {
+            localStorage.setItem("roseDateNight", d + " " + tm);
+          } catch (e) {}
+        }
+        // the "sorry, I can't" button runs away — after a few tries it gives up
+        function dodge() {
+          dodges++;
+          if (dodges >= 4) {
+            surrendered = true;
+            no.style.transform = "";
+            no.textContent = "خلص… ما فيني أرفض 😅💜";
+            no.classList.remove("ghost");
+            return;
+          }
+          const dx = (Math.random() * 2 - 1) * 90;
+          const dy = (Math.random() * 2 - 1) * 36;
+          no.style.transform = `translate(${dx.toFixed(0)}px, ${dy.toFixed(0)}px) rotate(${(Math.random() * 12 - 6).toFixed(1)}deg)`;
+          no.textContent = NO_LINES[Math.min(dodges - 1, NO_LINES.length - 1)];
+        }
+        no.addEventListener("pointerenter", () => {
+          if (!surrendered) dodge();
+        });
+        no.addEventListener(
+          "touchstart",
+          (e) => {
+            if (!surrendered) {
+              e.preventDefault();
+              dodge();
+            }
+          },
+          { passive: false },
+        );
+        no.addEventListener("click", () => (surrendered ? accept() : dodge()));
+        yes.addEventListener("click", accept);
+        track("💌 Opened the café envelope");
       }
 
       // ---- breathing rose (4-7-8, 3 cycles — from the real breathe.js) -----------
@@ -3659,6 +3919,1408 @@
         return { grp, frame };
       }
 
+      // ────────────────────────────────────────────────────────────────────────────
+      // ☕🌹 ROSE PLAZAS & STREET CAFÉS — hand-placed clearings in the tower grid.
+      // Plazas: fountain, glowing ring, rose bushes, benches, lamp posts with
+      // fairy-lights. Cafés: open-front little shops with awnings & neon signs;
+      // مقهى روز keeps a sealed envelope on a table inside 💌 (surprise "envelope").
+      // ────────────────────────────────────────────────────────────────────────────
+      const decorRoot = new THREE.Group();
+      scene.add(decorRoot);
+      const lotC = (g) => g * TILE + TILE / 2;
+
+      const STONE_MAT = new THREE.MeshStandardMaterial({
+        color: 0x3a2231,
+        roughness: 0.8,
+        metalness: 0.15,
+      });
+      const PAVE_MAT = new THREE.MeshStandardMaterial({
+        color: 0x2a1420,
+        roughness: 0.85,
+        metalness: 0.12,
+      });
+      const CAFE_WALL = new THREE.MeshStandardMaterial({
+        color: 0x241019,
+        roughness: 0.7,
+        metalness: 0.2,
+      });
+      const CAFE_WOOD = new THREE.MeshStandardMaterial({
+        color: 0x6b3a2a,
+        roughness: 0.6,
+        metalness: 0.1,
+      });
+      const CAFE_DARK = new THREE.MeshStandardMaterial({
+        color: 0x1a0d12,
+        roughness: 0.8,
+        metalness: 0.2,
+      });
+      const WOOD_FLOOR = new THREE.MeshStandardMaterial({
+        color: 0x4a281c,
+        roughness: 0.75,
+        metalness: 0.05,
+      });
+      const SHADE_MAT = new THREE.MeshStandardMaterial({
+        color: 0x30161f,
+        roughness: 0.5,
+        metalness: 0.4,
+        side: THREE.DoubleSide,
+      });
+      const WINDOW_MAT = new THREE.MeshStandardMaterial({
+        color: 0x140a10,
+        emissive: 0xffb46a,
+        emissiveIntensity: 1.15,
+      });
+      const FAIRY_MAT = new THREE.LineBasicMaterial({
+        color: 0xffb3d2,
+        transparent: true,
+        opacity: 0.85,
+      });
+      const BLOOM_COLORS = [0xff2d5e, 0xff5d83, 0xff9ec2, 0xffd0e4, 0xfff6fa];
+
+      // pooled decorations — filled by the builders, poured into InstancedMeshes below
+      const bushSpots = [],
+        bloomSpots = [],
+        lampSpots = [],
+        benchSpots = [],
+        cupSpots = [];
+      const CUP_COLORS = [0xfff6fa, 0xffd0e4, 0x9fd8ff, 0xc6f7e2, 0xffe1a8];
+      function plantBush(x, z, s = 1) {
+        bushSpots.push({ x, z, s });
+        const n = 3 + ((Math.random() * 3) | 0);
+        for (let i = 0; i < n; i++) {
+          const a = Math.random() * Math.PI * 2;
+          const r = 0.6 * s * Math.sqrt(Math.random());
+          bloomSpots.push({
+            x: x + Math.cos(a) * r,
+            y: 0.75 * s + Math.random() * 0.45 * s,
+            z: z + Math.sin(a) * r,
+            s: 0.16 + Math.random() * 0.14,
+            c: BLOOM_COLORS[(Math.random() * BLOOM_COLORS.length) | 0],
+          });
+        }
+      }
+
+      function makeCafeSignMat(cfg) {
+        const w = 512,
+          h = 160,
+          cv = document.createElement("canvas");
+        cv.width = w;
+        cv.height = h;
+        const g = cv.getContext("2d");
+        g.textAlign = "center";
+        g.textBaseline = "middle";
+        g.shadowColor = cfg.accent;
+        g.shadowBlur = 26;
+        g.fillStyle = "#fff4f9";
+        g.font = '900 60px "Segoe UI", Tahoma, sans-serif';
+        g.fillText("☕ " + cfg.ar, w / 2, h * 0.34);
+        g.fillStyle = cfg.accent;
+        g.font = "italic 600 40px Georgia, serif";
+        g.fillText(cfg.en, w / 2, h * 0.76);
+        const t = new THREE.CanvasTexture(cv);
+        t.anisotropy = 4;
+        return new THREE.MeshBasicMaterial({
+          map: t,
+          transparent: true,
+          toneMapped: false,
+          side: THREE.DoubleSide,
+        });
+      }
+      // chalkboard menu hanging on the café's back wall
+      function makeMenuMat(cfg) {
+        const cv = document.createElement("canvas");
+        cv.width = 512;
+        cv.height = 256;
+        const g = cv.getContext("2d");
+        g.fillStyle = "#160b10";
+        g.fillRect(0, 0, 512, 256);
+        g.strokeStyle = cfg.accent;
+        g.lineWidth = 6;
+        g.strokeRect(8, 8, 496, 240);
+        g.textAlign = "center";
+        g.fillStyle = "#fff0f6";
+        g.font = '700 38px "Segoe UI", Tahoma, sans-serif';
+        g.fillText("قائمة " + cfg.ar, 256, 54);
+        g.font = '400 26px "Segoe UI", Tahoma, sans-serif';
+        g.fillStyle = "#ffd0e4";
+        // every café hangs its OWN menu (see CAFES.items)
+        const items = cfg.items || ["☕ قهوة ......... ١٢"];
+        items.forEach((it, i) => g.fillText(it, 256, 96 + i * 35));
+        const t = new THREE.CanvasTexture(cv);
+        t.anisotropy = 4;
+        return new THREE.MeshBasicMaterial({ map: t, toneMapped: false });
+      }
+      function makeAwningMat(accent) {
+        const cv = document.createElement("canvas");
+        cv.width = 256;
+        cv.height = 64;
+        const g = cv.getContext("2d");
+        for (let i = 0; i < 8; i++) {
+          g.fillStyle = i % 2 ? "#fff0f6" : accent;
+          g.fillRect(i * 32, 0, 32, 64);
+        }
+        const t = new THREE.CanvasTexture(cv);
+        return new THREE.MeshStandardMaterial({
+          map: t,
+          emissiveMap: t,
+          emissive: 0xffffff,
+          emissiveIntensity: 0.38,
+          roughness: 0.8,
+          side: THREE.DoubleSide,
+        });
+      }
+
+      function buildPlaza(gx, gz) {
+        const x = lotC(gx),
+          z = lotC(gz);
+        const g = new THREE.Group();
+        g.position.set(x, 0, z);
+        // paved circle with a soft glowing ring
+        const pave = new THREE.Mesh(
+          new THREE.CylinderGeometry(11.5, 11.5, 0.14, 28),
+          PAVE_MAT,
+        );
+        pave.position.y = 0.07;
+        pave.receiveShadow = true;
+        g.add(pave);
+        const ring = new THREE.Mesh(
+          new THREE.TorusGeometry(8.7, 0.1, 6, 44),
+          SM(0xff7da0, 0.9),
+        );
+        ring.rotation.x = Math.PI / 2;
+        ring.position.y = 0.18;
+        g.add(ring);
+        // fountain: basin, glowing water, column, a rose-red bloom on top
+        const basin = new THREE.Mesh(
+          new THREE.CylinderGeometry(3.4, 3.8, 0.9, 18),
+          STONE_MAT,
+        );
+        basin.position.y = 0.45;
+        g.add(basin);
+        const water = new THREE.Mesh(
+          new THREE.CylinderGeometry(3.05, 3.05, 0.14, 18),
+          SM(0x9fd8ff, 0.55),
+        );
+        water.position.y = 0.92;
+        g.add(water);
+        const column = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.42, 0.62, 2.6, 12),
+          STONE_MAT,
+        );
+        column.position.y = 2.1;
+        g.add(column);
+        const bloom = new THREE.Mesh(
+          new THREE.SphereGeometry(0.75, 14, 12),
+          SM(0xff2d5e, 0.9),
+        );
+        bloom.position.y = 3.7;
+        g.add(bloom);
+        const roseSp = emojiSprite("🌹");
+        roseSp.scale.set(5, 5, 1);
+        roseSp.position.set(0, 6.2, 0);
+        g.add(roseSp);
+        decorRoot.add(g);
+        // rose bushes around the rim
+        for (let i = 0; i < 8; i++) {
+          const a = (i / 8) * Math.PI * 2 + 0.39;
+          plantBush(
+            x + Math.cos(a) * 9.6,
+            z + Math.sin(a) * 9.6,
+            1 + Math.random() * 0.4,
+          );
+        }
+        // four lamp posts + sagging fairy-lights between them
+        const tops = [];
+        for (let i = 0; i < 4; i++) {
+          const a = (i / 4) * Math.PI * 2;
+          const lx = x + Math.cos(a) * 10.6,
+            lz = z + Math.sin(a) * 10.6;
+          lampSpots.push({ x: lx, z: lz });
+          tops.push([lx, lz]);
+        }
+        for (let i = 0; i < 4; i++) {
+          const [x1, z1] = tops[i],
+            [x2, z2] = tops[(i + 1) % 4];
+          const pts = [];
+          for (let k = 0; k <= 10; k++) {
+            const u = k / 10;
+            pts.push(
+              new THREE.Vector3(
+                THREE.MathUtils.lerp(x1, x2, u),
+                4.15 - Math.sin(u * Math.PI) * 0.8,
+                THREE.MathUtils.lerp(z1, z2, u),
+              ),
+            );
+          }
+          decorRoot.add(
+            new THREE.Line(
+              new THREE.BufferGeometry().setFromPoints(pts),
+              FAIRY_MAT,
+            ),
+          );
+        }
+        // benches facing the fountain
+        for (let i = 0; i < 4; i++) {
+          const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+          benchSpots.push({
+            x: x + Math.cos(a) * 6.4,
+            z: z + Math.sin(a) * 6.4,
+            rot: Math.atan2(-Math.cos(a), -Math.sin(a)),
+          });
+        }
+      }
+
+      function buildCafe(cfg) {
+        const x = lotC(cfg.gx),
+          z = lotC(cfg.gz);
+        const W = 16,
+          D = 12,
+          H = 6.2;
+        // face the nearest road toward the city centre (snapped to 90°)
+        const yaw =
+          Math.round(Math.atan2(-x, -z) / (Math.PI / 2)) * (Math.PI / 2);
+        const g = new THREE.Group();
+        g.position.set(x, 0, z);
+        g.rotation.y = yaw;
+        // local → world for the pooled decorations (bushes, cups) placed in world space
+        const cs = Math.cos(yaw),
+          sn = Math.sin(yaw);
+        const wpt = (lx, lz) => ({
+          x: x + lx * cs + lz * sn,
+          z: z - lx * sn + lz * cs,
+        });
+        const cup = (lx, y, lz) => {
+          const p = wpt(lx, lz);
+          cupSpots.push({
+            x: p.x,
+            y,
+            z: p.z,
+            c: CUP_COLORS[(Math.random() * CUP_COLORS.length) | 0],
+          });
+        };
+        // floor slab incl. the front terrace
+        const floor = new THREE.Mesh(
+          new THREE.BoxGeometry(W + 4, 0.16, D + 7),
+          PAVE_MAT,
+        );
+        floor.position.set(0, 0.08, 1.5);
+        floor.receiveShadow = true;
+        g.add(floor);
+        // open-front shell: back, sides, header beam, roof, corner pillars
+        const back = new THREE.Mesh(
+          new THREE.BoxGeometry(W, H, 0.4),
+          CAFE_WALL,
+        );
+        back.position.set(0, H / 2, -D / 2 + 0.2);
+        back.castShadow = true;
+        g.add(back);
+        for (const sx of [-1, 1]) {
+          const side = new THREE.Mesh(
+            new THREE.BoxGeometry(0.4, H, D),
+            CAFE_WALL,
+          );
+          side.position.set(sx * (W / 2 - 0.2), H / 2, 0);
+          side.castShadow = true;
+          g.add(side);
+          // warm glowing window strip on the outside of each side wall
+          const win = new THREE.Mesh(
+            new THREE.PlaneGeometry(D * 0.62, 2.4),
+            WINDOW_MAT,
+          );
+          win.position.set(sx * (W / 2 + 0.02), 3.1, 0);
+          win.rotation.y = (sx * Math.PI) / 2;
+          g.add(win);
+          const pil = new THREE.Mesh(
+            new THREE.BoxGeometry(0.55, H, 0.55),
+            CAFE_WALL,
+          );
+          pil.position.set(sx * (W / 2 - 0.5), H / 2, D / 2 - 0.28);
+          g.add(pil);
+        }
+        const header = new THREE.Mesh(
+          new THREE.BoxGeometry(W, 1.3, 0.4),
+          CAFE_WALL,
+        );
+        header.position.set(0, H - 0.65, D / 2 - 0.2);
+        g.add(header);
+        const roof = new THREE.Mesh(
+          new THREE.BoxGeometry(W + 0.8, 0.5, D + 0.8),
+          CAFE_DARK,
+        );
+        roof.position.y = H + 0.25;
+        roof.castShadow = true;
+        g.add(roof);
+        // striped awning over the terrace + glow strip + neon sign
+        const aw = new THREE.Mesh(
+          new THREE.PlaneGeometry(W + 1.2, 3.2),
+          makeAwningMat(cfg.accent),
+        );
+        aw.position.set(0, H - 0.9, D / 2 + 1.35);
+        aw.rotation.x = -0.62;
+        g.add(aw);
+        const strip = new THREE.Mesh(
+          new THREE.BoxGeometry(W - 2, 0.12, 0.12),
+          SM(cfg.glow, 1.8),
+        );
+        strip.position.set(0, H - 1.05, D / 2 + 0.15);
+        g.add(strip);
+        const sign = new THREE.Mesh(
+          new THREE.PlaneGeometry(11.5, 2.9),
+          makeCafeSignMat(cfg),
+        );
+        sign.position.set(0, H + 1.9, D / 2 + 0.1);
+        g.add(sign);
+        // ── inside: a café that actually reads as a café ──
+        // warm wooden floor
+        const wood = new THREE.Mesh(
+          new THREE.BoxGeometry(W - 0.9, 0.06, D - 0.9),
+          WOOD_FLOOR,
+        );
+        wood.position.set(0, 0.2, 0);
+        g.add(wood);
+        // wooden counter + espresso machine + register
+        const counter = new THREE.Mesh(
+          new THREE.BoxGeometry(7, 1.15, 1.5),
+          CAFE_WOOD,
+        );
+        counter.position.set(-2, 0.58, -D / 2 + 1.6);
+        g.add(counter);
+        const machine = new THREE.Mesh(
+          new THREE.BoxGeometry(1.3, 0.8, 0.9),
+          CAFE_DARK,
+        );
+        machine.position.set(-3.6, 1.56, -D / 2 + 1.6);
+        g.add(machine);
+        const machTop = new THREE.Mesh(
+          new THREE.BoxGeometry(1.1, 0.22, 0.7),
+          SM(0xff9ec2, 0.35),
+        );
+        machTop.position.set(-3.6, 2.07, -D / 2 + 1.6);
+        g.add(machTop);
+        const register = new THREE.Mesh(
+          new THREE.BoxGeometry(0.55, 0.4, 0.45),
+          CAFE_DARK,
+        );
+        register.position.set(0.6, 1.36, -D / 2 + 1.6);
+        g.add(register);
+        cup(-0.7, 1.24, -D / 2 + 1.55); // cups waiting on the counter
+        cup(-1.5, 1.24, -D / 2 + 1.7);
+        // chalkboard menu on the back wall
+        const menu = new THREE.Mesh(
+          new THREE.PlaneGeometry(5.6, 2.8),
+          makeMenuMat(cfg),
+        );
+        menu.position.set(2.9, 3.8, -D / 2 + 0.45);
+        g.add(menu);
+        // shelves behind the counter, stacked with pastel cups
+        for (const sy of [2.55, 3.45]) {
+          const shelf = new THREE.Mesh(
+            new THREE.BoxGeometry(5, 0.1, 0.55),
+            CAFE_WOOD,
+          );
+          shelf.position.set(-3.2, sy, -D / 2 + 0.6);
+          g.add(shelf);
+        }
+        for (let i = 0; i < 5; i++) cup(-5.2 + i * 1.0, 2.68, -D / 2 + 0.6);
+        for (let i = 0; i < 4; i++) cup(-4.7 + i * 1.0, 3.58, -D / 2 + 0.6);
+        // hanging pendant lamps: cord + metal shade + warm bulb
+        for (let i = 0; i < 3; i++) {
+          const px = -3 + i * 3;
+          const cord = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.025, 0.025, 1.1, 5),
+            CAFE_DARK,
+          );
+          cord.position.set(px, H - 0.55, -1);
+          g.add(cord);
+          const shade = new THREE.Mesh(
+            new THREE.ConeGeometry(0.5, 0.45, 10, 1, true),
+            SHADE_MAT,
+          );
+          shade.position.set(px, H - 1.06, -1);
+          g.add(shade);
+          const bulb = new THREE.Mesh(
+            new THREE.SphereGeometry(0.16, 8, 8),
+            SM(0xffc98a, 1.9),
+          );
+          bulb.position.set(px, H - 1.28, -1);
+          g.add(bulb);
+        }
+        // little indoor tables with stools & a cup each
+        for (const [tx, tz] of [
+          [3.9, -0.6],
+          [-4.6, 0.9],
+        ]) {
+          const top = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.95, 0.95, 0.1, 14),
+            CAFE_WOOD,
+          );
+          top.position.set(tx, 1.05, tz);
+          g.add(top);
+          const leg = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.1, 0.16, 1.05, 8),
+            CAFE_DARK,
+          );
+          leg.position.set(tx, 0.52, tz);
+          g.add(leg);
+          for (const so of [-1.4, 1.4]) {
+            const stool = new THREE.Mesh(
+              new THREE.CylinderGeometry(0.34, 0.4, 0.62, 10),
+              CAFE_DARK,
+            );
+            stool.position.set(tx + so, 0.31, tz);
+            g.add(stool);
+          }
+          cup(tx + 0.3, 1.18, tz - 0.2);
+        }
+        // real warm lights so EVERY café glows like a lantern at night —
+        // one inside (روز a touch stronger for the envelope corner) and one
+        // in the café's accent colour washing the terrace
+        const glowL = new THREE.PointLight(0xffb46a, cfg.envelope ? 1.7 : 1.4, 26, 1.5);
+        glowL.position.set(0, 4.4, 0);
+        g.add(glowL);
+        const terrL = new THREE.PointLight(cfg.glow, 0.9, 17, 1.6);
+        terrL.position.set(0, 3.7, D / 2 + 2.6);
+        g.add(terrL);
+        // terrace: two little tables, stools, one parasol
+        for (const sx of [-1, 1]) {
+          const top = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.95, 0.95, 0.1, 14),
+            CAFE_WOOD,
+          );
+          top.position.set(sx * 3.4, 1.05, D / 2 + 3.2);
+          g.add(top);
+          const leg = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.1, 0.16, 1.05, 8),
+            CAFE_DARK,
+          );
+          leg.position.set(sx * 3.4, 0.52, D / 2 + 3.2);
+          g.add(leg);
+          for (const so of [-1.6, 1.6]) {
+            const stool = new THREE.Mesh(
+              new THREE.CylinderGeometry(0.34, 0.4, 0.62, 10),
+              CAFE_DARK,
+            );
+            stool.position.set(sx * 3.4 + so, 0.31, D / 2 + 3.2);
+            g.add(stool);
+          }
+          cup(sx * 3.4 - 0.25, 1.18, D / 2 + 3.05);
+        }
+        const parPole = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.06, 0.06, 2.9, 6),
+          CAFE_DARK,
+        );
+        parPole.position.set(3.4, 1.45, D / 2 + 3.2);
+        g.add(parPole);
+        const parTop = new THREE.Mesh(
+          new THREE.ConeGeometry(2.1, 0.85, 8),
+          makeAwningMat(cfg.accent),
+        );
+        parTop.position.set(3.4, 3.05, D / 2 + 3.2);
+        g.add(parTop);
+        decorRoot.add(g);
+        // flower planters framing the entrance (world coords for the pooled bushes)
+        for (const lx of [-(W / 2 + 1.3), W / 2 + 1.3]) {
+          const p1 = wpt(lx, D / 2 + 1);
+          plantBush(p1.x, p1.z, 0.85);
+          const p2 = wpt(lx, D / 2 + 4.5);
+          plantBush(p2.x, p2.z, 0.85);
+        }
+      }
+
+      // the sealed envelope on its café table (opened via the "envelope" surprise)
+      function buildEnvelope(pos) {
+        const grp = new THREE.Group();
+        grp.position.copy(pos);
+        const table = new THREE.Mesh(
+          new THREE.CylinderGeometry(1.15, 1.15, 0.12, 16),
+          CAFE_WOOD,
+        );
+        table.position.y = 1.5;
+        grp.add(table);
+        const leg = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.12, 0.2, 1.5, 8),
+          CAFE_DARK,
+        );
+        leg.position.y = 0.75;
+        grp.add(leg);
+        const spin = new THREE.Group();
+        spin.position.y = 2.6;
+        grp.add(spin);
+        const body = new THREE.Mesh(
+          new THREE.BoxGeometry(1.7, 0.12, 1.15),
+          SM(0xfff2f7, 0.3),
+        );
+        spin.add(body);
+        const flap = new THREE.Mesh(
+          new THREE.BoxGeometry(1.7, 0.09, 0.72),
+          SM(0xffd9e6, 0.35),
+        );
+        flap.position.set(0, 0.1, -0.3);
+        flap.rotation.x = 0.55;
+        spin.add(flap);
+        const sealGeo = new THREE.ExtrudeGeometry(heartShape(), {
+          depth: 0.35,
+          bevelEnabled: false,
+        });
+        sealGeo.center();
+        const seal = new THREE.Mesh(sealGeo, SM(0xff2d5e, 0.8));
+        seal.scale.setScalar(0.24);
+        seal.rotation.x = -Math.PI / 2;
+        seal.position.set(0, 0.14, 0.15);
+        spin.add(seal);
+        grp.scale.setScalar(1.35);
+        surpriseRoot.add(grp);
+        return { grp, spin };
+      }
+
+      for (const [pgx, pgz] of PLAZA_LOTS) buildPlaza(pgx, pgz);
+      for (const c of CAFES) buildCafe(c);
+
+      // ────────────────────────────────────────────────────────────────────────────
+      // 🌳🎠 ROSE PARK — a WIDE 5×5-lot green clearing west of downtown: open
+      // lawns, a lit football pitch, a basketball court, a kids' playground whose
+      // swings / seesaw / carousel really move, an outdoor cinema screen (plays
+      // one of the new gifs — wired up in the gif-poster section) and hot-air
+      // balloons (مناطيد) drifting overhead. inPark() is read by computeTowerSpec
+      // so no tower ever grows on these lots. Built BEFORE the decoration pour so
+      // its bushes / lamps / benches ride the same instanced meshes as the plazas.
+      // ────────────────────────────────────────────────────────────────────────────
+      function inPark(gx, gz) {
+        return gx >= -7 && gx <= -3 && gz >= -1 && gz <= 3;
+      }
+      const PARK = { x: -117, z: 39, w: 130, d: 130 }; // world-space centre + size
+      const parkRoot = new THREE.Group();
+      scene.add(parkRoot);
+      const parkSwings = [],
+        parkSeesaws = [],
+        parkCarousels = [],
+        airships = [];
+      // the cinema screen's texture — filled with gif frames by the poster system
+      const parkScreenTex = new THREE.Texture();
+      parkScreenTex.colorSpace = THREE.SRGBColorSpace;
+      {
+        // ---- the wide lawn + glowing cross paths ---------------------------------
+        const GRASS = new THREE.MeshStandardMaterial({
+          color: 0x1e4d2e,
+          roughness: 0.95,
+          metalness: 0,
+          emissive: 0x123a1e,
+          emissiveIntensity: 0.4,
+        });
+        const lawn = new THREE.Mesh(
+          new THREE.PlaneGeometry(PARK.w, PARK.d),
+          GRASS,
+        );
+        lawn.rotation.x = -Math.PI / 2;
+        lawn.position.set(PARK.x, 0.05, PARK.z);
+        lawn.receiveShadow = true;
+        parkRoot.add(lawn);
+        const PATH_MAT = new THREE.MeshStandardMaterial({
+          color: 0x3a2231,
+          roughness: 0.85,
+          metalness: 0.1,
+          emissive: 0xff5d83,
+          emissiveIntensity: 0.12,
+        });
+        for (const [pw, pd] of [
+          [PARK.w, 4.4],
+          [4.4, PARK.d],
+        ]) {
+          const path = new THREE.Mesh(new THREE.PlaneGeometry(pw, pd), PATH_MAT);
+          path.rotation.x = -Math.PI / 2;
+          path.position.set(PARK.x, 0.09, PARK.z);
+          path.receiveShadow = true;
+          parkRoot.add(path);
+        }
+        // soft glowing ring where the paths cross
+        const cross = new THREE.Mesh(
+          new THREE.TorusGeometry(3.6, 0.09, 6, 36),
+          SM(0xff7da0, 0.8),
+        );
+        cross.rotation.x = Math.PI / 2;
+        cross.position.set(PARK.x, 0.16, PARK.z);
+        parkRoot.add(cross);
+
+        // ---- ⚽ football pitch: painted lines, glowing goals ----------------------
+        const pcv = document.createElement("canvas");
+        pcv.width = 704;
+        pcv.height = 448;
+        {
+          const g = pcv.getContext("2d");
+          for (let i = 0; i < 8; i++) {
+            g.fillStyle = i % 2 ? "#17612f" : "#14552a"; // mow stripes
+            g.fillRect(i * 88, 0, 88, 448);
+          }
+          g.strokeStyle = "rgba(245,255,248,0.92)";
+          g.lineWidth = 5;
+          g.strokeRect(14, 14, 676, 420);
+          g.beginPath(); // halfway line + centre circle
+          g.moveTo(352, 14);
+          g.lineTo(352, 434);
+          g.stroke();
+          g.beginPath();
+          g.arc(352, 224, 58, 0, Math.PI * 2);
+          g.stroke();
+          for (const px of [14, 690 - 104]) g.strokeRect(px, 224 - 108, 104, 216); // penalty boxes
+          for (const px of [14, 690 - 44]) g.strokeRect(px, 224 - 52, 44, 104); // six-yard boxes
+          g.fillStyle = "rgba(245,255,248,0.92)";
+          for (const px of [352, 92, 612]) {
+            g.beginPath();
+            g.arc(px, 224, 5, 0, Math.PI * 2);
+            g.fill();
+          }
+        }
+        const pitchTex = new THREE.CanvasTexture(pcv);
+        pitchTex.anisotropy = 8;
+        const pitch = new THREE.Mesh(
+          new THREE.PlaneGeometry(44, 28),
+          new THREE.MeshStandardMaterial({
+            map: pitchTex,
+            emissiveMap: pitchTex,
+            emissive: 0xffffff,
+            emissiveIntensity: 0.16,
+            roughness: 0.9,
+            metalness: 0,
+          }),
+        );
+        pitch.rotation.x = -Math.PI / 2;
+        pitch.position.set(-144, 0.12, 12);
+        pitch.receiveShadow = true;
+        parkRoot.add(pitch);
+        const GOAL_MAT = new THREE.MeshStandardMaterial({
+          color: 0xffffff,
+          emissive: 0xffffff,
+          emissiveIntensity: 0.5,
+          roughness: 0.4,
+          metalness: 0.3,
+        });
+        const postGeo = new THREE.CylinderGeometry(0.09, 0.09, 2.3, 8);
+        const barGeo = new THREE.CylinderGeometry(0.09, 0.09, 6.2, 8);
+        for (const s of [-1, 1]) {
+          const goal = new THREE.Group();
+          goal.position.set(-144 + s * 21.2, 0, 12);
+          for (const p of [-1, 1]) {
+            const post = new THREE.Mesh(postGeo, GOAL_MAT);
+            post.position.set(0, 1.15, p * 3.1);
+            goal.add(post);
+          }
+          const bar = new THREE.Mesh(barGeo, GOAL_MAT);
+          bar.rotation.x = Math.PI / 2;
+          bar.position.y = 2.3;
+          goal.add(bar);
+          parkRoot.add(goal);
+        }
+
+        // ---- 🏀 basketball court: painted arcs, two glowing hoops ----------------
+        const bcv = document.createElement("canvas");
+        bcv.width = 512;
+        bcv.height = 296;
+        {
+          const g = bcv.getContext("2d");
+          g.fillStyle = "#274169";
+          g.fillRect(0, 0, 512, 296);
+          g.fillStyle = "#1d3255"; // darker key lanes
+          g.fillRect(0, 98, 96, 100);
+          g.fillRect(512 - 96, 98, 96, 100);
+          g.strokeStyle = "rgba(255,214,140,0.95)";
+          g.lineWidth = 5;
+          g.strokeRect(10, 10, 492, 276);
+          g.beginPath();
+          g.moveTo(256, 10);
+          g.lineTo(256, 286);
+          g.stroke();
+          g.beginPath();
+          g.arc(256, 148, 44, 0, Math.PI * 2);
+          g.stroke();
+          for (const [cx, a0, a1] of [
+            [26, -Math.PI / 2, Math.PI / 2],
+            [486, Math.PI / 2, (Math.PI * 3) / 2],
+          ]) {
+            g.beginPath();
+            g.arc(cx, 148, 118, a0, a1);
+            g.stroke();
+            g.strokeRect(cx === 26 ? 10 : 512 - 96 - 10, 98, 96, 100);
+          }
+        }
+        const courtTex = new THREE.CanvasTexture(bcv);
+        courtTex.anisotropy = 8;
+        const court = new THREE.Mesh(
+          new THREE.PlaneGeometry(26, 15),
+          new THREE.MeshStandardMaterial({
+            map: courtTex,
+            emissiveMap: courtTex,
+            emissive: 0xffffff,
+            emissiveIntensity: 0.18,
+            roughness: 0.85,
+            metalness: 0.05,
+          }),
+        );
+        court.rotation.x = -Math.PI / 2;
+        court.position.set(-81, 0.12, 12);
+        court.receiveShadow = true;
+        parkRoot.add(court);
+        const BOARD_MAT = new THREE.MeshStandardMaterial({
+          color: 0xe8f4ff,
+          emissive: 0x9fd8ff,
+          emissiveIntensity: 0.35,
+          roughness: 0.5,
+          metalness: 0.2,
+        });
+        for (const s of [-1, 1]) {
+          const hoop = new THREE.Group();
+          hoop.position.set(-81 + s * 12.4, 0, 12);
+          hoop.rotation.y = s > 0 ? -Math.PI / 2 : Math.PI / 2;
+          const pole = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.12, 0.16, 3.9, 8),
+            CAFE_DARK,
+          );
+          pole.position.y = 1.95;
+          hoop.add(pole);
+          const board = new THREE.Mesh(
+            new THREE.BoxGeometry(2.6, 1.5, 0.12),
+            BOARD_MAT,
+          );
+          board.position.set(0, 3.55, 0.4);
+          hoop.add(board);
+          const rim = new THREE.Mesh(
+            new THREE.TorusGeometry(0.42, 0.05, 8, 20),
+            SM(0xff8c42, 0.8),
+          );
+          rim.rotation.x = Math.PI / 2;
+          rim.position.set(0, 3.02, 0.92);
+          hoop.add(rim);
+          parkRoot.add(hoop);
+        }
+
+        // ---- 🎠 kids' playground — everything here actually moves ----------------
+        const FRAME_PINK = new THREE.MeshStandardMaterial({
+          color: 0xff5d83,
+          emissive: 0xff2d5e,
+          emissiveIntensity: 0.35,
+          roughness: 0.5,
+          metalness: 0.3,
+        });
+        const STEEL = new THREE.MeshStandardMaterial({
+          color: 0xd8dde6,
+          roughness: 0.4,
+          metalness: 0.8,
+        });
+        // rubber safety ground under the toys
+        const rubber = new THREE.Mesh(
+          new THREE.CircleGeometry(17, 30),
+          new THREE.MeshStandardMaterial({
+            color: 0x46296b,
+            roughness: 0.95,
+            metalness: 0,
+            emissive: 0x2a1747,
+            emissiveIntensity: 0.55,
+          }),
+        );
+        rubber.rotation.x = -Math.PI / 2;
+        rubber.position.set(-99, 0.08, 70);
+        rubber.receiveShadow = true;
+        parkRoot.add(rubber);
+
+        // swing set — two swings sway on their own phase
+        {
+          const g = new THREE.Group();
+          g.position.set(-102, 0, 61);
+          const legGeo = new THREE.CylinderGeometry(0.09, 0.11, 3.7, 8);
+          for (const sx of [-2.5, 2.5])
+            for (const sz of [-1, 1]) {
+              const leg = new THREE.Mesh(legGeo, FRAME_PINK);
+              leg.position.set(sx, 1.75, sz * 0.8);
+              leg.rotation.x = sz * 0.26;
+              g.add(leg);
+            }
+          const bar = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.07, 0.07, 5.6, 8),
+            FRAME_PINK,
+          );
+          bar.rotation.z = Math.PI / 2;
+          bar.position.y = 3.4;
+          g.add(bar);
+          const chainGeo = new THREE.CylinderGeometry(0.025, 0.025, 2.5, 6);
+          for (const sx of [-1.2, 1.2]) {
+            const pivot = new THREE.Group();
+            pivot.position.set(sx, 3.4, 0);
+            g.add(pivot);
+            for (const c of [-0.5, 0.5]) {
+              const ch = new THREE.Mesh(chainGeo, STEEL);
+              ch.position.set(c, -1.25, 0);
+              pivot.add(ch);
+            }
+            const seat = new THREE.Mesh(
+              new THREE.BoxGeometry(1.15, 0.09, 0.45),
+              SM(0xffd700, 0.5),
+            );
+            seat.position.y = -2.55;
+            pivot.add(seat);
+            parkSwings.push({
+              pivot,
+              phase: sx < 0 ? 0.9 : 3.1,
+              amp: 0.42 + Math.abs(sx) * 0.04,
+            });
+          }
+          parkRoot.add(g);
+        }
+
+        // slide — glowing ramp with a little ladder
+        {
+          const g = new THREE.Group();
+          g.position.set(-88, 0, 74);
+          g.rotation.y = -0.5;
+          const deck = new THREE.Mesh(
+            new THREE.BoxGeometry(1.5, 0.14, 1.5),
+            CAFE_WOOD,
+          );
+          deck.position.y = 2.5;
+          g.add(deck);
+          const legGeo2 = new THREE.CylinderGeometry(0.07, 0.07, 2.5, 8);
+          for (const sx of [-0.6, 0.6])
+            for (const sz of [-0.6, 0.6]) {
+              const leg = new THREE.Mesh(legGeo2, CAFE_DARK);
+              leg.position.set(sx, 1.25, sz);
+              g.add(leg);
+            }
+          const SLIDE_MAT = new THREE.MeshStandardMaterial({
+            color: 0x9fd8ff,
+            emissive: 0x3a86ff,
+            emissiveIntensity: 0.35,
+            roughness: 0.3,
+            metalness: 0.4,
+          });
+          const ramp = new THREE.Mesh(
+            new THREE.BoxGeometry(1.1, 0.1, 4.6),
+            SLIDE_MAT,
+          );
+          ramp.position.set(0, 1.32, 2.7);
+          ramp.rotation.x = 0.56;
+          g.add(ramp);
+          for (const s of [-1, 1]) {
+            const rail = new THREE.Mesh(
+              new THREE.BoxGeometry(0.08, 0.3, 4.6),
+              SLIDE_MAT,
+            );
+            rail.position.set(s * 0.58, 1.5, 2.7);
+            rail.rotation.x = 0.56;
+            g.add(rail);
+          }
+          for (let r = 0; r < 4; r++) {
+            const rung = new THREE.Mesh(
+              new THREE.CylinderGeometry(0.035, 0.035, 0.9, 6),
+              STEEL,
+            );
+            rung.rotation.z = Math.PI / 2;
+            rung.position.set(0, 0.55 + r * 0.55, -1.05);
+            g.add(rung);
+          }
+          for (const s of [-1, 1]) {
+            const srail = new THREE.Mesh(
+              new THREE.CylinderGeometry(0.05, 0.05, 2.6, 6),
+              FRAME_PINK,
+            );
+            srail.position.set(s * 0.45, 1.35, -1.05);
+            g.add(srail);
+          }
+          parkRoot.add(g);
+        }
+
+        // seesaw — rocks gently forever
+        {
+          const g = new THREE.Group();
+          g.position.set(-104, 0, 79);
+          g.rotation.y = 0.7;
+          const base = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.32, 0.52, 0.85, 10),
+            STONE_MAT,
+          );
+          base.position.y = 0.42;
+          g.add(base);
+          const pivot = new THREE.Group();
+          pivot.position.y = 0.9;
+          g.add(pivot);
+          const plank = new THREE.Mesh(
+            new THREE.BoxGeometry(4.6, 0.12, 0.52),
+            SM(0xc6f7e2, 0.45),
+          );
+          pivot.add(plank);
+          for (const s of [-1, 1]) {
+            const seat = new THREE.Mesh(
+              new THREE.BoxGeometry(0.6, 0.08, 0.52),
+              SM(0xff8c42, 0.5),
+            );
+            seat.position.set(s * 2.05, 0.1, 0);
+            pivot.add(seat);
+            const handle = new THREE.Mesh(
+              new THREE.TorusGeometry(0.16, 0.035, 6, 12),
+              STEEL,
+            );
+            handle.position.set(s * 1.55, 0.28, 0);
+            pivot.add(handle);
+          }
+          parkSeesaws.push({ pivot, phase: 1.7 });
+          parkRoot.add(g);
+        }
+
+        // carousel (merry-go-round) — spins slowly, pastel handles
+        {
+          const g = new THREE.Group();
+          g.position.set(-112, 0, 66);
+          const base = new THREE.Mesh(
+            new THREE.CylinderGeometry(1.95, 2.15, 0.26, 16),
+            STONE_MAT,
+          );
+          base.position.y = 0.13;
+          g.add(base);
+          const spin = new THREE.Group();
+          spin.position.y = 0.3;
+          g.add(spin);
+          const deck = new THREE.Mesh(
+            new THREE.CylinderGeometry(1.8, 1.8, 0.12, 16),
+            SM(0xba94ff, 0.45),
+          );
+          spin.add(deck);
+          const centre = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.09, 0.09, 1.3, 8),
+            STEEL,
+          );
+          centre.position.y = 0.65;
+          spin.add(centre);
+          const HANDLE_COLORS = [0xff5d83, 0xffd700, 0x9fd8ff, 0xc6f7e2];
+          for (let i = 0; i < 4; i++) {
+            const a = (i / 4) * Math.PI * 2;
+            const h = new THREE.Mesh(
+              new THREE.CylinderGeometry(0.05, 0.05, 1.05, 8),
+              STEEL,
+            );
+            h.position.set(Math.cos(a) * 1.35, 0.55, Math.sin(a) * 1.35);
+            spin.add(h);
+            const knob = new THREE.Mesh(
+              new THREE.SphereGeometry(0.14, 8, 6),
+              SM(HANDLE_COLORS[i], 0.7),
+            );
+            knob.position.set(Math.cos(a) * 1.35, 1.12, Math.sin(a) * 1.35);
+            spin.add(knob);
+          }
+          parkCarousels.push({ spin, speed: 0.7 });
+          parkRoot.add(g);
+        }
+
+        // ---- 🎬 outdoor cinema — big screen on the lawn (fed by the gif system) --
+        {
+          const g = new THREE.Group();
+          g.position.set(-152, 0, 74);
+          g.rotation.y = Math.PI / 2 - 0.35; // faces the playground across the lawn
+          for (const s of [-1, 1]) {
+            const pole = new THREE.Mesh(
+              new THREE.CylinderGeometry(0.16, 0.2, 13.6, 10),
+              CAFE_DARK,
+            );
+            pole.position.set(s * 9.6, 6.8, 0);
+            g.add(pole);
+          }
+          const frame = new THREE.Mesh(
+            new THREE.BoxGeometry(19.6, 13.4, 0.3),
+            new THREE.MeshStandardMaterial({
+              color: 0x140a10,
+              roughness: 0.6,
+              metalness: 0.3,
+            }),
+          );
+          frame.position.y = 7.6;
+          g.add(frame);
+          const screen = new THREE.Mesh(
+            new THREE.PlaneGeometry(18.4, 12.2),
+            new THREE.MeshBasicMaterial({
+              map: parkScreenTex,
+              toneMapped: false,
+            }),
+          );
+          screen.position.set(0, 7.6, 0.18);
+          g.add(screen);
+          const marquee = new THREE.Sprite(
+            new THREE.SpriteMaterial({
+              map: makeLabel(
+                [{ t: "🎬 سينما الحديقة", font: AR(56), color: LC.blush }],
+                "rgba(255,157,194,0.9)",
+              ),
+              transparent: true,
+              depthWrite: false,
+              opacity: 0.95,
+            }),
+          );
+          marquee.scale.set(16, 8, 1);
+          marquee.position.set(0, 16.4, 0);
+          g.add(marquee);
+          parkRoot.add(g);
+          // benches facing the screen (they pour into the shared instanced mesh)
+          for (const [bx, bz] of [
+            [-143, 70],
+            [-141, 76],
+            [-136, 68],
+            [-134, 74],
+          ])
+            benchSpots.push({
+              x: bx,
+              z: bz,
+              rot: Math.atan2(-152 - bx, 74 - bz),
+            });
+        }
+
+        // ---- park sign at the east gate, greenery, lamps & benches ---------------
+        const sign = new THREE.Sprite(
+          new THREE.SpriteMaterial({
+            map: makeLabel(
+              [
+                { t: "🌳 حديقة روز", font: AR(62), color: "#d2f7dd" },
+                { t: "ROSE PARK", font: EN(44), color: "#8fe3a8" },
+              ],
+              "rgba(122,222,158,0.9)",
+            ),
+            transparent: true,
+            depthWrite: false,
+            opacity: 0.96,
+          }),
+        );
+        sign.scale.set(28, 14, 1);
+        sign.position.set(-54, 11, 39);
+        scene.add(sign);
+        // rose bushes: a loose ring around the park + a few by the paths
+        for (let i = 0; i < 26; i++) {
+          const a = (i / 26) * Math.PI * 2;
+          plantBush(
+            PARK.x + Math.cos(a) * (PARK.w / 2 - 5 - (i % 3) * 3),
+            PARK.z + Math.sin(a) * (PARK.d / 2 - 5 - ((i + 1) % 3) * 3),
+            1.2 + ((i * 7) % 10) / 9,
+          );
+        }
+        for (const [bx, bz] of [
+          [-121, 20],
+          [-113, 58],
+          [-121, 84],
+          [-97, 43],
+          [-137, 35],
+          [-65, 35],
+          [-69, 60],
+        ])
+          plantBush(bx, bz, 1.5);
+        // lamp posts along both paths (shared instanced lamps, like the plazas)
+        for (let i = 0; i < 6; i++) {
+          lampSpots.push({ x: -172 + i * 22, z: 42.6 });
+          lampSpots.push({ x: -113.4, z: -14 + i * 21 });
+        }
+        // benches looking over the lawn & the pitch
+        for (const [bx, bz, tx, tz] of [
+          [-144, 32, -144, 12],
+          [-131, 32, -140, 12],
+          [-81, 24, -81, 12],
+          [-70, 43, -90, 39],
+          [-99, 88, -99, 70],
+        ])
+          benchSpots.push({ x: bx, z: bz, rot: Math.atan2(tx - bx, tz - bz) });
+      }
+
+      // ---- 🎈🧺 hot-air balloons (مناطيد) — big striped روز balloons drifting ----
+      // slow circles over the park and downtown, wicker basket, flickering burner.
+      function makeAirshipTexture(a, b) {
+        const s = 512,
+          cv = document.createElement("canvas");
+        cv.width = cv.height = s;
+        const g = cv.getContext("2d");
+        for (let i = 0; i < 16; i++) {
+          g.fillStyle = i % 2 ? a : b;
+          g.fillRect((i * s) / 16, 0, s / 16 + 1, s);
+        }
+        const hl = g.createLinearGradient(0, 0, 0, s);
+        hl.addColorStop(0, "rgba(255,255,255,0.35)");
+        hl.addColorStop(0.55, "rgba(255,255,255,0)");
+        hl.addColorStop(1, "rgba(30,0,15,0.4)");
+        g.fillStyle = hl;
+        g.fillRect(0, 0, s, s);
+        g.textAlign = "center";
+        g.textBaseline = "middle";
+        g.lineJoin = "round";
+        const draw = (tx, font, y) => {
+          g.font = font;
+          g.lineWidth = 10;
+          g.strokeStyle = "rgba(55,8,28,0.65)";
+          g.strokeText(tx, s / 2, y);
+          g.fillStyle = "rgba(255,255,255,0.97)";
+          g.fillText(tx, s / 2, y);
+        };
+        draw("روز", '900 118px "Segoe UI", Tahoma, sans-serif', s * 0.44);
+        draw("Rose", "italic 700 62px Georgia, serif", s * 0.66);
+        const t = new THREE.CanvasTexture(cv);
+        t.anisotropy = 4;
+        return t;
+      }
+      function makeAirship(colA, colB) {
+        const g = new THREE.Group();
+        const tex = makeAirshipTexture(colA, colB);
+        const env = new THREE.Mesh(
+          new THREE.SphereGeometry(1, 28, 22),
+          new THREE.MeshStandardMaterial({
+            map: tex,
+            emissiveMap: tex,
+            emissive: 0xffffff,
+            emissiveIntensity: 0.35,
+            roughness: 0.35,
+            metalness: 0.05,
+          }),
+        );
+        env.scale.set(6.2, 7.2, 6.2);
+        env.position.y = 9.8;
+        g.add(env);
+        const throat = new THREE.Mesh(
+          new THREE.ConeGeometry(2.5, 3.2, 14, 1, true),
+          new THREE.MeshStandardMaterial({
+            color: 0x30161f,
+            roughness: 0.6,
+            metalness: 0.25,
+            side: THREE.DoubleSide,
+          }),
+        );
+        throat.rotation.x = Math.PI;
+        throat.position.y = 3.6;
+        g.add(throat);
+        const basket = new THREE.Mesh(
+          new THREE.BoxGeometry(2.5, 1.7, 2.5),
+          CAFE_WOOD,
+        );
+        basket.position.y = 0.85;
+        g.add(basket);
+        const ropeMat = new THREE.LineBasicMaterial({
+          color: 0xffd0e4,
+          transparent: true,
+          opacity: 0.55,
+        });
+        for (const sx of [-1, 1])
+          for (const sz of [-1, 1])
+            g.add(
+              new THREE.Line(
+                new THREE.BufferGeometry().setFromPoints([
+                  new THREE.Vector3(sx * 1.15, 1.7, sz * 1.15),
+                  new THREE.Vector3(sx * 2.2, 6.2, sz * 2.2),
+                ]),
+                ropeMat,
+              ),
+            );
+        const flame = new THREE.Mesh(
+          new THREE.ConeGeometry(0.34, 1.0, 8),
+          SM(0xffc46a, 2.4),
+        );
+        flame.position.y = 2.6;
+        g.add(flame);
+        scene.add(g);
+        return { g, flame };
+      }
+      for (const spec of [
+        // one floats rings above ROSE PARK, one high over downtown, one out by
+        // the airfield — all in violet & white, matching her car 💜
+        { colA: "#9b4dff", colB: "#ffffff", cx: PARK.x, cz: PARK.z, r: 38, h: 68, speed: 0.055, phase: 0 },
+        { colA: "#7a2fe0", colB: "#f4ecff", cx: 0, cz: 0, r: 85, h: 108, speed: 0.038, phase: 2.4 },
+        { colA: "#ba7bff", colB: "#ffffff", cx: 180, cz: 13, r: 55, h: 88, speed: 0.045, phase: 4.4 },
+      ]) {
+        const a = makeAirship(spec.colA, spec.colB);
+        airships.push(Object.assign(a, spec));
+      }
+      function updatePark(dt, t) {
+        for (const s of parkSwings)
+          s.pivot.rotation.x = Math.sin(t * 1.15 + s.phase) * s.amp;
+        for (const s of parkSeesaws)
+          s.pivot.rotation.z = Math.sin(t * 0.9 + s.phase) * 0.2;
+        for (const c of parkCarousels) c.spin.rotation.y += dt * c.speed;
+        for (const a of airships) {
+          const prevX = a.g.position.x,
+            prevZ = a.g.position.z;
+          const ang = t * a.speed + a.phase;
+          a.g.position.set(
+            a.cx + Math.cos(ang) * a.r,
+            a.h + Math.sin(t * 0.3 + a.phase) * 3,
+            a.cz + Math.sin(ang) * a.r,
+          );
+          a.g.rotation.y = -ang; // basket leads the drift
+          const f = 0.75 + Math.abs(Math.sin(t * 7 + a.phase)) * 0.55;
+          a.flame.scale.set(f, f * (1 + Math.sin(t * 11 + a.phase) * 0.25), f);
+          // 🧺 she can hop INTO the wicker basket and ride the sky with it,
+          // and the striped envelope is SOLID — no phasing through the منطاد
+          if (vehMode !== "car" && vehMode !== "plane") {
+            const gp = girl.pos;
+            const bx = a.g.position.x,
+              by = a.g.position.y,
+              bz = a.g.position.z;
+            const dxz = Math.hypot(gp.x - bx, gp.z - bz);
+            if (a.rider) {
+              // aboard: the basket carries her along its drift
+              if (
+                dxz < 1.8 &&
+                gp.y > by - 1.2 &&
+                gp.y < by + 3 &&
+                vel.y <= 0.01
+              ) {
+                gp.x += bx - prevX;
+                gp.z += bz - prevZ;
+                gp.y = by + 0.9;
+                vel.y = 0;
+                girl.onBalloon = true;
+                girl.grounded = true;
+              } else a.rider = false; // she leapt out
+            } else if (
+              dxz < 1.6 &&
+              gp.y > by - 1.4 &&
+              gp.y < by + 2.6 &&
+              vel.y <= 0.5
+            ) {
+              a.rider = true; // welcome aboard 🎈
+              gp.y = by + 0.9;
+              vel.y = 0;
+              girl.onBalloon = true;
+              girl.grounded = true;
+              screenBurst(["🎈", "🧺", "💗", "✨"], 12);
+            } else {
+              // solid envelope: slide her off the balloon skin
+              const ex = gp.x - bx,
+                ey = gp.y + 1.2 - (by + 9.8),
+                ez = gp.z - bz;
+              const ed = Math.sqrt(ex * ex + ey * ey + ez * ez),
+                ER = 7.3;
+              if (ed < ER) {
+                const inv = 1 / (ed || 1),
+                  push = ER - ed;
+                gp.x += ex * inv * push;
+                gp.y += ey * inv * push * 0.7;
+                gp.z += ez * inv * push;
+              }
+            }
+          } else a.rider = false;
+        }
+      }
+
+      // pour the pooled decorations into instanced meshes (one draw call each)
+      {
+        const leafMat = new THREE.MeshStandardMaterial({
+          color: 0x24512e,
+          roughness: 0.9,
+          metalness: 0,
+          emissive: 0x0c2412,
+          emissiveIntensity: 0.25,
+        });
+        const leaves = new THREE.InstancedMesh(
+          new THREE.SphereGeometry(1, 10, 8),
+          leafMat,
+          bushSpots.length,
+        );
+        bushSpots.forEach((b, i) => {
+          dummy.position.set(b.x, 0.42 * b.s, b.z);
+          dummy.rotation.set(0, 0, 0);
+          dummy.scale.set(0.8 * b.s, 0.55 * b.s, 0.8 * b.s);
+          dummy.updateMatrix();
+          leaves.setMatrixAt(i, dummy.matrix);
+        });
+        leaves.castShadow = true;
+        decorRoot.add(leaves);
+
+        const bloomMat = new THREE.MeshStandardMaterial({
+          color: 0xffffff,
+          roughness: 0.55,
+          metalness: 0,
+          emissive: 0xff5d83,
+          emissiveIntensity: 0.3,
+        });
+        const blooms = new THREE.InstancedMesh(
+          new THREE.SphereGeometry(1, 8, 6),
+          bloomMat,
+          bloomSpots.length,
+        );
+        const bcol = new THREE.Color();
+        bloomSpots.forEach((b, i) => {
+          dummy.position.set(b.x, b.y, b.z);
+          dummy.rotation.set(0, 0, 0);
+          dummy.scale.setScalar(b.s);
+          dummy.updateMatrix();
+          blooms.setMatrixAt(i, dummy.matrix);
+          blooms.setColorAt(i, bcol.setHex(b.c));
+        });
+        if (blooms.instanceColor) blooms.instanceColor.needsUpdate = true;
+        decorRoot.add(blooms);
+
+        const plazaPoleGeo = new THREE.CylinderGeometry(0.07, 0.11, 4.2, 8);
+        plazaPoleGeo.translate(0, 2.1, 0);
+        const plazaPoles = new THREE.InstancedMesh(
+          plazaPoleGeo,
+          CAFE_DARK,
+          lampSpots.length,
+        );
+        const plazaHeads = new THREE.InstancedMesh(
+          new THREE.SphereGeometry(0.34, 10, 8),
+          SM(0xffc7dd, 1.5),
+          lampSpots.length,
+        );
+        lampSpots.forEach((l, i) => {
+          dummy.position.set(l.x, 0, l.z);
+          dummy.rotation.set(0, 0, 0);
+          dummy.scale.set(1, 1, 1);
+          dummy.updateMatrix();
+          plazaPoles.setMatrixAt(i, dummy.matrix);
+          dummy.position.set(l.x, 4.35, l.z);
+          dummy.updateMatrix();
+          plazaHeads.setMatrixAt(i, dummy.matrix);
+        });
+        decorRoot.add(plazaPoles);
+        decorRoot.add(plazaHeads);
+
+        const seatGeo = new THREE.BoxGeometry(2.3, 0.5, 0.78);
+        seatGeo.translate(0, 0.3, 0);
+        const backGeo = new THREE.BoxGeometry(2.3, 0.72, 0.12);
+        backGeo.translate(0, 0.95, -0.42);
+        const seats = new THREE.InstancedMesh(
+          seatGeo,
+          CAFE_WOOD,
+          benchSpots.length,
+        );
+        const backs = new THREE.InstancedMesh(
+          backGeo,
+          CAFE_WOOD,
+          benchSpots.length,
+        );
+        benchSpots.forEach((b, i) => {
+          dummy.position.set(b.x, 0, b.z);
+          dummy.rotation.set(0, b.rot, 0);
+          dummy.scale.set(1, 1, 1);
+          dummy.updateMatrix();
+          seats.setMatrixAt(i, dummy.matrix);
+          backs.setMatrixAt(i, dummy.matrix);
+        });
+        decorRoot.add(seats);
+        decorRoot.add(backs);
+
+        // pastel coffee cups on shelves, counters & tables
+        const cupMat = new THREE.MeshStandardMaterial({
+          color: 0xffffff,
+          roughness: 0.4,
+          metalness: 0.05,
+          emissive: 0x2a1018,
+          emissiveIntensity: 0.3,
+        });
+        const cupsIM = new THREE.InstancedMesh(
+          new THREE.CylinderGeometry(0.1, 0.08, 0.17, 8),
+          cupMat,
+          cupSpots.length,
+        );
+        const ccol = new THREE.Color();
+        cupSpots.forEach((c, i) => {
+          dummy.position.set(c.x, c.y, c.z);
+          dummy.rotation.set(0, 0, 0);
+          dummy.scale.set(1, 1, 1);
+          dummy.updateMatrix();
+          cupsIM.setMatrixAt(i, dummy.matrix);
+          cupsIM.setColorAt(i, ccol.setHex(c.c));
+        });
+        if (cupsIM.instanceColor) cupsIM.instanceColor.needsUpdate = true;
+        decorRoot.add(cupsIM);
+      }
+
       // ---- floating balloons (ambient love, rising through the city) ------------
       const balloonRoot = new THREE.Group();
       scene.add(balloonRoot);
@@ -3775,7 +5437,14 @@
         const cam = camera.position;
         const fp = focusPos(); // she pops them with her body, car or plane
         const popPad = vehMode === "plane" ? 6 : vehMode === "car" ? 3 : 1.2;
+        // 🦸‍♀️ while she's Super-Woman on foot the balloons are SOLID — she can't
+        // fly through them, and landing on a crown lets her RIDE it as it floats up
+        const heroFoot =
+          superWoman && vehMode !== "car" && vehMode !== "plane";
+        girl.onBalloon = false;
         for (const b of balloons) {
+          const prevX = b.group.position.x,
+            prevZ = b.group.position.z;
           b.by += b.speed * dt; // rise (world-anchored)
           const sx = Math.sin(t * 0.5 + b.phase) * b.sway,
             sz = Math.cos(t * 0.4 + b.phase) * b.sway;
@@ -3786,17 +5455,56 @@
             cam.x - b.group.position.x,
           );
           b.group.rotation.z = Math.sin(t * 0.5 + b.phase) * 0.08;
+          if (heroFoot) {
+            const gp = girl.pos;
+            const R = b.size * 1.15; // envelope radius (roughly)
+            const top = b.by + b.size * 1.25; // crown she can stand on
+            const ddx = gp.x - b.group.position.x,
+              ddz = gp.z - b.group.position.z,
+              ddy = gp.y + 1.1 - b.by;
+            const d3 = Math.sqrt(ddx * ddx + ddy * ddy + ddz * ddz);
+            if (b.rider) {
+              // she's standing on this one → carry her with its sway & rise
+              if (
+                Math.hypot(ddx, ddz) < R + 0.7 &&
+                Math.abs(gp.y - top) < 2.4 &&
+                vel.y <= 0.01
+              ) {
+                gp.x += b.group.position.x - prevX;
+                gp.z += b.group.position.z - prevZ;
+                gp.y = top;
+                vel.y = 0;
+                girl.onBalloon = true;
+              } else b.rider = false; // stepped / leapt off
+            } else if (d3 < R + 0.3) {
+              if (ddy > R * 0.4 && vel.y <= 0.5) {
+                // touched down on the crown → hop on 🎈
+                gp.y = top;
+                vel.y = 0;
+                b.rider = true;
+                girl.onBalloon = true;
+                screenBurst(["🎈", "💗", "✨"], 8);
+              } else {
+                // solid skin: slide her off instead of phasing through
+                const inv = 1 / (d3 || 1),
+                  push = R + 0.3 - d3;
+                gp.x += ddx * inv * push;
+                gp.y += ddy * inv * push * 0.6;
+                gp.z += ddz * inv * push;
+              }
+            }
+          } else b.rider = false;
           const dx = b.group.position.x - fp.x,
             dy = b.by - fp.y,
             dz = b.group.position.z - fp.z;
           const pop = b.size * 1.1 + popPad;
-          if (dx * dx + dy * dy + dz * dz < pop * pop) {
+          if (!heroFoot && dx * dx + dy * dy + dz * dz < pop * pop) {
             // 🎈💥 she bumped into it
             screenBurst(["🎈", "💥", "💗", "✨", "🌸"], 20);
             seedBalloon(b, true);
           } else if (
-            b.by > cam.y + BAL_RANGE ||
-            Math.hypot(dx, dz) > BAL_RANGE * 1.4
+            !b.rider &&
+            (b.by > cam.y + BAL_RANGE || Math.hypot(dx, dz) > BAL_RANGE * 1.4)
           ) {
             seedBalloon(b, true); // drifted off → float a fresh one in low
           }
@@ -3838,7 +5546,7 @@
       // ---- collectible red kisses 💋 (in the roads & above the buildings) ----
       // Small world-anchored kisses she flies through; collect 101 for a real one.
       const kissRoot = new THREE.Group(); scene.add(kissRoot);
-      const KISS_RANGE = 120, KISS_GOAL = 50;
+      const KISS_RANGE = 120, KISS_GOAL = 25;
       const kisses = [];
       let kissCount = 0, kissDone = false;
       const kissCountEl = document.getElementById('kiss-count');
@@ -3875,13 +5583,13 @@
         const el = document.getElementById('kissreward'), card = document.getElementById('kissreward-card');
         card.innerHTML = `<div class="big-kiss">💋</div>
           <h1>بوسة حقيقية إلك</h1>
-          <p>جمعتي ${KISS_GOAL} بوسة 💋<br>هاي وحدة حقيقية مني… لإنك تستاهلي كل بوسة بالدنيا 💗<br>
-          <span style="opacity:.75">A real kiss, just for you.</span></p>
+          <p>ربحتي ${KISS_GOAL} بوسة فورية 💋 وبوسة وحدة حقيقية 💗<br>
+          <span style="opacity:.75">${KISS_GOAL} instant kisses + 1 real one.</span></p>
           <div class="panel-btn" id="kissClose">💗</div>`;
         el.classList.add('show'); pauseUI();
         document.getElementById('kissClose').addEventListener('click', () => { el.classList.remove('show'); resumeUI(); });
         let n = 0; const iv = setInterval(() => { screenBurst(['💋','💗','❤️','💕','✨'], 24); if (++n > 5) clearInterval(iv); }, 450);
-        track('💋 Collected 101 kisses → a real kiss');
+        track(`💋 Collected ${KISS_GOAL} kisses → ${KISS_GOAL} instant + 1 real`);
       }
       function updateKisses(t) {
         if (!started || uiPaused) return;
@@ -3914,9 +5622,16 @@
       const GIF_ASSETS = [
         '200.gif', 'c34143f5035e9eb7ab0f3f4adf296fd3.gif', 'UzbW.gif', 'photofunky.gif',
         'spongebob-patrick-snow-angel-pixel-doodle.gif', 'mr-krabs-shower-money-spongebob.gif', 'patrick-star.gif',
+        // the NEW batch (assets/new/) — spongebob & friends all over town
+        'new/12.gif', 'new/113.gif', 'new/14.gif', 'new/15.gif',
+        'new/122.gif', 'new/1445.gif', 'new/picgifs-spongebob-squarepants-6121731.gif',
       ];
       // far out (≥5 lots) so they land on DIFFERENT buildings than the gifts/keys/etc.
-      const POSTER_LOTS = [[5, 0], [0, 5], [-5, 0], [0, -5], [5, 5], [-5, 5], [-5, -5]];
+      // (none of these lots fall inside Rose Airfield or Rose Park — both are clearings)
+      const POSTER_LOTS = [
+        [5, 0], [0, 5], [-9, 0], [0, -5], [5, 5], [-5, 5], [-5, -5],
+        [3, -5], [5, -3], [-3, 5], [3, 5], [-7, -4], [7, -3], [-3, -7],
+      ];
       function buildingInfo(gx, gz) {
         const spec = towerSpec(gx, gz);
         if (!spec) return null;                                   // empty lot
@@ -3997,6 +5712,27 @@
         }
         gifPosters.push(rec);
       });
+      // 🎬 the park's outdoor cinema screen plays one of the NEW gifs (all friends
+      // together) — same decode/cycle machinery, texture built with the park above.
+      {
+        const rec = { tex: parkScreenTex, frames: null, idx: 0, acc: 0 };
+        const CINEMA_GIF = '../assets/new/113.gif';
+        const fallbackStatic = () => {
+          const img = new Image();
+          img.onload = () => { parkScreenTex.image = img; parkScreenTex.needsUpdate = true; };
+          img.src = CINEMA_GIF;
+        };
+        if (window.ImageDecoder) {
+          decodeGif(CINEMA_GIF).then((frames) => {
+            if (!frames || !frames.length) { fallbackStatic(); return; }
+            rec.frames = frames;
+            parkScreenTex.image = frames[0].cv; parkScreenTex.needsUpdate = true;
+          }).catch(fallbackStatic);
+        } else {
+          fallbackStatic();
+        }
+        gifPosters.push(rec);
+      }
       let _gifLast = 0;
       function updateGifPosters() {
         const now = performance.now();
@@ -4033,9 +5769,11 @@
         const field = new THREE.Mesh(
           new THREE.PlaneGeometry(184, 80),
           new THREE.MeshStandardMaterial({
-            color: 0x141017,
+            color: 0x3a3450, // readable violet-grey apron, glows softly at night
             roughness: 0.9,
             metalness: 0.15,
+            emissive: 0x201c30,
+            emissiveIntensity: 0.5,
           }),
         );
         field.rotation.x = -Math.PI / 2;
@@ -4047,7 +5785,7 @@
         rw.width = 1024;
         rw.height = 128;
         const g = rw.getContext("2d");
-        g.fillStyle = "#191920";
+        g.fillStyle = "#32323f"; // lighter tarmac so the runway reads at night
         g.fillRect(0, 0, 1024, 128);
         g.fillStyle = "rgba(235,235,240,0.85)";
         g.fillRect(0, 5, 1024, 4); // edge lines
@@ -4076,6 +5814,9 @@
           new THREE.PlaneGeometry(172, 17),
           new THREE.MeshStandardMaterial({
             map: rwTex,
+            emissiveMap: rwTex,
+            emissive: 0xffffff,
+            emissiveIntensity: 0.22, // self-lit markings — no more pitch-black strip
             roughness: 0.95,
             metalness: 0.05,
           }),
@@ -4134,6 +5875,15 @@
         color: 0xd21324,
         roughness: 0.26,
         metalness: 0.6,
+      });
+      // 🚗💜 the car's paint: vivid metallic violet that self-glows a little,
+      // so she's never a black blob at night
+      const PAINT_VIOLET = new THREE.MeshStandardMaterial({
+        color: 0x9b4dff,
+        roughness: 0.16,
+        metalness: 0.72,
+        emissive: 0x6a1fd8,
+        emissiveIntensity: 0.5,
       });
       const TRIM_DARK = new THREE.MeshStandardMaterial({
         color: 0x0b0b10,
@@ -4216,20 +5966,24 @@
       {
         const c = car.g;
         mkBox(c, 1.86, 0.3, 4.3, 0, 0.45, 0, TRIM_DARK); // chassis / rockers
-        mkBox(c, 1.9, 0.42, 4.4, 0, 0.79, 0, PAINT_RED); // main body
-        mkBox(c, 1.84, 0.26, 1.6, 0, 0.98, 1.45, PAINT_RED, 0.1); // sloping hood
-        mkBox(c, 1.84, 0.24, 1.2, 0, 1.0, -1.7, PAINT_RED, -0.08); // rear deck
+        mkBox(c, 1.9, 0.42, 4.4, 0, 0.79, 0, PAINT_VIOLET); // main body
+        mkBox(c, 1.84, 0.26, 1.6, 0, 0.98, 1.45, PAINT_VIOLET, 0.1); // sloping hood
+        mkBox(c, 1.84, 0.24, 1.2, 0, 1.0, -1.7, PAINT_VIOLET, -0.08); // rear deck
         mkBox(c, 1.58, 0.44, 1.9, 0, 1.24, -0.3, GLASS_DARK); // cabin glass
         mkBox(c, 1.6, 0.5, 0.95, 0, 1.06, 0.83, GLASS_DARK, 0.52); // windshield
         mkBox(c, 1.6, 0.46, 0.85, 0, 1.05, -1.36, GLASS_DARK, -0.5); // rear glass
-        mkBox(c, 1.46, 0.07, 1.05, 0, 1.47, -0.32, PAINT_RED); // roof
-        mkBox(c, 1.7, 0.07, 0.44, 0, 1.2, -2.12, PAINT_RED); // spoiler wing
+        mkBox(c, 1.46, 0.07, 1.05, 0, 1.47, -0.32, PAINT_VIOLET); // roof
+        mkBox(c, 1.7, 0.07, 0.44, 0, 1.2, -2.12, PAINT_VIOLET); // spoiler wing
         mkBox(c, 0.1, 0.22, 0.2, 0.62, 1.05, -2.08, TRIM_DARK);
         mkBox(c, 0.1, 0.22, 0.2, -0.62, 1.05, -2.08, TRIM_DARK);
         mkBox(c, 1.92, 0.2, 0.5, 0, 0.34, 2.1, TRIM_DARK); // splitter
         mkBox(c, 1.92, 0.22, 0.5, 0, 0.36, -2.1, TRIM_DARK); // diffuser
-        mkBox(c, 0.16, 0.1, 0.34, 0.99, 1.12, 0.55, PAINT_RED); // mirrors
-        mkBox(c, 0.16, 0.1, 0.34, -0.99, 1.12, 0.55, PAINT_RED);
+        mkBox(c, 0.16, 0.1, 0.34, 0.99, 1.12, 0.55, PAINT_VIOLET); // mirrors
+        mkBox(c, 0.16, 0.1, 0.34, -0.99, 1.12, 0.55, PAINT_VIOLET);
+        // ✨ modern touches: lilac neon side skirts + a full-width EV light bar
+        mkBox(c, 0.06, 0.05, 3.6, 0.94, 0.36, 0, SM(0xba7bff, 1.8));
+        mkBox(c, 0.06, 0.05, 3.6, -0.94, 0.36, 0, SM(0xba7bff, 1.8));
+        mkBox(c, 1.5, 0.05, 0.06, 0, 1.03, 2.21, SM(0xd9b8ff, 2.2));
         mkBox(c, 0.46, 0.13, 0.08, 0.6, 0.9, 2.19, headlightMat);
         mkBox(c, 0.46, 0.13, 0.08, -0.6, 0.9, 2.19, headlightMat);
         car.tail = mkBox(c, 1.5, 0.11, 0.07, 0, 0.92, -2.2, taillightMat);
@@ -5028,10 +6782,10 @@
           const txt =
             nearVehicle === "car"
               ? isTouch
-                ? "🚗 Rose VIP Car — المسّي"
+                ? "🚗 Rose VIP Car"
                 : "🚗 F — Rose VIP Car"
               : isTouch
-                ? "🛩️ Rose VIP Plane — المسّي"
+                ? "🛩️ Rose VIP Plane"
                 : "🛩️ F — Rose VIP Plane";
           if (promptEl.textContent !== txt) promptEl.textContent = txt;
           promptEl.classList.add("show");
@@ -5125,6 +6879,7 @@
         elbowR: null,
         pony: null,
         body: null,
+        cape: null,
       };
       {
         const G = girl.g;
@@ -5298,6 +7053,25 @@
         girl.pony.add(tail);
         girl.pony.rotation.x = 0.5;
         body.add(girl.pony);
+        // 🦸‍♀️ her red super-cape — hidden until Super-Woman mode (press G)
+        girl.cape = new THREE.Group();
+        girl.cape.position.set(0, 1.58, -0.12);
+        const capeMesh = new THREE.Mesh(
+          new THREE.PlaneGeometry(0.55, 0.98),
+          new THREE.MeshStandardMaterial({
+            color: 0xd21324,
+            emissive: 0x8f0018,
+            emissiveIntensity: 0.45,
+            roughness: 0.6,
+            metalness: 0.1,
+            side: THREE.DoubleSide,
+          }),
+        );
+        capeMesh.position.y = -0.49;
+        girl.cape.add(capeMesh);
+        girl.cape.rotation.x = 0.25;
+        girl.cape.visible = false;
+        body.add(girl.cape);
         const hairRose = new THREE.Mesh(
           new THREE.SphereGeometry(0.05, 8, 6),
           DRESS_MAT,
@@ -5364,6 +7138,27 @@
       }
 
       let prevJump = false;
+      // 🦸‍♀️ SUPER-WOMAN mode — press G and she flies like a hero (see updateGirl)
+      let superWoman = false;
+      let heroBoost = false; // 🚀 held turbo button (also Shift while flying)
+      function toggleSuperWoman() {
+        superWoman = !superWoman;
+        heroBoost = false;
+        girl.cape.visible = superWoman;
+        const hb = document.getElementById("btn-hero");
+        if (hb) hb.classList.toggle("on", superWoman);
+        const fb = document.getElementById("btn-fly-boost");
+        if (fb) fb.classList.toggle("on", superWoman);
+        if (superWoman) {
+          girl.climbing = false;
+          vel.y = Math.max(vel.y, 7); // lift-off hop
+          screenBurst(["🦸‍♀️", "✨", "💫", "❤️‍🔥"], 22);
+          track("🦸‍♀️ وضع سوبر وومن");
+        } else {
+          screenBurst(["🌸", "✨"], 10);
+        }
+      }
+
       function updateGirl(dt) {
         // --- input, relative to where the camera looks ---
         let fwd = 0,
@@ -5448,7 +7243,46 @@
             }
           }
         }
-        if (!girl.climbing) {
+        if (!girl.climbing && superWoman) {
+          // --- 🦸‍♀️ super-woman flight: W soars where the camera looks, ---
+          // --- Space climbs, C dives — towers still push her out ---
+          const upIn =
+            (jumpHeld ? 1 : 0) -
+            (keys["KeyC"] || keys["ControlLeft"] || touchDown ? 1 : 0);
+          // 🚀 held turbo button > sprint > cruise
+          const spd = heroBoost ? 55 : sprint ? 34 : 20;
+          vel.x += (wishX * spd - vel.x) * Math.min(1, dt * 6);
+          vel.z += (wishZ * spd - vel.z) * Math.min(1, dt * 6);
+          const vyT = fwd * Math.sin(pitch) * spd * 0.8 + upIn * (heroBoost ? 20 : 13);
+          vel.y += (vyT - vel.y) * Math.min(1, dt * 6);
+          p.x += vel.x * dt;
+          p.y += vel.y * dt;
+          p.z += vel.z * dt;
+          const w = findWall(p, 0.42);
+          if (w) {
+            if (w.nx) p.x = w.spec.x + w.nx * (w.t.w / 2 + 0.42);
+            else p.z = w.spec.z + w.nz * (w.t.d / 2 + 0.42);
+          }
+          let gy = roofUnder(p.x, p.z, p.y - 2.55);
+          const dy2 = deckUnder(p);
+          if (dy2 > gy) gy = dy2;
+          if (p.y <= gy + 0.02 && vel.y <= 0) {
+            p.y = gy;
+            vel.y = 0;
+            girl.grounded = true;
+          } else {
+            girl.grounded = false;
+          }
+          if (p.y < 0) {
+            p.y = 0;
+            vel.y = Math.max(0, vel.y);
+            girl.grounded = true;
+          }
+          if (girl.onBalloon) girl.grounded = true; // standing on a balloon crown 🎈
+          if (wishLen > 0.15)
+            girl.yaw = angLerp(girl.yaw, Math.atan2(wishX, wishZ), dt * 10);
+          girl.animT += dt * 5;
+        } else if (!girl.climbing) {
           // --- running / jumping / falling ---
           const speed = sprint ? 12.5 : 7.2;
           const ease = girl.grounded ? 13 : 3.2;
@@ -5497,6 +7331,7 @@
             vel.y = 0;
             girl.grounded = true;
           }
+          if (girl.onBalloon) girl.grounded = true; // in a balloon basket 🧺
 
           // face where she runs
           if (wishLen > 0.15)
@@ -5536,6 +7371,22 @@
           KR.rotation.x = 0.9 + Math.cos(at) * 0.3;
           girl.body.rotation.set(0.16, 0, 0);
           girl.body.position.y = 0;
+        } else if (superWoman && !girl.grounded) {
+          // 🦸‍♀️ soaring: lead fist punched forward, legs streamed back,
+          // the cape billowing with speed
+          const spd01 = Math.min(1, Math.hypot(vel.x, vel.y, vel.z) / 18);
+          AL.rotation.x = -3.05;
+          AR.rotation.x = -0.35;
+          EL.rotation.x = -0.08;
+          ER.rotation.x = -0.5;
+          L.rotation.x = -0.12 * spd01;
+          R.rotation.x = -0.28 * spd01;
+          KL.rotation.x = 0.12;
+          KR.rotation.x = 0.22;
+          girl.body.rotation.set(0.15 + 1.05 * spd01, 0, 0);
+          girl.body.position.y = 0.35 * spd01;
+          // cape hangs along her pitched body → it streams BEHIND her, never up
+          girl.cape.rotation.x = 0.1 + Math.sin(at * 2.2) * 0.08;
         } else if (!girl.grounded) {
           // mid-air: one leg leads, trailing knee tucked, arms lifted
           L.rotation.x = 0.6;
@@ -5587,6 +7438,9 @@
           0.5 +
           Math.abs(Math.cos(at)) * 0.16 * runAmp +
           Math.sin(at * 0.55) * 0.05;
+        // the cape relaxes when she's not soaring
+        if (girl.cape.visible && (girl.grounded || girl.climbing))
+          girl.cape.rotation.x = 0.25 + runAmp * 0.5;
 
         // --- third-person camera (mouse / touch orbits freely) ---
         const tx = p.x,
@@ -5726,13 +7580,14 @@
       }
 
       // --- street-level surprises (fly straight to them) ---
-      const gift = buildGift(P(0, -52));
+      // spread wide across the city so every discovery is its own little journey
+      const gift = buildGift(P(0, -104));
       addSurprise({
         id: "gift",
         emoji: "🎁",
         label: "افتحي الهدية",
         color: 0xba94ff,
-        pos: P(0, -52),
+        pos: P(0, -104),
         centerY: 9,
         markerY: 16,
         radius: 36,
@@ -5749,13 +7604,13 @@
         },
       });
 
-      const mood = buildMood(P(-80, 0));
+      const mood = buildMood(P(-156, 0));
       addSurprise({
         id: "mood",
         emoji: "🌈",
         label: "حديقة المزاج",
         color: 0xff9ec2,
-        pos: P(-80, 0),
+        pos: P(-156, 0),
         centerY: 12,
         markerY: 18,
         radius: 36,
@@ -5767,14 +7622,14 @@
         activate: () => openMood(),
       });
 
-      const sec = buildSecret(P(80, 0));
+      const sec = buildSecret(P(0, 156));
       addSurprise({
         id: "secret",
         emoji: "🔒",
         markerTex: makeLockTexture(),
         label: "سرّ القوة",
         color: 0x9b5cff,
-        pos: P(80, 0),
+        pos: P(0, 156),
         centerY: 12,
         markerY: 18,
         radius: 36,
@@ -5793,9 +7648,9 @@
       });
 
       // --- rooftop surprises (high up — fly upward with ▲ / E / Shift to reach them) ---
-      const ROOF_A = pickRoof(2, 1, 1),
-        ROOF_B = pickRoof(-2, -1, 1),
-        ROOF_C = pickRoof(1, 2, 1);
+      const ROOF_A = pickRoof(4, 4, 1),
+        ROOF_B = pickRoof(-5, -3, 1),
+        ROOF_C = pickRoof(2, 6, 1);
 
       const por = buildPortrait(
         new THREE.Vector3(ROOF_A.x, ROOF_A.top, ROOF_A.z),
@@ -5862,14 +7717,14 @@
       });
 
       // --- the locked golden box (street) + its golden key (hidden on a rooftop) ---
-      const gbox = buildGoldenBox(P(-52, -52));
+      const gbox = buildGoldenBox(P(130, -130));
       addSurprise({
         id: "goldenbox",
         emoji: "🔐",
         label: "الصندوق الذهبي",
         color: 0xffd24a,
         obj: gbox.grp,
-        pos: P(-52, -52),
+        pos: P(130, -130),
         centerY: 11,
         markerY: 18,
         radius: 38,
@@ -5893,7 +7748,7 @@
         },
       });
 
-      const ROOF_K = pickRoof(2, -2, 1);
+      const ROOF_K = pickRoof(7, -7, 1);
       const gkey = buildGoldenKey(
         new THREE.Vector3(ROOF_K.x, ROOF_K.top, ROOF_K.z),
       );
@@ -5916,7 +7771,7 @@
         activate: (s) => collectKey(s),
       });
 
-      const ROOF_PK = pickRoof(-2, 2, 1);
+      const ROOF_PK = pickRoof(-6, 5, 1);
       const pkey = buildPurpleKey(
         new THREE.Vector3(ROOF_PK.x, ROOF_PK.top, ROOF_PK.z),
       );
@@ -5937,6 +7792,26 @@
           pkey.spin.rotation.z = Math.sin(t * 0.8) * 0.25;
         },
         activate: (s) => collectPurpleKey(s),
+      });
+
+      // --- the sealed envelope on its table inside مقهى روز ☕💌 ---
+      const ROSE_CAFE = CAFES.find((c) => c.envelope);
+      const envPos = P(lotC(ROSE_CAFE.gx), lotC(ROSE_CAFE.gz));
+      const envl = buildEnvelope(envPos);
+      addSurprise({
+        id: "envelope",
+        emoji: "💌",
+        label: "ظرف مختوم بالمقهى",
+        color: 0xff6f9c,
+        pos: envPos,
+        centerY: 3,
+        markerY: 13,
+        radius: 15,
+        update: (s, t) => {
+          envl.spin.rotation.y = t * 0.6;
+          envl.spin.position.y = 2.6 + Math.sin(t * 1.4) * 0.25;
+        },
+        activate: () => openEnvelope(),
       });
 
       const countedTotal = surprises.filter((s) => s.counted).length;
