@@ -279,9 +279,10 @@
         right: auto;
         transform: translateX(-50%);
       }
+      /* ride / exit — sits in its own slot ABOVE the Super-Woman button */
       #btn-vehicle {
-        left: max(30px, env(safe-area-inset-left));
-        bottom: 178px;
+        left: max(20px, env(safe-area-inset-left));
+        bottom: 262px;
         font-size: 26px;
       }
 
@@ -432,27 +433,6 @@
       #btn-hero.on {
         background: radial-gradient(circle at 50% 38%, #ffd76a, #ff2d5e);
         box-shadow: 0 0 26px rgba(255, 200, 90, 0.95);
-      }
-      /* 🚀 turbo — appears only while Super-Woman is on; HOLD it to boost */
-      #btn-fly-boost {
-        display: none;
-        left: max(20px, env(safe-area-inset-left));
-        bottom: 262px;
-        font-size: 26px;
-        background: radial-gradient(
-          circle at 50% 38%,
-          rgba(186, 123, 255, 0.55),
-          rgba(106, 31, 216, 0.5)
-        );
-        border: 2px solid rgba(220, 190, 255, 0.85);
-        box-shadow: 0 0 18px rgba(155, 77, 255, 0.75);
-      }
-      #btn-fly-boost.on {
-        display: flex;
-      }
-      #btn-fly-boost:active {
-        background: radial-gradient(circle at 50% 38%, #d9b8ff, #9b4dff);
-        box-shadow: 0 0 30px rgba(186, 123, 255, 1);
       }
       /* the heart only shows up once she's close enough — and it's made special */
       #btn-action {
@@ -910,7 +890,7 @@
       <div>
         🦸‍♀️ <span class="key">G</span> وضع سوبر وومن — she flies!
         <span class="key">Space</span> rise, <span class="key">C</span> dive,
-        hold 🚀 turbo
+        hold <span class="key">⇧</span> turbo
       </div>
       <div>🕐 time follows your real clock</div>
       <div>
@@ -984,8 +964,6 @@
       <div class="tbtn" id="btn-action">♥</div>
       <div class="tbtn" id="btn-vehicle" style="display: none">🚗</div>
     </div>
-    <!-- 🚀 super-woman turbo — lives OUTSIDE #touch so desktop mice get it too -->
-    <div class="tbtn" id="btn-fly-boost" title="سرعة إضافية — اضغطي مطولاً">🚀</div>
 
     <!-- generic content panel -->
     <div class="panel" id="panel">
@@ -1048,12 +1026,14 @@
         antialias: !isTouch,
         powerPreference: "high-performance",
       });
-      renderer.setPixelRatio(
-        Math.min(window.devicePixelRatio, isTouch ? 1.6 : 2),
-      );
+      // 📉 adaptive resolution — start sharp, drop pixels only if the device struggles
+      const PR_MAX = Math.min(window.devicePixelRatio, isTouch ? 1.6 : 2);
+      const PR_MIN = Math.min(PR_MAX, isTouch ? 1 : 1.25);
+      let curPR = PR_MAX;
+      renderer.setPixelRatio(curPR);
       renderer.setSize(innerWidth, innerHeight);
       renderer.shadowMap.enabled = !isTouch; // shadows are costly on phones
-      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.shadowMap.type = THREE.PCFShadowMap; // plain PCF — much cheaper than soft
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 0.82;
 
@@ -1062,11 +1042,13 @@
       scene.fog = new THREE.FogExp2(FOG_COLOR, 0.0065);
       scene.background = FOG_COLOR.clone();
 
+      // far = 1500: the fog hides everything past ~1000m anyway, and the sky
+      // discs/stars sit at SKY_DIST (1300) — they must stay inside the far plane
       const camera = new THREE.PerspectiveCamera(
         70,
         innerWidth / innerHeight,
         0.5,
-        2000,
+        1500,
       );
       camera.position.set(0, 28, 0);
 
@@ -1099,10 +1081,10 @@
 
       const keyLight = new THREE.DirectionalLight(0xffffff, 1.0);
       keyLight.castShadow = true;
-      keyLight.shadow.mapSize.set(2048, 2048);
+      keyLight.shadow.mapSize.set(1024, 1024);
       keyLight.shadow.camera.near = 10;
       keyLight.shadow.camera.far = 700;
-      const sc = 320;
+      const sc = 240;
       keyLight.shadow.camera.left = -sc;
       keyLight.shadow.camera.right = sc;
       keyLight.shadow.camera.top = sc;
@@ -1561,7 +1543,7 @@
 
       // ---- Falling rose petals ---------------------------------------------------
       // Always present (love is in the air); density swells with the "petal storm".
-      const PETAL_COUNT = 1600;
+      const PETAL_COUNT = isTouch ? 900 : 1600; // every petal is CPU-animated — phones get fewer
       const PETAL_BOX = 190,
         PETAL_H = 170;
       const petalGeo = new THREE.BufferGeometry();
@@ -2454,7 +2436,7 @@
       // ----------------------------------------------------------------------------
       // Rain — slanted streaks (line segments) that recycle in a box around the camera
       // ----------------------------------------------------------------------------
-      const RAIN_COUNT = 11000;
+      const RAIN_COUNT = isTouch ? 4500 : 11000; // every drop is CPU-animated — phones get fewer
       const RAIN_BOX = 240; // half-extent around camera
       const RAIN_H = 200;
       const STREAK = 4.5; // base streak length (m)
@@ -2793,7 +2775,15 @@
       const clock = new THREE.Clock();
       let frames = 0,
         fpsT = 0,
-        fps = 0;
+        fps = 0,
+        radarT = 1; // starts ≥ 0.1 so the radar draws on the very first frame
+
+      // 📉 adaptive resolution: setPixelRatio re-sizes the drawing buffer itself
+      function applyPR(pr) {
+        curPR = pr;
+        renderer.setPixelRatio(pr);
+        petalMat.uniforms.uPix.value = innerHeight * pr * 0.72;
+      }
 
       function animate() {
         requestAnimationFrame(animate);
@@ -2817,7 +2807,11 @@
         updatePark(dt, starTime);
         updateSurprises(starTime, dt);
         updateVehicles(dt, starTime);
-        updateRadar(starTime);
+        radarT += dt;
+        if (radarT >= 0.1) {
+          radarT = 0;
+          updateRadar(starTime); // 10 Hz is plenty for a minimap
+        }
 
         // ground follows the camera so the infinite world stays lit
         ground.position.set(camera.position.x, 0, camera.position.z);
@@ -2830,10 +2824,16 @@
           fps = Math.round(frames / fpsT);
           frames = 0;
           fpsT = 0;
+          // struggling → render fewer pixels; smooth again → sharpen back up
+          if (fps < 27 && curPR > PR_MIN)
+            applyPR(Math.max(PR_MIN, curPR - 0.15));
+          else if (fps > 56 && curPR < PR_MAX)
+            applyPR(Math.min(PR_MAX, curPR + 0.1));
+          // DOM writes are costly — refresh the stats line twice a second only
+          statsEl.textContent =
+            `${fps} fps · ${clockLabel()} · alt ${camera.position.y.toFixed(0)}m · ` +
+            `pos ${camera.position.x.toFixed(0)},${camera.position.z.toFixed(0)}`;
         }
-        statsEl.textContent =
-          `${fps} fps · ${clockLabel()} · alt ${camera.position.y.toFixed(0)}m · ` +
-          `pos ${camera.position.x.toFixed(0)},${camera.position.z.toFixed(0)}`;
       }
 
       addEventListener("resize", () => {
@@ -3019,8 +3019,7 @@
       }
       holdBtn("btn-up", (v) => (touchUp = v));
       holdBtn("btn-down", (v) => (touchDown = v));
-      holdBtn("btn-boost", (v) => (touchBoost = v));
-      holdBtn("btn-fly-boost", (v) => (heroBoost = v)); // 🚀 hold = turbo flight
+      holdBtn("btn-boost", (v) => (touchBoost = v)); // ⚡ sprint on foot = turbo in flight
       // 🦸‍♀️ one tap → Super-Woman (▲/▼ then fly her up & down)
       {
         const heroBtn = document.getElementById("btn-hero");
@@ -6862,6 +6861,12 @@
         metalness: 0,
       });
 
+      // 🦸‍♀️ her super-suit fabric — swapped onto the top when she transforms
+      const HERO_SUIT_MAT = new THREE.MeshStandardMaterial({
+        color: 0x22308f,
+        roughness: 0.42,
+        metalness: 0.25,
+      });
       const girl = {
         g: new THREE.Group(),
         pos: new THREE.Vector3(0, 0, -8), // on the road, the red car in view
@@ -6888,28 +6893,77 @@
         girl.body = body;
         const tube = (r1, r2, len, mat) => {
           const m = new THREE.Mesh(
-            new THREE.CylinderGeometry(r1, r2, len, 10),
+            new THREE.CylinderGeometry(r1, r2, len, 14),
             mat,
           );
           m.position.y = -len / 2;
           m.castShadow = true;
           return m;
         };
-        // --- legs: hip → thigh → knee → shin → shoe, so her knees really bend
+        const ball = (r, mat, sx = 1, sy = 1, sz = 1) => {
+          const m = new THREE.Mesh(new THREE.SphereGeometry(r, 16, 12), mat);
+          m.scale.set(sx, sy, sz);
+          m.castShadow = true;
+          return m;
+        };
+        // gold trim for the 🦸‍♀️ costume — glows faintly so it pops at night
+        const GOLD_MAT = new THREE.MeshStandardMaterial({
+          color: 0xffd166,
+          metalness: 0.7,
+          roughness: 0.28,
+          emissive: 0x5a4200,
+          emissiveIntensity: 0.35,
+        });
+        const BOOT_MAT = new THREE.MeshStandardMaterial({
+          color: 0xc41230,
+          roughness: 0.4,
+          metalness: 0.2,
+        });
+        // costume pieces that only exist while she's Super-Woman
+        girl.heroParts = [];
+        const hero = (m) => {
+          m.visible = false;
+          girl.heroParts.push(m);
+          return m;
+        };
+        // --- legs: hip → thigh → knee → shin → shoe, with round joints and a
+        // shaped calf so the limbs read as flesh, not plumbing
         for (const s of [-1, 1]) {
           const hip = new THREE.Group();
           hip.position.set(s * 0.095, 0.92, 0);
-          hip.add(tube(0.062, 0.05, 0.46, LEGGING_MAT)); // thigh
+          hip.add(ball(0.066, LEGGING_MAT, 1, 0.88, 1)); // hip joint
+          hip.add(tube(0.063, 0.048, 0.46, LEGGING_MAT)); // thigh
           const knee = new THREE.Group();
           knee.position.y = -0.46;
-          knee.add(tube(0.048, 0.038, 0.44, LEGGING_MAT)); // shin
-          const shoe = new THREE.Mesh(
-            new THREE.BoxGeometry(0.11, 0.07, 0.23),
+          knee.add(ball(0.049, LEGGING_MAT)); // knee cap
+          knee.add(tube(0.048, 0.027, 0.44, LEGGING_MAT)); // shin → slim ankle
+          const calf = ball(0.046, LEGGING_MAT, 0.9, 1.5, 0.95); // calf muscle
+          calf.position.set(0, -0.14, -0.014);
+          knee.add(calf);
+          // a real ballet flat: rounded toe + a slim heel
+          const shoe = ball(0.05, DRESS_MAT, 1.05, 0.7, 2.15);
+          shoe.position.set(0, -0.435, 0.055);
+          knee.add(shoe);
+          const heel = new THREE.Mesh(
+            new THREE.BoxGeometry(0.066, 0.05, 0.055),
             DRESS_MAT,
           );
-          shoe.position.set(0, -0.45, 0.05);
-          shoe.castShadow = true;
-          knee.add(shoe);
+          heel.position.set(0, -0.44, -0.05);
+          heel.castShadow = true;
+          knee.add(heel);
+          // 🦸‍♀️ knee-high boot with a golden trim
+          const boot = hero(tube(0.053, 0.033, 0.31, BOOT_MAT));
+          boot.position.y = -0.295;
+          knee.add(boot);
+          const trim = hero(
+            new THREE.Mesh(
+              new THREE.TorusGeometry(0.052, 0.01, 8, 18),
+              GOLD_MAT,
+            ),
+          );
+          trim.rotation.x = Math.PI / 2;
+          trim.position.y = -0.14;
+          knee.add(trim);
           hip.add(knee);
           body.add(hip);
           if (s < 0) {
@@ -6921,17 +6975,18 @@
           }
         }
         // --- a prettier figure: a curvy lathe-turned torso (real waistline,
-        // chest, soft shoulders) and a swishy A-line skirt ---
+        // bust, ribs, soft shoulders) and a swishy A-line skirt ---
         const skirt = new THREE.Mesh(
           new THREE.LatheGeometry(
             [
               new THREE.Vector2(0.31, 0),
-              new THREE.Vector2(0.27, 0.09),
-              new THREE.Vector2(0.2, 0.2),
-              new THREE.Vector2(0.14, 0.29),
+              new THREE.Vector2(0.28, 0.07),
+              new THREE.Vector2(0.22, 0.17),
+              new THREE.Vector2(0.16, 0.26),
+              new THREE.Vector2(0.13, 0.32),
               new THREE.Vector2(0.12, 0.35),
             ],
-            16,
+            24,
           ),
           DRESS_MAT,
         );
@@ -6939,55 +6994,98 @@
         skirt.castShadow = true;
         body.add(skirt);
         const belt = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.122, 0.128, 0.06, 14),
+          new THREE.CylinderGeometry(0.122, 0.128, 0.06, 20),
           HAIR_MAT,
         );
         belt.position.y = 1.2;
         body.add(belt);
+        // 🦸‍♀️ golden hero belt sits right over the everyday one
+        const heroBelt = hero(
+          new THREE.Mesh(
+            new THREE.CylinderGeometry(0.126, 0.133, 0.055, 20),
+            GOLD_MAT,
+          ),
+        );
+        heroBelt.position.y = 1.2;
+        body.add(heroBelt);
         const torso = new THREE.Mesh(
           new THREE.LatheGeometry(
             [
-              new THREE.Vector2(0.125, 0),
-              new THREE.Vector2(0.1, 0.1),
-              new THREE.Vector2(0.105, 0.18),
-              new THREE.Vector2(0.13, 0.28),
-              new THREE.Vector2(0.12, 0.36),
-              new THREE.Vector2(0.08, 0.43),
+              new THREE.Vector2(0.128, 0),
+              new THREE.Vector2(0.103, 0.07), // high hip
+              new THREE.Vector2(0.096, 0.13), // waist
+              new THREE.Vector2(0.109, 0.2), // ribs
+              new THREE.Vector2(0.126, 0.28), // bust
+              new THREE.Vector2(0.119, 0.34),
+              new THREE.Vector2(0.098, 0.4), // upper chest
+              new THREE.Vector2(0.072, 0.44), // shoulder slope
               new THREE.Vector2(0.05, 0.46),
             ],
-            16,
+            24,
           ),
           TOP_MAT,
         );
         torso.position.y = 1.17;
         torso.castShadow = true;
         body.add(torso);
+        girl.torso = torso;
+        // soft chest shaping so the top doesn't read as a straight tube
+        const chest = ball(0.086, TOP_MAT, 1.12, 0.72, 0.7);
+        chest.position.set(0, 1.47, 0.05);
+        body.add(chest);
+        girl.chest = chest;
+        // 🦸‍♀️ golden rose emblem on her chest
+        const emblem = hero(
+          new THREE.Mesh(new THREE.CircleGeometry(0.048, 20), GOLD_MAT),
+        );
+        emblem.position.set(0, 1.5, 0.126);
+        emblem.rotation.x = -0.28;
+        body.add(emblem);
+        const emblemRose = hero(ball(0.019, DRESS_MAT, 1, 1, 0.5));
+        emblemRose.position.set(0, 1.502, 0.133);
+        body.add(emblemRose);
         const neck = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.045, 0.05, 0.09, 8),
+          new THREE.CylinderGeometry(0.042, 0.052, 0.1, 12),
           SKIN_MAT,
         );
         neck.position.y = 1.61;
         body.add(neck);
-        // --- arms: shoulder (with a puff sleeve) → upper arm → elbow → hand
+        // --- arms: soft sleeve → upper arm → round elbow → forearm → a real
+        // little hand (palm + thumb) — plus 🦸‍♀️ gloves with golden cuffs
         for (const s of [-1, 1]) {
           const sh = new THREE.Group();
           sh.position.set(s * 0.185, 1.55, 0);
-          const puff = new THREE.Mesh(
-            new THREE.SphereGeometry(0.06, 8, 6),
-            TOP_MAT,
-          );
-          puff.castShadow = true;
+          const puff = ball(0.057, TOP_MAT, 1, 0.9, 1); // soft sleeve
           sh.add(puff);
-          sh.add(tube(0.042, 0.036, 0.3, SKIN_MAT)); // upper arm
+          if (s < 0) girl.puffL = puff;
+          else girl.puffR = puff;
+          sh.add(tube(0.04, 0.033, 0.3, SKIN_MAT)); // upper arm
           const elbow = new THREE.Group();
           elbow.position.y = -0.3;
-          elbow.add(tube(0.034, 0.028, 0.28, SKIN_MAT)); // forearm
-          const hand = new THREE.Mesh(
-            new THREE.SphereGeometry(0.045, 8, 6),
-            SKIN_MAT,
+          elbow.add(ball(0.033, SKIN_MAT)); // elbow joint
+          elbow.add(tube(0.032, 0.023, 0.28, SKIN_MAT)); // forearm
+          const palm = ball(0.04, SKIN_MAT, 0.78, 1.25, 0.55);
+          palm.position.y = -0.305;
+          elbow.add(palm);
+          const thumb = ball(0.014, SKIN_MAT, 0.8, 1.5, 0.8);
+          thumb.position.set(s * -0.03, -0.285, 0.018);
+          elbow.add(thumb);
+          // 🦸‍♀️ long glove: covers forearm and hand, golden cuff on top
+          const glove = hero(tube(0.034, 0.025, 0.17, BOOT_MAT));
+          glove.position.y = -0.195;
+          elbow.add(glove);
+          const gloveHand = hero(ball(0.042, BOOT_MAT, 0.78, 1.25, 0.55));
+          gloveHand.position.y = -0.305;
+          elbow.add(gloveHand);
+          const cuff = hero(
+            new THREE.Mesh(
+              new THREE.TorusGeometry(0.035, 0.008, 8, 16),
+              GOLD_MAT,
+            ),
           );
-          hand.position.y = -0.3;
-          elbow.add(hand);
+          cuff.rotation.x = Math.PI / 2;
+          cuff.position.y = -0.11;
+          elbow.add(cuff);
           sh.add(elbow);
           sh.rotation.z = s * 0.09; // arms rest slightly away from the body
           body.add(sh);
@@ -6999,65 +7097,164 @@
             girl.elbowR = elbow;
           }
         }
-        // --- head: eyes, bangs, side strands, high ponytail + her rose ---
+        // --- head & a real face: almond eyes (white + iris + sparkle), lash
+        // lines, brows, a little nose, lips and soft blush — framed by hair
         const head = new THREE.Mesh(
-          new THREE.SphereGeometry(0.155, 16, 14),
+          new THREE.SphereGeometry(0.155, 24, 20),
           SKIN_MAT,
         );
+        head.scale.set(0.94, 1.04, 0.96); // gentle oval — less "ball", more face
         head.position.y = 1.75;
         head.castShadow = true;
         body.add(head);
+        const EYE_WHITE_MAT = new THREE.MeshStandardMaterial({
+          color: 0xffffff,
+          roughness: 0.2,
+        });
+        const IRIS_MAT = new THREE.MeshStandardMaterial({
+          color: 0x5a3a22,
+          roughness: 0.25,
+        });
+        const LIP_MAT = new THREE.MeshStandardMaterial({
+          color: 0xc95a70,
+          roughness: 0.35,
+        });
+        const BLUSH_MAT = new THREE.MeshStandardMaterial({
+          color: 0xff8ba0,
+          roughness: 0.9,
+          transparent: true,
+          opacity: 0.35,
+        });
         for (const s of [-1, 1]) {
-          const eye = new THREE.Mesh(
-            new THREE.SphereGeometry(0.018, 6, 6),
+          const sclera = ball(0.027, EYE_WHITE_MAT, 1, 1.25, 0.55);
+          sclera.position.set(s * 0.054, 1.777, 0.128);
+          body.add(sclera);
+          const iris = ball(0.0135, IRIS_MAT);
+          iris.position.set(s * 0.054, 1.777, 0.1365);
+          body.add(iris);
+          const pupil = ball(0.007, HAIR_MAT);
+          pupil.position.set(s * 0.054, 1.777, 0.1445);
+          body.add(pupil);
+          const spark = new THREE.Mesh(
+            new THREE.SphereGeometry(0.0035, 6, 5),
+            new THREE.MeshBasicMaterial({ color: 0xffffff }),
+          );
+          spark.position.set(s * 0.049, 1.783, 0.148);
+          body.add(spark);
+          const lash = ball(0.028, HAIR_MAT, 1.05, 0.35, 0.5); // lash line
+          lash.position.set(s * 0.054, 1.797, 0.124);
+          body.add(lash);
+          const brow = new THREE.Mesh(
+            new THREE.BoxGeometry(0.05, 0.009, 0.013),
             HAIR_MAT,
           );
-          eye.position.set(s * 0.055, 1.77, 0.138);
-          body.add(eye);
+          brow.position.set(s * 0.056, 1.818, 0.128);
+          brow.rotation.z = s * -0.14;
+          body.add(brow);
+          const blush = ball(0.02, BLUSH_MAT, 1.2, 0.7, 0.3);
+          blush.castShadow = false;
+          blush.position.set(s * 0.088, 1.726, 0.118);
+          body.add(blush);
         }
+        const nose = ball(0.012, SKIN_MAT, 0.75, 1.3, 0.85);
+        nose.position.set(0, 1.746, 0.146);
+        body.add(nose);
+        const lipTop = ball(0.019, LIP_MAT, 1.5, 0.5, 0.6);
+        lipTop.position.set(0, 1.711, 0.138);
+        body.add(lipTop);
+        const lipLow = ball(0.015, LIP_MAT, 1.25, 0.55, 0.6);
+        lipLow.position.set(0, 1.699, 0.139);
+        body.add(lipLow);
+        // hair: a smooth scalp, feathered bangs and layered face-framing strands
         const hair = new THREE.Mesh(
-          new THREE.SphereGeometry(0.168, 16, 14),
+          new THREE.SphereGeometry(0.168, 24, 20),
           HAIR_MAT,
         );
-        hair.position.set(0, 1.79, -0.025);
+        hair.scale.set(1, 1.02, 0.98);
+        hair.position.set(0, 1.79, -0.045);
+        hair.castShadow = true;
         body.add(hair);
         const bangs = new THREE.Mesh(
-          new THREE.SphereGeometry(0.15, 12, 10),
+          new THREE.SphereGeometry(0.15, 20, 14),
           HAIR_MAT,
         );
-        bangs.scale.set(1.06, 0.6, 0.72);
-        bangs.position.set(0, 1.86, 0.055);
+        bangs.scale.set(1.04, 0.45, 0.75);
+        bangs.position.set(0, 1.9, 0.035);
         body.add(bangs);
         for (const s of [-1, 1]) {
-          const strand = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.028, 0.016, 0.3, 8),
+          const front = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.022, 0.011, 0.34, 8),
             HAIR_MAT,
           );
-          strand.position.set(s * 0.145, 1.66, 0.03);
-          strand.rotation.z = s * 0.12;
-          body.add(strand);
+          front.position.set(s * 0.135, 1.63, 0.06);
+          front.rotation.z = s * 0.1;
+          body.add(front);
+          const mid = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.026, 0.013, 0.42, 8),
+            HAIR_MAT,
+          );
+          mid.position.set(s * 0.148, 1.61, -0.02);
+          mid.rotation.z = s * 0.14;
+          body.add(mid);
+          const back = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.028, 0.013, 0.4, 8),
+            HAIR_MAT,
+          );
+          back.position.set(s * 0.115, 1.62, -0.1);
+          back.rotation.z = s * 0.07;
+          back.rotation.x = -0.08;
+          body.add(back);
         }
+        // 🦸‍♀️ golden tiara with a little ruby, resting on the bangs
+        const tiara = hero(
+          new THREE.Mesh(
+            new THREE.TorusGeometry(0.145, 0.009, 8, 28),
+            GOLD_MAT,
+          ),
+        );
+        tiara.position.set(0, 1.87, -0.01);
+        tiara.rotation.x = Math.PI / 2 + 0.12;
+        body.add(tiara);
+        const gem = hero(ball(0.015, DRESS_MAT));
+        gem.position.set(0, 1.872, 0.142);
+        body.add(gem);
+        // high ponytail: scrunchie + a two-piece tail that curves and swings
         girl.pony = new THREE.Group();
         girl.pony.position.set(0, 1.88, -0.13);
         const scrunchie = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.045, 0.045, 0.05, 8),
+          new THREE.TorusGeometry(0.042, 0.017, 10, 16),
           DRESS_MAT,
         );
-        scrunchie.rotation.x = 0.5;
+        scrunchie.rotation.x = Math.PI / 2;
         girl.pony.add(scrunchie);
-        const tail = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.05, 0.014, 0.62, 8),
-          HAIR_MAT,
-        );
-        tail.position.y = -0.34;
-        girl.pony.add(tail);
+        girl.pony.add(tube(0.05, 0.035, 0.34, HAIR_MAT)); // upper fall
+        const tailEnd = new THREE.Group();
+        tailEnd.position.y = -0.34;
+        tailEnd.rotation.x = -0.32; // the tail flicks softly back out
+        tailEnd.add(tube(0.034, 0.009, 0.38, HAIR_MAT));
+        const tip = ball(0.016, HAIR_MAT, 1, 1.5, 1);
+        tip.position.y = -0.39;
+        tailEnd.add(tip);
+        girl.pony.add(tailEnd);
         girl.pony.rotation.x = 0.5;
         body.add(girl.pony);
-        // 🦸‍♀️ her red super-cape — hidden until Super-Woman mode (press G)
+        // 🦸‍♀️ her red super-cape — real cloth now: a flared sheet whose
+        // vertices ripple in the wind (see waveCape below)
         girl.cape = new THREE.Group();
         girl.cape.position.set(0, 1.58, -0.12);
+        const capeGeo = new THREE.PlaneGeometry(0.55, 1.02, 8, 10);
+        {
+          // flare it into a trapezoid — narrow at the shoulders, wide at the hem
+          const cp = capeGeo.attributes.position;
+          for (let i = 0; i < cp.count; i++) {
+            const t = (0.51 - cp.getY(i)) / 1.02; // 0 shoulders → 1 hem
+            cp.setX(i, cp.getX(i) * (0.62 + 0.85 * t));
+          }
+        }
+        girl.capeGeo = capeGeo;
+        girl.capeBase = capeGeo.attributes.position.array.slice();
         const capeMesh = new THREE.Mesh(
-          new THREE.PlaneGeometry(0.55, 0.98),
+          capeGeo,
           new THREE.MeshStandardMaterial({
             color: 0xd21324,
             emissive: 0x8f0018,
@@ -7067,20 +7264,42 @@
             side: THREE.DoubleSide,
           }),
         );
-        capeMesh.position.y = -0.49;
+        capeMesh.position.y = -0.51;
         girl.cape.add(capeMesh);
         girl.cape.rotation.x = 0.25;
         girl.cape.visible = false;
         body.add(girl.cape);
         const hairRose = new THREE.Mesh(
-          new THREE.SphereGeometry(0.05, 8, 6),
+          new THREE.SphereGeometry(0.05, 12, 10),
           DRESS_MAT,
         );
-        hairRose.position.set(0.12, 1.9, 0.05);
+        hairRose.position.set(0.115, 1.925, 0.05);
         body.add(hairRose);
         G.position.copy(girl.pos);
         G.rotation.y = girl.yaw;
         scene.add(G);
+      }
+
+      // 🦸‍♀️ the cape is real cloth: every frame we ripple its vertices — gentle
+      // when she stands, streaming hard when she flies fast
+      function waveCape(t) {
+        const pos = girl.capeGeo.attributes.position;
+        const arr = pos.array;
+        const base = girl.capeBase;
+        const spd = Math.min(1, Math.hypot(vel.x, vel.y, vel.z) / 18);
+        const amp = 0.02 + spd * 0.1;
+        for (let i = 0; i < pos.count; i++) {
+          const j = i * 3;
+          const k = (0.51 - base[j + 1]) / 1.02; // 0 shoulders → 1 hem
+          arr[j] = base[j] + Math.sin(t * 5 + base[j + 1] * 4) * amp * 0.4 * k;
+          arr[j + 2] =
+            Math.sin(t * 7.5 - k * 5.5 + base[j] * 2.5) *
+            amp *
+            k *
+            (1 + spd * 1.4);
+        }
+        pos.needsUpdate = true;
+        girl.capeGeo.computeVertexNormals();
       }
 
       // where "she" is for pickups & beacons: her body, or whatever she's riding
@@ -7140,15 +7359,18 @@
       let prevJump = false;
       // 🦸‍♀️ SUPER-WOMAN mode — press G and she flies like a hero (see updateGirl)
       let superWoman = false;
-      let heroBoost = false; // 🚀 held turbo button (also Shift while flying)
       function toggleSuperWoman() {
         superWoman = !superWoman;
-        heroBoost = false;
         girl.cape.visible = superWoman;
+        // 🦸‍♀️ full costume change: suit, gloves, boots, belt, emblem & tiara
+        for (const part of girl.heroParts) part.visible = superWoman;
+        const suitMat = superWoman ? HERO_SUIT_MAT : TOP_MAT;
+        girl.torso.material = suitMat;
+        girl.chest.material = suitMat;
+        girl.puffL.material = suitMat;
+        girl.puffR.material = suitMat;
         const hb = document.getElementById("btn-hero");
         if (hb) hb.classList.toggle("on", superWoman);
-        const fb = document.getElementById("btn-fly-boost");
-        if (fb) fb.classList.toggle("on", superWoman);
         if (superWoman) {
           girl.climbing = false;
           vel.y = Math.max(vel.y, 7); // lift-off hop
@@ -7249,11 +7471,11 @@
           const upIn =
             (jumpHeld ? 1 : 0) -
             (keys["KeyC"] || keys["ControlLeft"] || touchDown ? 1 : 0);
-          // 🚀 held turbo button > sprint > cruise
-          const spd = heroBoost ? 55 : sprint ? 34 : 20;
+          // ⚡ / Shift = turbo, otherwise cruise
+          const spd = sprint ? 48 : 20;
           vel.x += (wishX * spd - vel.x) * Math.min(1, dt * 6);
           vel.z += (wishZ * spd - vel.z) * Math.min(1, dt * 6);
-          const vyT = fwd * Math.sin(pitch) * spd * 0.8 + upIn * (heroBoost ? 20 : 13);
+          const vyT = fwd * Math.sin(pitch) * spd * 0.8 + upIn * (sprint ? 18 : 13);
           vel.y += (vyT - vel.y) * Math.min(1, dt * 6);
           p.x += vel.x * dt;
           p.y += vel.y * dt;
@@ -7441,6 +7663,7 @@
         // the cape relaxes when she's not soaring
         if (girl.cape.visible && (girl.grounded || girl.climbing))
           girl.cape.rotation.x = 0.25 + runAmp * 0.5;
+        if (girl.cape.visible) waveCape(starTime); // cloth ripple
 
         // --- third-person camera (mouse / touch orbits freely) ---
         const tx = p.x,
