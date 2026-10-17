@@ -646,6 +646,10 @@
       .panel-btn:active {
         background: rgba(255, 90, 140, 0.6);
       }
+      .panel-btn.playing {
+        background: rgba(255, 90, 140, 0.78);
+        box-shadow: 0 0 20px rgba(255, 110, 170, 0.85);
+      }
       .timeline-item {
         text-align: right;
         border-right: 3px solid rgba(255, 150, 190, 0.5);
@@ -708,6 +712,60 @@
         color: #e3a9c4;
         margin-right: 10px;
         transition: transform 0.18s ease;
+      }
+
+      /* ─────────── 🎹 playable piano (Rosmantic Music) ─────────── */
+      #piano-panel .panel-card {
+        max-width: 680px;
+      }
+      .piano-keys {
+        position: relative;
+        display: flex;
+        height: 160px;
+        margin: 16px auto 10px;
+        direction: ltr;
+        user-select: none;
+        touch-action: none;
+      }
+      .pk-w {
+        position: relative;
+        flex: 1;
+        margin: 0 1px;
+        border-radius: 0 0 9px 9px;
+        background: linear-gradient(#ffffff, #f3e4ec);
+        border: 1px solid #c9a0b4;
+        box-shadow: inset 0 -7px 0 rgba(0, 0, 0, 0.08);
+        cursor: pointer;
+      }
+      .pk-w.on {
+        background: linear-gradient(#ffd0e4, #ff8fbf);
+      }
+      .pk-b {
+        position: absolute;
+        top: 0;
+        height: 60%;
+        z-index: 2;
+        border-radius: 0 0 7px 7px;
+        background: linear-gradient(#2a1424, #0b0508);
+        box-shadow: 0 3px 7px rgba(0, 0, 0, 0.55);
+        cursor: pointer;
+      }
+      .pk-b.on {
+        background: linear-gradient(#ff5d9e, #7a1f4a);
+      }
+      .pk-label {
+        position: absolute;
+        bottom: 7px;
+        left: 0;
+        right: 0;
+        text-align: center;
+        font-size: 10px;
+        color: #b07a95;
+        pointer-events: none;
+      }
+      .piano-hint {
+        font-size: 12.5px !important;
+        color: #e3a9c4 !important;
       }
 
       /* ─────────── Breathing overlay ─────────── */
@@ -918,7 +976,12 @@
         ><span class="key">↓</span> pitch, <span class="key">A</span
         ><span class="key">D</span> bank
       </div>
-      <div><span class="key">F</span> get in / out of a vehicle</div>
+      <div>
+        🎹 <b>Rosmantic Music</b> — walk inside the music hall by the start:
+        live piano, a vinyl player, and <span class="key">F</span> at the
+        piano to play it yourself
+      </div>
+      <div><span class="key">F</span> get in / out of a vehicle — every parked car on the street can be driven 🚗</div>
     </div>
 
     <div id="title">
@@ -973,6 +1036,19 @@
       </div>
     </div>
 
+    <!-- 🎹 the playable piano inside Rosmantic Music -->
+    <div class="panel" id="piano-panel">
+      <div class="panel-card">
+        <div class="panel-close" id="piano-close">✕</div>
+        <span class="emoji-head">🎹</span>
+        <h2>Rosmantic Piano</h2>
+        <div class="piano-keys" id="piano-keys"></div>
+        <p class="piano-hint">اعزفي بإصبعك 🎶 — أو بالكيبورد: A S D F G H J K L ; ' و W E T Y U O P</p>
+        <div class="panel-btn" id="piano-bday">🎂 Happy Birthday</div>
+        <div class="panel-btn" id="piano-song">🌹 اعزفي معي أغنيتنا</div>
+      </div>
+    </div>
+
     <!-- breathing overlay -->
     <div id="breathe">
       <div class="bclose" id="breathe-close">✕</div>
@@ -1006,6 +1082,11 @@
     <script type="module">
       import * as THREE from "three";
       import { Sky } from "three/addons/objects/Sky.js";
+      import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+      import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+      import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+      import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+      import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
       // Real love-words from the original Rose project — re-used as the city's treasures.
       import { dailyMessages, moodMessages } from "../messages.js";
 
@@ -1688,10 +1769,15 @@
       // building lots, painted lane markings, and warm pools of light under every
       // street lamp (lamps sit on the grid nodes — see buildChunk). Uses world XZ
       // so the streets stay anchored while the plane follows the camera.
+      // 🌈 Every street glows with its own neon edge colour (same palette as the
+      // towers), rose-stone pavements, zebra crossings, a glowing heart in each
+      // intersection, and rain puddles that mirror the neon and the lamps.
+      // (Low metalness on purpose: with no env-map a metal ground only reflects
+      // black — that was what made the old street so dark.)
       const groundMat = new THREE.MeshStandardMaterial({
-        color: 0x0d0509,
-        roughness: 0.32,
-        metalness: 0.8,
+        color: 0xffffff,
+        roughness: 0.7,
+        metalness: 0.1,
       });
       groundMat.onBeforeCompile = (shader) => {
         shader.uniforms.uNight = uNight;
@@ -1708,13 +1794,38 @@
         shader.fragmentShader = shader.fragmentShader
           .replace(
             "#include <common>",
-            `#include <common>\n      varying vec3 vWPos;\n      uniform float uNight;`,
+            `#include <common>
+      varying vec3 vWPos;
+      uniform float uNight;
+      float rcHash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+      float rcNoise(vec2 p){
+        vec2 i = floor(p), f = fract(p);
+        f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(rcHash(i), rcHash(i + vec2(1.0, 0.0)), f.x),
+                   mix(rcHash(i + vec2(0.0, 1.0)), rcHash(i + vec2(1.0, 1.0)), f.x), f.y);
+      }
+      // each street picks a neon hue from the tower palette
+      vec3 rcStreetHue(float s){
+        float r = fract(sin(s * 91.7) * 43758.5453);
+        if (r < 0.30) return vec3(1.0, 0.36, 0.72);   // hot pink
+        if (r < 0.52) return vec3(0.30, 0.75, 1.0);   // electric blue
+        if (r < 0.70) return vec3(0.72, 0.50, 1.0);   // lavender
+        if (r < 0.86) return vec3(0.35, 1.0, 0.75);   // mint
+        return vec3(1.0, 0.72, 0.35);                 // gold
+      }
+      float rcDot2(vec2 v){ return dot(v, v); }
+      // signed distance to a heart (tip at the origin, ~1.2 tall)
+      float rcHeart(vec2 p){
+        p.x = abs(p.x);
+        if (p.y + p.x > 1.0) return sqrt(rcDot2(p - vec2(0.25, 0.75))) - sqrt(2.0) / 4.0;
+        return sqrt(min(rcDot2(p - vec2(0.0, 1.0)), rcDot2(p - 0.5 * max(p.x + p.y, 0.0)))) * sign(p.x - p.y);
+      }`,
           )
           .replace(
             "#include <emissivemap_fragment>",
             `#include <emissivemap_fragment>
-      const float TILE = 26.0;
-      const float ROADHW = 4.0;        // road half-width (m)
+      const float TILE = ${TILE.toFixed(1)};  // same lot size as the JS grid
+      const float ROADHW = ${ROAD_HW.toFixed(1)};        // road half-width (m)
       vec2 g = vWPos.xz;
       vec2 q = g / TILE;
       float fx = fract(q.x), fz = fract(q.y);
@@ -1723,26 +1834,79 @@
       float onX = step(dx, ROADHW);
       float onZ = step(dz, ROADHW);
       float road = max(onX, onZ);
+      float isect = onX * onZ;                 // the box where two streets cross
+      float nGlow = 0.45 + 0.55 * uNight;      // street neon never fully sleeps
 
-      vec3 asphalt  = vec3(0.020, 0.016, 0.014);
-      vec3 sidewalk = vec3(0.040, 0.034, 0.030);
-      diffuseColor.rgb = mix(sidewalk, asphalt, road);
+      // which street is this? → its own neon hue
+      vec3 hueX = rcStreetHue(floor(q.x + 0.5) * 7.13 + 1.0);   // N-S street
+      vec3 hueZ = rcStreetHue(floor(q.y + 0.5) * 3.71 + 5.0);   // E-W street
 
-      // dashed amber centre lines down the middle of each road
-      float dashV = step(dx, 0.32) * onX * step(0.5, fract(g.y / 4.0));
-      float dashH = step(dz, 0.32) * onZ * step(0.5, fract(g.x / 4.0));
-      // solid kerb lines at the road edges — glowing lane edges seen from above
-      float kerb = step(abs(dx - ROADHW), 0.18) * onX + step(abs(dz - ROADHW), 0.18) * onZ;
-      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.62, 0.44, 0.22), clamp(dashV + dashH, 0.0, 1.0));
-      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.40, 0.33, 0.24), clamp(kerb, 0.0, 1.0) * road);
+      // ---- surfaces: grainy violet asphalt, rose-stone paving slabs, pale kerbs
+      float grain = 0.82 + 0.36 * rcNoise(g * 1.7);
+      vec3 asphalt = vec3(0.050, 0.042, 0.068) * grain;
+      vec2 slab = g / 1.6;
+      vec2 sf = fract(slab);
+      float grout = max(step(sf.x, 0.05), step(sf.y, 0.05));
+      vec3 paving = vec3(0.13, 0.085, 0.10) * (0.8 + 0.4 * rcHash(floor(slab)));
+      paving *= 1.0 - 0.45 * grout;
+      float kerbX = (1.0 - onX) * step(dx, ROADHW + 0.45);
+      float kerbZ = (1.0 - onZ) * step(dz, ROADHW + 0.45);
+      float kerb = clamp(kerbX + kerbZ, 0.0, 1.0) * (1.0 - road);
+      diffuseColor.rgb = mix(paving, asphalt, road);
+      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.24, 0.20, 0.22), kerb);
+      roughnessFactor = mix(0.85, 0.5, road);
 
-      // warm golden light pool under each lamp (lamps are on the grid nodes)
+      // ---- neon lane edges: a glowing line just inside each kerb, in the
+      // street's own colour, with a soft halo bleeding onto the asphalt
+      float eX = abs(dx - (ROADHW - 0.4)), eZ = abs(dz - (ROADHW - 0.4));
+      float lineX = onX * (1.0 - onZ) * smoothstep(0.16, 0.04, eX);
+      float lineZ = onZ * (1.0 - onX) * smoothstep(0.16, 0.04, eZ);
+      float haloX = onX * (1.0 - onZ) * smoothstep(1.6, 0.0, eX);
+      float haloZ = onZ * (1.0 - onX) * smoothstep(1.6, 0.0, eZ);
+      diffuseColor.rgb = mix(diffuseColor.rgb, hueX * 0.5, lineX);
+      diffuseColor.rgb = mix(diffuseColor.rgb, hueZ * 0.5, lineZ);
+      totalEmissiveRadiance += (lineX * 1.7 + haloX * haloX * 0.22) * hueX * nGlow;
+      totalEmissiveRadiance += (lineZ * 1.7 + haloZ * haloZ * 0.22) * hueZ * nGlow;
+
+      // ---- dashed amber centre lines (not through the intersections)
+      float dashV = step(dx, 0.2) * onX * (1.0 - onZ) * step(0.5, fract(g.y / 4.0));
+      float dashH = step(dz, 0.2) * onZ * (1.0 - onX) * step(0.5, fract(g.x / 4.0));
+      float dash = clamp(dashV + dashH, 0.0, 1.0);
+      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.75, 0.55, 0.25), dash);
+      totalEmissiveRadiance += dash * vec3(1.0, 0.66, 0.26) * (0.35 + 0.5 * uNight);
+
+      // ---- zebra crossings on every approach to an intersection
+      float zx = onX * (1.0 - onZ) * step(ROADHW + 0.9, dz) * step(dz, ROADHW + 3.6)
+               * step(0.5, fract(g.x / 1.1)) * step(dx, ROADHW - 0.9);
+      float zz = onZ * (1.0 - onX) * step(ROADHW + 0.9, dx) * step(dx, ROADHW + 3.6)
+               * step(0.5, fract(g.y / 1.1)) * step(dz, ROADHW - 0.9);
+      float zebra = clamp(zx + zz, 0.0, 1.0);
+      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.62, 0.58, 0.62), zebra);
+      totalEmissiveRadiance += zebra * vec3(1.0, 0.86, 0.95) * 0.22 * nGlow;
+
+      // ---- a glowing rose heart (and ring) painted in every intersection
       vec2 node = floor(q + 0.5) * TILE;
+      vec2 lp = g - node;
+      float hd = rcHeart(lp / 3.0 + vec2(0.0, 0.55));
+      float heartLine = smoothstep(0.06, 0.0, abs(hd)) * isect;
+      float heartFill = step(hd, 0.0) * isect;
+      float ringD = abs(length(lp) - 4.3);
+      float ring = smoothstep(0.14, 0.0, ringD) * isect;
+      vec3 roseNeon = vec3(1.0, 0.3, 0.55);
+      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.35, 0.06, 0.14), heartFill * 0.8);
+      totalEmissiveRadiance += (heartLine * 1.8 + heartFill * 0.2 + ring * 1.1) * roseNeon * nGlow;
+
+      // ---- rain puddles on the asphalt: glossy, mirroring the street neon
+      float pud = smoothstep(0.6, 0.72, rcNoise(g * 0.085 + 3.1)) * road;
+      roughnessFactor = mix(roughnessFactor, 0.06, pud);
+      diffuseColor.rgb *= 1.0 - 0.45 * pud;
+      vec3 pudTint = mix(hueX, hueZ, onZ * (1.0 - onX) + 0.5 * isect);
+      totalEmissiveRadiance += pud * pudTint * (0.1 + 0.18 * rcNoise(g * 0.9 + uNight)) * nGlow;
+
+      // ---- warm golden light pool under each lamp (lamps are on the grid nodes)
       float dn = distance(g, node);
       float pool = smoothstep(11.0, 0.0, dn);
-      totalEmissiveRadiance += pool * pool * vec3(1.0, 0.56, 0.22) * 1.25 * uNight;
-      totalEmissiveRadiance += clamp(dashV + dashH, 0.0, 1.0) * vec3(1.0, 0.62, 0.24) * (0.2 + 0.4 * uNight);
-      totalEmissiveRadiance += clamp(kerb, 0.0, 1.0) * road * vec3(1.0, 0.55, 0.2) * 0.25 * uNight;`,
+      totalEmissiveRadiance += pool * pool * vec3(1.0, 0.56, 0.22) * (0.9 + 0.5 * pud) * uNight;`,
           );
       };
       const ground = new THREE.Mesh(
@@ -1766,8 +1930,11 @@
       // ----------------------------------------------------------------------------
       // Infinite city via chunked instanced buildings
       // ----------------------------------------------------------------------------
-      const TILE = 26; // size of one city lot (incl. road gap)
+      // 🌆 roomier city: 32m lots (was 26m) around the SAME tower footprints, so
+      // the streets between the towers are wider and the skyline can breathe
+      const TILE = 32; // size of one city lot (incl. road gap)
       const BUILD = 18; // building footprint within lot
+      const ROAD_HW = 5; // painted road half-width (m)
       const CHUNK = 6; // lots per chunk side
       const CHUNK_SIZE = TILE * CHUNK;
       const VIEW_CHUNKS = isTouch ? 3 : 4; // radius of chunks kept loaded (smaller on phones)
@@ -1794,6 +1961,8 @@
       // ♥ Hand-placed street-level clearings — little rose plazas & the cafés.
       // Declared up here so the very first towerSpec() call already keeps these
       // lots empty (they're built later, see "ROSE PLAZAS & STREET CAFÉS").
+      // 🎹 the Rosmantic Music hall (built in the "ROSMANTIC MUSIC" section)
+      const MUSIC_LOT = [-1, -2];
       const PLAZA_LOTS = [
         [-1, 2],
         [2, -2],
@@ -1836,6 +2005,7 @@
       function clearedLot(gx, gz) {
         for (const p of PLAZA_LOTS) if (p[0] === gx && p[1] === gz) return true;
         for (const c of CAFES) if (c.gx === gx && c.gz === gz) return true;
+        if (gx === MUSIC_LOT[0] && gz === MUSIC_LOT[1]) return true;
         return false;
       }
 
@@ -1859,7 +2029,7 @@
         if (inAirport(gx, gz)) return null; // ✈️ Rose Airfield — a clearing in the towers
         if (inPark(gx, gz)) return null; // 🌳 Rose Park — a WIDE green clearing with the playgrounds
         if (clearedLot(gx, gz)) return null; // 🌹 a rose plaza or a street café lives here
-        if (hash(gx, gz, 1) < 0.05) return null; // rare empty lot
+        if (hash(gx, gz, 1) < 0.08) return null; // the odd empty lot — open sky
         const h1 = hash(gx, gz, 2);
         const h2 = hash(gx, gz, 3);
         // a dense forest of super-talls with some mid-rise between
@@ -1867,8 +2037,9 @@
         H = Math.round(H / 3.1) * 3.1;
         const fw = BUILD * (0.5 + hash(gx, gz, 4) * 0.34);
         const fd = BUILD * (0.5 + hash(gx, gz, 5) * 0.34);
-        const jx = (hash(gx, gz, 6) - 0.5) * (TILE - BUILD) * 0.5;
-        const jz = (hash(gx, gz, 7) - 0.5) * (TILE - BUILD) * 0.5;
+        // small jitter only — towers stay near their lot centre, keeping the gaps even
+        const jx = (hash(gx, gz, 6) - 0.5) * (TILE - BUILD) * 0.3;
+        const jz = (hash(gx, gz, 7) - 0.5) * (TILE - BUILD) * 0.3;
         const x = gx * TILE + TILE / 2 + jx;
         const z = gz * TILE + TILE / 2 + jz;
         const neon = NEON[(hash(gx, gz, 20) * NEON.length) | 0];
@@ -2053,7 +2224,7 @@
         roughness: 1,
         metalness: 0,
       });
-      const LAMP_OFF = 4.7; // lamp offset from the grid node onto the sidewalk
+      const LAMP_OFF = ROAD_HW + 0.7; // lamp offset from the grid node onto the sidewalk
       function lampBroken(gx, gz) {
         return hash(gx, gz, 11) < 0.12;
       }
@@ -2130,40 +2301,195 @@
         MAX_TRUSS = MAX_DECK * 2;
 
       // ---- Sky trains ---------------------------------------------------------
-      // A handful of trains glide along the bridge network near the camera —
-      // dark sleek cars with a continuous strip of lit windows.
+      // A handful of sleek, modern « Rose Express » trains glide along the bridge
+      // network near the camera: pearl-white streamlined bodies with a raked glass
+      // nose at each end, a continuous ribbon of warm windows, rose-pink & lilac
+      // livery stripes, dark gangways between the cars, and headlights that glow
+      // white at the front and red at the tail. Bodies are extruded side profiles
+      // with rounded (bevelled) edges, like the cars.
       const TRAIN_N = isTouch ? 4 : 7;
       const CARS = 4,
         CAR_LEN = 9.4,
         CAR_GAP = 0.5;
-      const carGeo = new THREE.BoxGeometry(CAR_LEN, 2.7, 2.9);
-      const carGlowGeo = new THREE.BoxGeometry(CAR_LEN - 1.2, 0.9, 2.95);
-      const carMat = new THREE.MeshStandardMaterial({
-        color: 0x11141c,
-        roughness: 0.35,
-        metalness: 0.8,
+      const TB = 0.18; // body bevel — the profiles below are inset by it
+      const TRAIN_W = 2.9;
+      function trainExtrude(shape) {
+        const depth = TRAIN_W - TB * 2;
+        const geo = new THREE.ExtrudeGeometry(shape, {
+          depth,
+          bevelEnabled: true,
+          bevelThickness: TB,
+          bevelSize: TB,
+          bevelSegments: 3,
+          curveSegments: 10,
+        });
+        geo.translate(0, 0, -depth / 2);
+        geo.computeVertexNormals();
+        return geo;
+      }
+      function roundRectShape(hx, hy, r) {
+        const s = new THREE.Shape();
+        s.moveTo(-hx + r, -hy);
+        s.lineTo(hx - r, -hy);
+        s.quadraticCurveTo(hx, -hy, hx, -hy + r);
+        s.lineTo(hx, hy - r);
+        s.quadraticCurveTo(hx, hy, hx - r, hy);
+        s.lineTo(-hx + r, hy);
+        s.quadraticCurveTo(-hx, hy, -hx, hy - r);
+        s.lineTo(-hx, -hy + r);
+        s.quadraticCurveTo(-hx, -hy, -hx + r, -hy);
+        return s;
+      }
+      // the nose's raked windscreen curve (also used to seat the glass on it)
+      const NOSE_Q = [
+        [4.55, -0.65],
+        [4.3, 0.2],
+        [2.5, 0.92],
+      ];
+      function noseShape() {
+        const s = new THREE.Shape();
+        s.moveTo(-4.52, -0.9);
+        s.quadraticCurveTo(-4.52, -1.17, -4.25, -1.17);
+        s.lineTo(3.0, -1.17);
+        s.quadraticCurveTo(4.45, -1.12, NOSE_Q[0][0], NOSE_Q[0][1]); // chin
+        s.quadraticCurveTo(NOSE_Q[1][0], NOSE_Q[1][1], NOSE_Q[2][0], NOSE_Q[2][1]);
+        s.quadraticCurveTo(1.6, 1.17, 0.8, 1.17); // into the roof
+        s.lineTo(-4.25, 1.17);
+        s.quadraticCurveTo(-4.52, 1.17, -4.52, 0.9);
+        return s;
+      }
+      // a box with a baked vertex colour (several glow strips share one mesh)
+      function glowBox(w, h, d, x, y, z, rgb) {
+        const g = new THREE.BoxGeometry(w, h, d);
+        g.translate(x, y, z);
+        const n = g.attributes.position.count;
+        const c = new Float32Array(n * 3);
+        for (let i = 0; i < n; i++) c.set(rgb, i * 3);
+        g.setAttribute("color", new THREE.BufferAttribute(c, 3));
+        return g;
+      }
+      const T_WIN = [2.3, 1.95, 1.5], // warm window ribbon
+        T_PINK = [2.6, 0.45, 1.1], // rose livery stripe
+        T_LILAC = [1.2, 0.75, 2.6]; // thin lilac pin-stripe
+      const TW = TRAIN_W + 0.06;
+      const midGlowGeo = mergeGeometries([
+        glowBox(CAR_LEN - 1.4, 0.72, TW, 0, 0.32, 0, T_WIN),
+        glowBox(CAR_LEN - 0.5, 0.1, TW, 0, -0.35, 0, T_PINK),
+        glowBox(CAR_LEN - 0.5, 0.04, TW, 0, -0.52, 0, T_LILAC),
+      ]);
+      const noseGlowGeo = mergeGeometries([
+        glowBox(5.7, 0.72, TW, -1.25, 0.32, 0, T_WIN),
+        glowBox(8.6, 0.1, TW, -0.1, -0.35, 0, T_PINK),
+        glowBox(8.6, 0.04, TW, -0.1, -0.52, 0, T_LILAC),
+      ]);
+      // dark glass windscreen seated on the nose curve
+      const noseGlassGeo = (() => {
+        const t = 0.62;
+        const qb = (i) =>
+          (1 - t) * (1 - t) * NOSE_Q[0][i] +
+          2 * (1 - t) * t * NOSE_Q[1][i] +
+          t * t * NOSE_Q[2][i];
+        const qd = (i) =>
+          2 * (1 - t) * (NOSE_Q[1][i] - NOSE_Q[0][i]) +
+          2 * t * (NOSE_Q[2][i] - NOSE_Q[1][i]);
+        const tx = qd(0),
+          ty = qd(1),
+          tl = Math.hypot(tx, ty);
+        const nx = ty / tl,
+          ny = -tx / tl; // outward normal
+        const g = new THREE.BoxGeometry(2.1, 0.06, TRAIN_W - 0.4);
+        g.rotateZ(Math.atan2(ty, tx));
+        g.translate(qb(0) + nx * (TB + 0.03), qb(1) + ny * (TB + 0.03), 0);
+        return g;
+      })();
+      const headGeo2 = mergeGeometries([
+        new THREE.BoxGeometry(0.1, 0.12, 0.55).translate(4.66, -0.66, 0.8),
+        new THREE.BoxGeometry(0.1, 0.12, 0.55).translate(4.66, -0.66, -0.8),
+      ]);
+      // "ROSE EXPRESS ♥" lettering on both flanks of the middle cars
+      const trainLabelGeo = (() => {
+        const a = new THREE.PlaneGeometry(4.4, 0.55);
+        a.translate(0, -0.85, TRAIN_W / 2 + 0.02);
+        const b = new THREE.PlaneGeometry(4.4, 0.55);
+        b.rotateY(Math.PI);
+        b.translate(0, -0.85, -(TRAIN_W / 2 + 0.02));
+        return mergeGeometries([a, b]);
+      })();
+      const trainLabelTex = (() => {
+        const cv = document.createElement("canvas");
+        cv.width = 1024;
+        cv.height = 128;
+        const g = cv.getContext("2d");
+        g.textAlign = "center";
+        g.textBaseline = "middle";
+        g.font = 'italic 700 82px Georgia, "Palatino Linotype", serif';
+        g.shadowColor = "rgba(255,110,170,0.9)";
+        g.shadowBlur = 18;
+        g.fillStyle = "#ff4f8b";
+        g.fillText("Rose Express ♥", 512, 66);
+        const t = new THREE.CanvasTexture(cv);
+        t.colorSpace = THREE.SRGBColorSpace;
+        t.anisotropy = 4;
+        return t;
+      })();
+
+      const TRAIN_BODY_MAT = new THREE.MeshStandardMaterial({
+        color: 0xf4f1f6, // pearl white
+        roughness: 0.22,
+        metalness: 0.55,
+        emissive: 0x1d1622,
+        emissiveIntensity: 1,
       });
-      const carGlowMat = new THREE.MeshStandardMaterial({
-        color: 0x000000,
-        emissive: 0xffeccb,
-        emissiveIntensity: 2.4,
-        roughness: 1,
-        metalness: 0,
+      const TRAIN_GLASS_MAT = new THREE.MeshStandardMaterial({
+        color: 0x0b1018,
+        roughness: 0.05,
+        metalness: 0.95,
       });
-      const trainBodies = new THREE.InstancedMesh(
-        carGeo,
-        carMat,
-        TRAIN_N * CARS,
+      const TRAIN_GLOW_MAT = new THREE.MeshBasicMaterial({ vertexColors: true });
+      const trainIM = (geo, mat, n) => {
+        const im = new THREE.InstancedMesh(geo, mat, n);
+        im.frustumCulled = false;
+        scene.add(im);
+        return im;
+      };
+      const MIDS = TRAIN_N * (CARS - 2),
+        NOSES = TRAIN_N * 2;
+      const trainMids = trainIM(trainExtrude(roundRectShape(4.52, 1.17, 0.45)), TRAIN_BODY_MAT, MIDS);
+      const trainNoses = trainIM(trainExtrude(noseShape()), TRAIN_BODY_MAT, NOSES);
+      trainMids.castShadow = trainNoses.castShadow = true;
+      const trainMidGlow = trainIM(midGlowGeo, TRAIN_GLOW_MAT, MIDS);
+      const trainNoseGlow = trainIM(noseGlowGeo, TRAIN_GLOW_MAT, NOSES);
+      const trainGlass = trainIM(noseGlassGeo, TRAIN_GLASS_MAT, NOSES);
+      const trainHeads = trainIM(
+        headGeo2,
+        new THREE.MeshBasicMaterial({ color: 0xffffff }),
+        NOSES,
       );
-      const trainGlows = new THREE.InstancedMesh(
-        carGlowGeo,
-        carGlowMat,
-        TRAIN_N * CARS,
+      trainHeads.instanceColor = new THREE.InstancedBufferAttribute(
+        new Float32Array(NOSES * 3),
+        3,
       );
-      trainBodies.frustumCulled = false;
-      trainGlows.frustumCulled = false;
-      scene.add(trainBodies);
-      scene.add(trainGlows);
+      const trainLabels = trainIM(
+        trainLabelGeo,
+        new THREE.MeshBasicMaterial({
+          map: trainLabelTex,
+          transparent: true,
+          depthWrite: false,
+          toneMapped: false,
+        }),
+        MIDS,
+      );
+      const trainGangways = trainIM(
+        new THREE.BoxGeometry(0.9, 2.1, TRAIN_W - 0.6),
+        new THREE.MeshStandardMaterial({
+          color: 0x1a1a22,
+          roughness: 0.8,
+          metalness: 0.2,
+        }),
+        TRAIN_N * (CARS - 1),
+      );
+      const T_FRONT = new THREE.Color(3.0, 2.9, 2.6),
+        T_REAR = new THREE.Color(2.8, 0.1, 0.16);
       const trains = [];
       function respawnTrain(tr) {
         for (let tries = 0; tries < 24; tries++) {
@@ -2194,29 +2520,59 @@
         trains.push(tr);
       }
       function updateTrains(dt) {
-        let idx = 0;
+        let iM = 0,
+          iN = 0,
+          iG = 0;
+        const place = (along, rot, tr) => {
+          if (tr.dir === 0) dummy.position.set(tr.s + along, tr.y, tr.line);
+          else dummy.position.set(tr.line, tr.y, tr.s + along);
+          dummy.rotation.set(0, rot, 0);
+          dummy.scale.set(1, 1, 1);
+          dummy.updateMatrix();
+        };
         for (const tr of trains) {
           const camAlong = tr.dir ? camera.position.z : camera.position.x;
           tr.s += tr.v * dt;
           if (tr.y < -100 || Math.abs(tr.s - camAlong) > 520) respawnTrain(tr);
+          // local +X runs along the track toward the last car
+          const base = tr.dir === 0 ? 0 : -Math.PI / 2;
           for (let c = 0; c < CARS; c++) {
             const off = (c - (CARS - 1) / 2) * (CAR_LEN + CAR_GAP);
-            if (tr.dir === 0) {
-              dummy.position.set(tr.s + off, tr.y, tr.line);
-              dummy.rotation.set(0, 0, 0);
+            if (c === 0 || c === CARS - 1) {
+              // streamlined end car — the first one is turned to face outward
+              place(off, base + (c === 0 ? Math.PI : 0), tr);
+              trainNoses.setMatrixAt(iN, dummy.matrix);
+              trainNoseGlow.setMatrixAt(iN, dummy.matrix);
+              trainGlass.setMatrixAt(iN, dummy.matrix);
+              trainHeads.setMatrixAt(iN, dummy.matrix);
+              const leading = c === CARS - 1 ? tr.v >= 0 : tr.v < 0;
+              trainHeads.setColorAt(iN, leading ? T_FRONT : T_REAR);
+              iN++;
             } else {
-              dummy.position.set(tr.line, tr.y, tr.s + off);
-              dummy.rotation.set(0, Math.PI / 2, 0);
+              place(off, base, tr);
+              trainMids.setMatrixAt(iM, dummy.matrix);
+              trainMidGlow.setMatrixAt(iM, dummy.matrix);
+              trainLabels.setMatrixAt(iM, dummy.matrix);
+              iM++;
             }
-            dummy.scale.set(1, 1, 1);
-            dummy.updateMatrix();
-            trainBodies.setMatrixAt(idx, dummy.matrix);
-            trainGlows.setMatrixAt(idx, dummy.matrix);
-            idx++;
+            if (c < CARS - 1) {
+              place(off + (CAR_LEN + CAR_GAP) / 2, base, tr);
+              trainGangways.setMatrixAt(iG++, dummy.matrix);
+            }
           }
         }
-        trainBodies.instanceMatrix.needsUpdate = true;
-        trainGlows.instanceMatrix.needsUpdate = true;
+        for (const im of [
+          trainMids,
+          trainNoses,
+          trainMidGlow,
+          trainNoseGlow,
+          trainGlass,
+          trainHeads,
+          trainLabels,
+          trainGangways,
+        ])
+          im.instanceMatrix.needsUpdate = true;
+        trainHeads.instanceColor.needsUpdate = true;
       }
 
       function buildChunk(cx, cz) {
@@ -2653,6 +3009,7 @@
 
       // discrete controls: P pause clock, 1/2/3 weather moods
       addEventListener("keydown", (e) => {
+        if (pianoOpen) return; // those keys are piano keys right now 🎹
         if (e.code === "KeyP") autoTime = !autoTime;
         else if (e.code === "Digit1") stormTarget = 0.0;
         else if (e.code === "Digit2") stormTarget = 0.5;
@@ -2778,10 +3135,39 @@
         fps = 0,
         radarT = 1; // starts ≥ 0.1 so the radar draws on the very first frame
 
+      // ✨ neon glow (bloom) — desktop only; it switches itself off if the
+      // computer can't keep up. Everything bright (neon piping, signs, lamps,
+      // car lights) gets a soft halo bleeding into the night air.
+      let composer = null,
+        bloomOn = false,
+        slowChecks = 0;
+      if (!isTouch) {
+        const rt = new THREE.WebGLRenderTarget(
+          innerWidth * curPR,
+          innerHeight * curPR,
+          { type: THREE.HalfFloatType, samples: 4 },
+        );
+        composer = new EffectComposer(renderer, rt);
+        composer.setPixelRatio(curPR);
+        composer.setSize(innerWidth, innerHeight);
+        composer.addPass(new RenderPass(scene, camera));
+        composer.addPass(
+          new UnrealBloomPass(
+            new THREE.Vector2(innerWidth / 2, innerHeight / 2),
+            0.55, // strength
+            0.42, // radius
+            0.82, // threshold — only genuinely bright things glow
+          ),
+        );
+        composer.addPass(new OutputPass()); // tone mapping + sRGB, like the plain path
+        bloomOn = true;
+      }
+
       // 📉 adaptive resolution: setPixelRatio re-sizes the drawing buffer itself
       function applyPR(pr) {
         curPR = pr;
         renderer.setPixelRatio(pr);
+        if (composer) composer.setPixelRatio(pr);
         petalMat.uniforms.uPix.value = innerHeight * pr * 0.72;
       }
 
@@ -2807,6 +3193,10 @@
         updatePark(dt, starTime);
         updateSurprises(starTime, dt);
         updateVehicles(dt, starTime);
+        updateBannerPlane(dt, starTime);
+        updateHall(dt, starTime);
+        updateStreetProps();
+        updateTrafficLights(starTime);
         radarT += dt;
         if (radarT >= 0.1) {
           radarT = 0;
@@ -2816,7 +3206,8 @@
         // ground follows the camera so the infinite world stays lit
         ground.position.set(camera.position.x, 0, camera.position.z);
 
-        renderer.render(scene, camera);
+        if (bloomOn) composer.render();
+        else renderer.render(scene, camera);
 
         frames++;
         fpsT += dt;
@@ -2824,8 +3215,13 @@
           fps = Math.round(frames / fpsT);
           frames = 0;
           fpsT = 0;
-          // struggling → render fewer pixels; smooth again → sharpen back up
-          if (fps < 27 && curPR > PR_MIN)
+          // struggling → drop the glow first, then render fewer pixels;
+          // smooth again → sharpen back up
+          slowChecks = fps < 30 && starTime > 8 ? slowChecks + 1 : 0;
+          if (bloomOn && slowChecks >= 3) {
+            bloomOn = false;
+            slowChecks = 0;
+          } else if (fps < 27 && curPR > PR_MIN)
             applyPR(Math.max(PR_MIN, curPR - 0.15));
           else if (fps > 56 && curPR < PR_MAX)
             applyPR(Math.min(PR_MAX, curPR + 0.1));
@@ -2840,6 +3236,7 @@
         camera.aspect = innerWidth / innerHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(innerWidth, innerHeight);
+        if (composer) composer.setSize(innerWidth, innerHeight);
         petalMat.uniforms.uPix.value =
           innerHeight * renderer.getPixelRatio() * 0.72;
       });
@@ -2854,6 +3251,8 @@
       // ---- shared interaction state ---------------------------------------------
       let vehMode = "walk"; // 'walk' (the girl on foot) | 'car' | 'plane'
       let nearVehicle = null; // which vehicle is within reach on foot
+      let nearParked = null; // the parked street car within reach (if any)
+      let nearMusic = null; // 'piano' | 'vinyl' inside Rosmantic Music
       let started = false; // has she entered the city?
       let uiPaused = false; // a panel / breathing / celebration is open
       let joyX = 0,
@@ -2903,6 +3302,7 @@
         overlay.classList.add("hidden");
         document.getElementById("touch").classList.add("on");
         // music does NOT auto-start — it only plays when she taps the ♪ button
+        initHallAudio(); // (created on this tap so the hall's piano may play later)
         if (!isTouch) canvas.requestPointerLock();
         track("🌹 Entered Rose Dream Land");
       }
@@ -3059,8 +3459,12 @@
         if (uiPaused) return;
         if (vehMode === "car") return exitCar();
         if (vehMode === "plane") return exitPlane();
-        if (nearVehicle === "car") return enterCar();
+        if (nearVehicle === "car") return enterCar(car);
+        if (nearVehicle === "street") return enterCar(streetCar);
+        if (nearVehicle === "parked") return takeParked(nearParked);
         if (nearVehicle === "plane") return enterPlane();
+        if (nearMusic === "piano") return openPianoPanel();
+        if (nearMusic === "vinyl") return toggleVinyl();
         if (nearest) activateSurprise(nearest);
       }
       // the glowing ♥ button stays reserved for the love-surprises
@@ -3326,19 +3730,17 @@
       <input type="date" id="dateDay" min="${min}" />
       <input type="time" id="dateTimeSel" />
     </div>
-    <div class="panel-btn" id="dateYes">تم، موعدنا 💜</div>
+    <div class="panel-btn" id="dateYes">موافقة</div>
     <div class="panel-btn ghost" id="dateNo">بعتذر 🙈</div>`);
         const day = document.getElementById("dateDay");
         const timeSel = document.getElementById("dateTimeSel");
         const yes = document.getElementById("dateYes");
         const no = document.getElementById("dateNo");
-        let dodges = 0,
-          surrendered = false;
-        const NO_LINES = [
-          "لأ… ما في رفض 😌",
-          "الزر عم يهرب منك 🙈",
-          "قلتلك، ما بتقدري ترفضي 💜",
-        ];
+        let noPresses = 0;
+        // both buttons animate their size changes
+        for (const el of [yes, no])
+          el.style.transition =
+            "font-size 0.3s ease, padding 0.3s ease, opacity 0.3s ease, box-shadow 0.3s ease";
         function accept() {
           // both the day AND the free-pick time must be chosen
           let missing = false;
@@ -3366,35 +3768,25 @@
             localStorage.setItem("roseDateNight", d + " " + tm);
           } catch (e) {}
         }
-        // the "sorry, I can't" button runs away — after a few tries it gives up
-        function dodge() {
-          dodges++;
-          if (dodges >= 4) {
-            surrendered = true;
-            no.style.transform = "";
-            no.textContent = "خلص… ما فيني أرفض 😅💜";
-            no.classList.remove("ghost");
-            return;
+        // every "no" says nothing — it just shrinks, while "yes" grows a little
+        // bigger each time, until "no" is too small to matter and fades away 🙈💜
+        function pressNo() {
+          noPresses++;
+          const grow = 1 + noPresses * 0.22;
+          yes.style.fontSize = Math.min(15 * grow, 44).toFixed(1) + "px";
+          yes.style.padding = `${Math.min(10 * grow, 26).toFixed(0)}px ${Math.min(26 * grow, 64).toFixed(0)}px`;
+          yes.style.boxShadow = `0 0 ${Math.min(10 + noPresses * 7, 46)}px rgba(255, 90, 150, 0.85)`;
+          const shrink = Math.pow(0.78, noPresses);
+          no.style.fontSize = (15 * shrink).toFixed(1) + "px";
+          no.style.padding = `${(10 * shrink).toFixed(1)}px ${(26 * shrink).toFixed(1)}px`;
+          if (15 * shrink < 4.5) {
+            no.style.opacity = "0";
+            no.style.pointerEvents = "none";
+            setTimeout(() => (no.style.display = "none"), 320);
           }
-          const dx = (Math.random() * 2 - 1) * 90;
-          const dy = (Math.random() * 2 - 1) * 36;
-          no.style.transform = `translate(${dx.toFixed(0)}px, ${dy.toFixed(0)}px) rotate(${(Math.random() * 12 - 6).toFixed(1)}deg)`;
-          no.textContent = NO_LINES[Math.min(dodges - 1, NO_LINES.length - 1)];
+          track(`🙈 Pressed "no" on the date (${noPresses})`);
         }
-        no.addEventListener("pointerenter", () => {
-          if (!surrendered) dodge();
-        });
-        no.addEventListener(
-          "touchstart",
-          (e) => {
-            if (!surrendered) {
-              e.preventDefault();
-              dodge();
-            }
-          },
-          { passive: false },
-        );
-        no.addEventListener("click", () => (surrendered ? accept() : dodge()));
+        no.addEventListener("click", pressNo);
         yes.addEventListener("click", accept);
         track("💌 Opened the café envelope");
       }
@@ -4476,6 +4868,1685 @@
       for (const c of CAFES) buildCafe(c);
 
       // ────────────────────────────────────────────────────────────────────────────
+      // 🎹🎶 ROSMANTIC MUSIC — a little music hall she can walk INTO, a stone's
+      // throw from where she starts. Inside: a black grand piano that plays a
+      // romantic piece on its own (its keys really move), a vinyl turntable that
+      // spins the city's song, velvet sofas, pulsing speakers, a mirror ball,
+      // fairy lights and music notes floating up from the piano. Walk up to the
+      // piano and press F (or tap) to play it yourself.
+      // The piano is synthesised live with WebAudio (no sound files needed) and
+      // only plays while she's inside — a little of it leaks out of the door.
+      // ────────────────────────────────────────────────────────────────────────────
+      const HALL = (() => {
+        const cx = lotC(MUSIC_LOT[0]),
+          cz = lotC(MUSIC_LOT[1]);
+        const w = 20,
+          d = 19,
+          h = 11;
+        return {
+          cx,
+          cz,
+          w,
+          d,
+          h,
+          t: 0.5, // wall thickness
+          door: 5, // doorway width
+          doorH: 5, // doorway height
+          x0: cx - w / 2,
+          x1: cx + w / 2,
+          z0: cz - d / 2, // back wall
+          z1: cz + d / 2, // front wall (doorway faces +Z, toward where she starts)
+        };
+      })();
+      // solid boxes (world space) she, cars & cameras bump into
+      const HALL_SOLIDS = [
+        { x0: HALL.x0, x1: HALL.x1, z0: HALL.z0, z1: HALL.z0 + HALL.t, h: HALL.h },
+        { x0: HALL.x0, x1: HALL.x0 + HALL.t, z0: HALL.z0, z1: HALL.z1, h: HALL.h },
+        { x0: HALL.x1 - HALL.t, x1: HALL.x1, z0: HALL.z0, z1: HALL.z1, h: HALL.h },
+        { x0: HALL.x0, x1: HALL.cx - HALL.door / 2, z0: HALL.z1 - HALL.t, z1: HALL.z1, h: HALL.h },
+        { x0: HALL.cx + HALL.door / 2, x1: HALL.x1, z0: HALL.z1 - HALL.t, z1: HALL.z1, h: HALL.h },
+      ];
+      // the doorway itself — closed for cars, and for her head above the lintel
+      const HALL_DOOR = {
+        x0: HALL.cx - HALL.door / 2,
+        x1: HALL.cx + HALL.door / 2,
+        z0: HALL.z1 - HALL.t,
+        z1: HALL.z1,
+        h: HALL.h,
+      };
+      // furniture is added to this list as it's built (local → world below)
+      const hallSolid = (lx0, lx1, lz0, lz1, h) =>
+        HALL_SOLIDS.push({
+          x0: HALL.cx + lx0,
+          x1: HALL.cx + lx1,
+          z0: HALL.cz + lz0,
+          z1: HALL.cz + lz1,
+          h,
+        });
+      function boxPush(p, r, b) {
+        if (p.y > b.h) return false;
+        const hx0 = b.x0 - r,
+          hx1 = b.x1 + r,
+          hz0 = b.z0 - r,
+          hz1 = b.z1 + r;
+        if (p.x <= hx0 || p.x >= hx1 || p.z <= hz0 || p.z >= hz1) return false;
+        const dl = p.x - hx0,
+          dr = hx1 - p.x,
+          db = p.z - hz0,
+          df = hz1 - p.z;
+        const m = Math.min(dl, dr, db, df);
+        if (m === dl) p.x = hx0;
+        else if (m === dr) p.x = hx1;
+        else if (m === db) p.z = hz0;
+        else p.z = hz1;
+        return true;
+      }
+      function hallPush(p, r, solidDoor = false) {
+        if (!onHallFoot(p.x, p.z, r + 1)) return false;
+        let hit = false;
+        for (const b of HALL_SOLIDS) hit = boxPush(p, r, b) || hit;
+        if (solidDoor || p.y > HALL.doorH - 2.0)
+          hit = boxPush(p, r, HALL_DOOR) || hit;
+        return hit;
+      }
+      function onHallFoot(x, z, m = 0) {
+        return x > HALL.x0 - m && x < HALL.x1 + m && z > HALL.z0 - m && z < HALL.z1 + m;
+      }
+      function inHall(p) {
+        return (
+          p.x > HALL.x0 + HALL.t &&
+          p.x < HALL.x1 - HALL.t &&
+          p.z > HALL.z0 + HALL.t &&
+          p.z < HALL.z1 - HALL.t &&
+          p.y < HALL.h - 0.3
+        );
+      }
+      // keep the chase camera inside while she's inside (and outside while she's out)
+      function hallCamera(cam, target) {
+        if (inHall(target)) {
+          const m = HALL.t + 0.45;
+          cam.x = Math.max(HALL.x0 + m, Math.min(HALL.x1 - m, cam.x));
+          cam.z = Math.max(HALL.z0 + m, Math.min(HALL.z1 - m, cam.z));
+          cam.y = Math.min(HALL.h - 0.6, cam.y);
+        } else if (onHallFoot(cam.x, cam.z, 0.4) && cam.y < HALL.h + 0.4) {
+          // slide the camera toward her until it's out of the building
+          for (let i = 0; i < 12 && onHallFoot(cam.x, cam.z, 0.4); i++)
+            cam.lerp(target, 0.18);
+        }
+      }
+
+      // ---- the building -----------------------------------------------------------
+      const hallRoot = new THREE.Group();
+      hallRoot.position.set(HALL.cx, 0, HALL.cz);
+      scene.add(hallRoot);
+      const HALL_EXT = new THREE.MeshStandardMaterial({
+        color: 0x2a1424,
+        roughness: 0.6,
+        metalness: 0.25,
+      });
+      const HALL_INT = new THREE.MeshStandardMaterial({
+        color: 0x5a2046,
+        roughness: 0.85,
+        metalness: 0.05,
+        emissive: 0x240a1a,
+        emissiveIntensity: 1,
+      });
+      const HALL_CEIL = new THREE.MeshStandardMaterial({
+        color: 0x1c0c18,
+        roughness: 0.9,
+        emissive: 0x0c0309,
+        emissiveIntensity: 1,
+      });
+      const PIANO_BLACK = new THREE.MeshStandardMaterial({
+        color: 0x0a0a0d,
+        roughness: 0.12,
+        metalness: 0.55,
+      });
+      const PIANO_GOLD = new THREE.MeshStandardMaterial({
+        color: 0xd9a84a,
+        roughness: 0.3,
+        metalness: 0.95,
+        emissive: 0x3a2400,
+        emissiveIntensity: 0.6,
+      });
+      const VELVET = new THREE.MeshStandardMaterial({
+        color: 0xc2185b,
+        roughness: 0.95,
+        metalness: 0,
+        emissive: 0x2a0414,
+        emissiveIntensity: 1,
+      });
+      const HALL_CHROME = new THREE.MeshStandardMaterial({
+        color: 0xd8dde6,
+        roughness: 0.25,
+        metalness: 1.0,
+      });
+      const NEON_PINK = SM(0xff5d9e, 2.4),
+        NEON_LILAC = SM(0xb98aff, 2.2);
+      // a wall box whose inside face uses the interior material
+      // (BoxGeometry face order: +x, -x, +y, -y, +z, -z)
+      function hallWall(w, h, d, x, y, z, innerFace) {
+        const mats = [HALL_EXT, HALL_EXT, HALL_EXT, HALL_EXT, HALL_EXT, HALL_EXT];
+        if (innerFace >= 0) mats[innerFace] = HALL_INT;
+        const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mats);
+        m.position.set(x, y, z);
+        m.castShadow = true;
+        m.receiveShadow = true;
+        hallRoot.add(m);
+        return m;
+      }
+      function hallBox(w, h, d, x, y, z, mat, parent = hallRoot) {
+        const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+        m.position.set(x, y, z);
+        m.castShadow = true;
+        parent.add(m);
+        return m;
+      }
+      function hallPlane(w, h, mat, x, y, z, ry = 0, parent = hallRoot) {
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+        m.position.set(x, y, z);
+        m.rotation.y = ry;
+        parent.add(m);
+        return m;
+      }
+      function canvasMat(draw, w, h, opts = {}) {
+        const cv = document.createElement("canvas");
+        cv.width = w;
+        cv.height = h;
+        draw(cv.getContext("2d"), w, h);
+        const t = new THREE.CanvasTexture(cv);
+        t.colorSpace = THREE.SRGBColorSpace;
+        t.anisotropy = 4;
+        return new THREE.MeshBasicMaterial({
+          map: t,
+          transparent: true,
+          toneMapped: false,
+          side: THREE.DoubleSide,
+          ...opts,
+        });
+      }
+      // soft additive glows: a round halo sprite, a light fan for wall sconces
+      // and a fade-down strip for cove lighting
+      const HALL_GLOW = glowTexture([
+        [0, "rgba(255,255,255,1)"],
+        [0.25, "rgba(255,255,255,0.5)"],
+        [1, "rgba(255,255,255,0)"],
+      ]);
+      function hallGlow(color, size, x, y, z, parent = hallRoot, opacity = 0.8) {
+        const sp = new THREE.Sprite(
+          new THREE.SpriteMaterial({
+            map: HALL_GLOW,
+            color,
+            transparent: true,
+            opacity,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+          }),
+        );
+        sp.scale.set(size, size, 1);
+        sp.position.set(x, y, z);
+        parent.add(sp);
+        return sp;
+      }
+      function lightTexture(kind) {
+        const cv = document.createElement("canvas");
+        cv.width = 128;
+        cv.height = 256;
+        const g = cv.getContext("2d");
+        const gr =
+          kind === "fan"
+            ? g.createRadialGradient(64, 256, 4, 64, 256, 250)
+            : g.createLinearGradient(0, 0, 0, 256);
+        gr.addColorStop(0, "rgba(255,255,255,0.95)");
+        gr.addColorStop(0.3, "rgba(255,255,255,0.35)");
+        gr.addColorStop(1, "rgba(255,255,255,0)");
+        g.fillStyle = gr;
+        g.fillRect(0, 0, 128, 256);
+        return new THREE.CanvasTexture(cv);
+      }
+      const glowMat = (map, color, opacity) =>
+        new THREE.MeshBasicMaterial({
+          map,
+          color,
+          transparent: true,
+          opacity,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        });
+      // things updateHall animates
+      const hallFx = { bulbs: null, stars: null, starPh: [], beams: [], chandelier: null };
+      {
+        const { w, d, h, t } = HALL;
+        const hw = w / 2,
+          hd = d / 2;
+        hallWall(w, h, t, 0, h / 2, -hd + t / 2, 4); // back
+        hallWall(t, h, d, -hw + t / 2, h / 2, 0, 0); // west
+        hallWall(t, h, d, hw - t / 2, h / 2, 0, 1); // east
+        const sideW = (w - HALL.door) / 2;
+        hallWall(sideW, h, t, -hw + sideW / 2, h / 2, hd - t / 2, 5); // front, left of door
+        hallWall(sideW, h, t, hw - sideW / 2, h / 2, hd - t / 2, 5); // front, right of door
+        hallWall(HALL.door, h - HALL.doorH, t, 0, HALL.doorH + (h - HALL.doorH) / 2, hd - t / 2, 5); // lintel
+        // roof slab: dark ceiling underneath
+        const roof = new THREE.Mesh(new THREE.BoxGeometry(w + 0.6, 0.4, d + 0.6), [
+          HALL_EXT, HALL_EXT, HALL_EXT, HALL_CEIL, HALL_EXT, HALL_EXT,
+        ]);
+        roof.position.y = h + 0.2;
+        roof.castShadow = true;
+        hallRoot.add(roof);
+        // polished wooden floor
+        const floorMat = (() => {
+          const cv = document.createElement("canvas");
+          cv.width = cv.height = 512;
+          const g = cv.getContext("2d");
+          for (let i = 0; i < 16; i++) {
+            const tone = 70 + ((i * 37) % 23);
+            g.fillStyle = `rgb(${tone + 30},${tone - 18},${tone - 38})`;
+            g.fillRect(0, i * 32, 512, 32);
+            g.fillStyle = "rgba(0,0,0,0.35)";
+            g.fillRect(0, i * 32, 512, 2);
+            const off = (i * 173) % 512;
+            g.fillRect(off, i * 32, 2, 32);
+          }
+          const tx = new THREE.CanvasTexture(cv);
+          tx.colorSpace = THREE.SRGBColorSpace;
+          tx.wrapS = tx.wrapT = THREE.RepeatWrapping;
+          tx.repeat.set(4, 4);
+          tx.anisotropy = 8;
+          return new THREE.MeshStandardMaterial({ map: tx, roughness: 0.35, metalness: 0.1 });
+        })();
+        const floor = new THREE.Mesh(new THREE.PlaneGeometry(w - 2 * t, d - 2 * t), floorMat);
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.y = 0.03;
+        floor.receiveShadow = true;
+        hallRoot.add(floor);
+
+        // ---- façade: tall glowing windows + an upper row, gold-capped pilasters,
+        // neon trim, a theatre marquee with chasing bulbs over the door, the sign
+        for (const sx of [-1, 1]) {
+          hallPlane(5, 3.2, WINDOW_MAT, sx * 6.3, 2.6, hd + 0.01);
+          hallBox(5.2, 0.08, 0.08, sx * 6.3, 0.96, hd + 0.04, NEON_PINK);
+          hallPlane(2.4, 2.4, WINDOW_MAT, sx * 8.0, 7.7, hd + 0.01);
+          hallBox(2.6, 0.08, 0.08, sx * 8.0, 6.46, hd + 0.04, NEON_LILAC);
+          const px = sx * (HALL.door / 2 + 0.45);
+          hallBox(0.6, h, 0.36, px, h / 2, hd + 0.18, HALL_EXT);
+          hallBox(0.7, 0.14, 0.44, px, h - 0.1, hd + 0.2, PIANO_GOLD);
+          hallBox(0.7, 0.14, 0.44, px, 0.07, hd + 0.2, PIANO_GOLD);
+          hallBox(0.06, h - 0.6, 0.06, px, h / 2, hd + 0.39, NEON_PINK);
+          hallSolid(px - 0.3, px + 0.3, hd, hd + 0.36, h);
+        }
+        hallBox(w + 0.6, 0.1, 0.1, 0, h + 0.42, hd + 0.32, NEON_PINK); // roof line
+        hallBox(0.1, 0.1, d + 0.6, -hw - 0.32, h + 0.42, 0, NEON_LILAC);
+        hallBox(0.1, 0.1, d + 0.6, hw + 0.32, h + 0.42, 0, NEON_LILAC);
+        // doorway frame
+        hallBox(0.14, HALL.doorH, 0.14, -HALL.door / 2, HALL.doorH / 2, hd + 0.05, NEON_PINK);
+        hallBox(0.14, HALL.doorH, 0.14, HALL.door / 2, HALL.doorH / 2, hd + 0.05, NEON_PINK);
+        hallBox(HALL.door + 0.14, 0.14, 0.14, 0, HALL.doorH, hd + 0.05, NEON_PINK);
+        // 🎭 the marquee: a lit canopy with a glowing message and chasing bulbs
+        const MQ_W = HALL.door + 2.4,
+          MQ_D = 1.8,
+          MQ_Y = HALL.doorH + 0.7,
+          MQ_H = 0.8;
+        hallBox(MQ_W, MQ_H, MQ_D, 0, MQ_Y, hd + MQ_D / 2, HALL_EXT);
+        const mqText = new THREE.Mesh(
+          new THREE.PlaneGeometry(MQ_W - 0.3, MQ_H - 0.24),
+          canvasMat(
+            (g, W, H) => {
+              g.fillStyle = "#1a0712";
+              g.fillRect(0, 0, W, H);
+              g.textAlign = "center";
+              g.textBaseline = "middle";
+              g.shadowColor = "rgba(255,93,158,1)";
+              g.shadowBlur = 22;
+              g.fillStyle = "#fff2f8";
+              g.font = 'italic 700 80px Georgia, "Palatino Linotype", serif';
+              g.fillText("♪  Tonight: Happy Birthday Rose  ♥  ♪", W / 2, H / 2 + 4);
+            },
+            1536,
+            128,
+            { transparent: false },
+          ),
+        );
+        mqText.position.set(0, MQ_Y, hd + MQ_D + 0.01);
+        hallRoot.add(mqText);
+        // the underside glows warm and pools light on the step
+        const under = new THREE.Mesh(
+          new THREE.PlaneGeometry(MQ_W - 0.3, MQ_D - 0.2),
+          new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 1.15, 0.8) }),
+        );
+        under.rotation.x = Math.PI / 2;
+        under.position.set(0, MQ_Y - MQ_H / 2 - 0.01, hd + MQ_D / 2);
+        hallRoot.add(under);
+        const pool = new THREE.Mesh(
+          new THREE.PlaneGeometry(MQ_W + 2, MQ_D + 2.6),
+          glowMat(HALL_GLOW, 0xffb070, 0.5),
+        );
+        pool.rotation.x = -Math.PI / 2;
+        pool.position.set(0, 0.06, hd + 1.0);
+        hallRoot.add(pool);
+        const bulbs = [];
+        const fz = hd + MQ_D + 0.03;
+        for (const by of [MQ_Y + MQ_H / 2 + 0.02, MQ_Y - MQ_H / 2 - 0.02])
+          for (let i = 0; i <= 16; i++) bulbs.push([-MQ_W / 2 + (i / 16) * MQ_W, by, fz]);
+        for (const sx of [-1, 1])
+          for (let i = 1; i <= 5; i++)
+            bulbs.push([sx * (MQ_W / 2 + 0.03), MQ_Y - MQ_H / 2 - 0.02, fz - (i / 5) * (MQ_D - 0.1)]);
+        const bulbIM = new THREE.InstancedMesh(
+          new THREE.SphereGeometry(0.065, 8, 6),
+          new THREE.MeshBasicMaterial({ color: 0xffffff }),
+          bulbs.length,
+        );
+        bulbs.forEach(([x, y, z], i) => {
+          dummy.position.set(x, y, z);
+          dummy.rotation.set(0, 0, 0);
+          dummy.scale.set(1, 1, 1);
+          dummy.updateMatrix();
+          bulbIM.setMatrixAt(i, dummy.matrix);
+          bulbIM.setColorAt(i, tmpColor.setRGB(2.4, 1.7, 1.0));
+        });
+        hallRoot.add(bulbIM);
+        hallFx.bulbs = bulbIM;
+        // welcome mat
+        const mat = new THREE.Mesh(
+          new THREE.PlaneGeometry(3.4, 1.2),
+          new THREE.MeshStandardMaterial({ color: 0xff5d9e, roughness: 0.9, emissive: 0x3a0818, emissiveIntensity: 1 }),
+        );
+        mat.rotation.x = -Math.PI / 2;
+        mat.position.set(0, 0.04, hd + 0.8);
+        hallRoot.add(mat);
+        // potted roses either side of the door (pooled bushes)
+        for (const sx of [-1, 1]) plantBush(HALL.cx + sx * 4.2, HALL.z1 + 0.8, 0.8);
+      }
+      const hallSignMat = canvasMat(
+        (g, W, H) => {
+          g.textAlign = "center";
+          g.textBaseline = "middle";
+          g.shadowColor = "rgba(255,90,160,0.95)";
+          g.shadowBlur = 30;
+          g.fillStyle = "#fff2f8";
+          g.font = 'italic 700 120px Georgia, "Palatino Linotype", serif';
+          g.fillText("Rosmantic Music", W / 2, H * 0.42);
+          g.shadowColor = "rgba(185,138,255,0.95)";
+          g.fillStyle = "#e3c8ff";
+          g.font = "600 58px Georgia, serif";
+          g.fillText("♪  live piano  ·  vinyl  ♫", W / 2, H * 0.8);
+        },
+        1024,
+        320,
+        { depthWrite: false },
+      );
+      hallPlane(10.4, 3.25, hallSignMat, 0, 7.95, HALL.d / 2 + 0.06);
+      // the same sign glows on the back wall inside
+      hallPlane(8.4, 2.6, hallSignMat, -2.8, 7.6, -HALL.d / 2 + HALL.t + 0.02);
+      // a big floating sign over the roof so she can spot it from afar
+      {
+        const sp = new THREE.Sprite(
+          new THREE.SpriteMaterial({
+            map: makeLabel(
+              [
+                { t: "🎹 Rosmantic", font: EN(78), color: LC.white },
+                { t: "♪ Music ♫", font: EN(58), color: LC.pink },
+              ],
+              "rgba(255,110,170,0.95)",
+            ),
+            transparent: true,
+            depthWrite: false,
+          }),
+        );
+        sp.scale.set(20, 10, 1);
+        sp.position.set(0, HALL.h + 6, 0);
+        hallRoot.add(sp);
+      }
+
+      // ---- inside: a crystal chandelier, wall sconces, cove lighting, a starry
+      // ceiling, sweeping stage beams, rug, neon, fairy lights, mirror ball --------
+      {
+        const H = HALL.h;
+        const ix = HALL.w / 2 - HALL.t - 0.05,
+          iz = HALL.d / 2 - HALL.t - 0.05;
+        // real lights: the chandelier over the piano and a pink wash over the
+        // lounge — on computers also a lilac glow by the vinyl + warm light by the door
+        const warm = new THREE.PointLight(0xffc9a0, 13, 22, 1.5);
+        warm.position.set(-3.3, H - 3.0, -1.5);
+        hallRoot.add(warm);
+        const pink = new THREE.PointLight(0xff6fae, 7, 28, 1.4);
+        pink.position.set(3.5, H - 2.6, 3);
+        hallRoot.add(pink);
+        if (!isTouch) {
+          const lilac = new THREE.PointLight(0xb98aff, 6, 14, 1.5);
+          lilac.position.set(5, 3.6, -HALL.d / 2 + 3.2);
+          hallRoot.add(lilac);
+          const porch = new THREE.PointLight(0xffd6a8, 5, 16, 1.5);
+          porch.position.set(0, H - 3.2, HALL.d / 2 - 3);
+          hallRoot.add(porch);
+        }
+
+        // 💎 a crystal chandelier: golden rings of candle bulbs + hanging crystals
+        const CH_Y = H - 2.6;
+        const ch = new THREE.Group();
+        ch.position.set(-3.3, CH_Y, -1.5);
+        hallRoot.add(ch);
+        hallFx.chandelier = ch;
+        hallBox(0.03, 2.4, 0.03, 0, 1.4, 0, PIANO_GOLD, ch); // chain to the ceiling
+        for (const [r, y] of [[1.05, 0], [0.62, 0.38], [0.28, 0.7]]) {
+          const ring = new THREE.Mesh(new THREE.TorusGeometry(r, 0.028, 8, 56), PIANO_GOLD);
+          ring.rotation.x = Math.PI / 2;
+          ring.position.y = y;
+          ch.add(ring);
+        }
+        for (let i = 0; i < 6; i++) {
+          const a = (i / 6) * Math.PI * 2;
+          const spoke = hallBox(1.05, 0.02, 0.02, Math.cos(a) * 0.52, 0.02, Math.sin(a) * 0.52, PIANO_GOLD, ch);
+          spoke.rotation.y = -a;
+        }
+        const lamps = [];
+        for (const [r, y, n] of [[1.05, 0.09, 16], [0.62, 0.47, 10], [0.28, 0.79, 6]])
+          for (let i = 0; i < n; i++) {
+            const a = (i / n) * Math.PI * 2;
+            lamps.push([Math.cos(a) * r, y, Math.sin(a) * r, 1, 1.3]);
+          }
+        const drops = [];
+        for (let i = 0; i < 28; i++) {
+          const a = (i / 28) * Math.PI * 2;
+          drops.push([Math.cos(a) * 1.05, -0.18 - (i % 3) * 0.12, Math.sin(a) * 1.05, 1, 1.8]);
+        }
+        for (let i = 0; i < 12; i++) {
+          const a = (i / 12) * Math.PI * 2;
+          drops.push([Math.cos(a) * 0.45, -0.25 - (i % 2) * 0.22, Math.sin(a) * 0.45, 1, 1.8]);
+        }
+        drops.push([0, -0.6, 0, 1.4, 2.2], [0, -0.88, 0, 1, 1.8]);
+        for (const [list, geo, col] of [
+          [lamps, new THREE.SphereGeometry(0.055, 8, 6), new THREE.Color(2.8, 2.0, 1.2)],
+          [drops, new THREE.OctahedronGeometry(0.045, 0), new THREE.Color(1.7, 1.35, 1.7)],
+        ]) {
+          const im = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ color: col }), list.length);
+          list.forEach(([x, y, z, sw, sh], i) => {
+            dummy.position.set(x, y, z);
+            dummy.rotation.set(0, i, 0);
+            dummy.scale.set(sw, sh, sw);
+            dummy.updateMatrix();
+            im.setMatrixAt(i, dummy.matrix);
+          });
+          ch.add(im);
+        }
+        hallGlow(0xffc890, 5.5, 0, 0.3, 0, ch, 0.55);
+        // a soft beam of light falling from the chandelier onto the piano
+        const coneH = CH_Y - 0.15;
+        const cone = new THREE.Mesh(
+          new THREE.ConeGeometry(2.4, coneH, 32, 1, true),
+          new THREE.MeshBasicMaterial({
+            color: 0xffd9ec,
+            transparent: true,
+            opacity: 0.06,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            side: THREE.DoubleSide,
+          }),
+        );
+        cone.position.set(-3.3, 0.05 + coneH / 2, -1.5);
+        hallRoot.add(cone);
+        // round rose rug under the piano
+        const rug = new THREE.Mesh(
+          new THREE.CircleGeometry(3.3, 48),
+          canvasMat(
+            (g, W) => {
+              const c = W / 2;
+              const rg = g.createRadialGradient(c, c, 10, c, c, c);
+              rg.addColorStop(0, "#8a1d4a");
+              rg.addColorStop(0.7, "#5a0f30");
+              rg.addColorStop(0.72, "#ffb3d1");
+              rg.addColorStop(0.75, "#5a0f30");
+              rg.addColorStop(0.95, "#3a0820");
+              rg.addColorStop(1, "#ffb3d1");
+              g.fillStyle = rg;
+              g.beginPath();
+              g.arc(c, c, c, 0, 7);
+              g.fill();
+              g.globalAlpha = 0.35;
+              for (let i = 0; i < 12; i++) {
+                const a = (i / 12) * Math.PI * 2;
+                drawHeartPath(g, c + Math.cos(a) * c * 0.5, c + Math.sin(a) * c * 0.5, 16);
+                g.fillStyle = "#ffd0e4";
+                g.fill();
+              }
+            },
+            512,
+            512,
+            { transparent: false, toneMapped: true, side: THREE.FrontSide },
+          ),
+        );
+        rug.rotation.x = -Math.PI / 2;
+        rug.position.set(-3.3, 0.05, -1.5);
+        hallRoot.add(rug);
+
+        // 🕯 wall sconces: golden plates, glowing tulip shades, light fanning up the wall
+        const fanMat = glowMat(lightTexture("fan"), 0xffb27a, 0.5);
+        const SHADE = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.6, 1.7, 1.0), side: THREE.DoubleSide });
+        for (const sx of [-1, 1])
+          for (const z of [-5.6, 0.6, 6.2]) {
+            const g = new THREE.Group();
+            g.position.set(sx * ix, 3.1, z);
+            g.rotation.y = -sx * (Math.PI / 2); // local +Z faces into the room
+            hallRoot.add(g);
+            hallBox(0.2, 0.46, 0.04, 0, 0, 0.02, PIANO_GOLD, g);
+            hallBox(0.04, 0.04, 0.22, 0, -0.06, 0.13, PIANO_GOLD, g);
+            const shade = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.06, 0.22, 16, 1, true), SHADE);
+            shade.position.set(0, 0.06, 0.26);
+            g.add(shade);
+            hallPlane(2.0, 3.4, fanMat, 0, 1.4, 0.03, 0, g); // light up the wall
+            const down = hallPlane(1.2, 1.2, fanMat, 0, -0.55, 0.03, 0, g); // …and a little down
+            down.rotation.z = Math.PI;
+            hallGlow(0xffb070, 1.2, 0, 0.08, 0.3, g, 0.7);
+          }
+
+        // cove lighting: a lilac LED line under the ceiling glowing down every
+        // wall, and a pink one along the skirting
+        const coveMat = glowMat(lightTexture("cove"), 0xb98aff, 0.42);
+        for (const [len, x, z, ry] of [
+          [2 * ix, 0, -iz, 0],
+          [2 * ix, 0, iz, Math.PI],
+          [2 * iz, -ix, 0, Math.PI / 2],
+          [2 * iz, ix, 0, -Math.PI / 2],
+        ]) {
+          hallBox(len, 0.1, 0.1, x, H - 0.55, z, NEON_LILAC).rotation.y = ry;
+          hallBox(len, 0.06, 0.06, x, 0.14, z, NEON_PINK).rotation.y = ry;
+          hallPlane(len, 2.6, coveMat, x + Math.sin(ry) * 0.03, H - 1.85, z + Math.cos(ry) * 0.03, ry);
+        }
+        // neon strips up the inside corners
+        for (const [x, z] of [[-ix, -iz], [ix, -iz], [-ix, iz], [ix, iz]])
+          hallBox(0.08, H - 0.4, 0.08, x, H / 2, z, NEON_PINK);
+        // big neon music notes on the side walls
+        const noteMat = (chr, col) =>
+          canvasMat(
+            (g, W, H) => {
+              g.textAlign = "center";
+              g.textBaseline = "middle";
+              g.shadowColor = col;
+              g.shadowBlur = 26;
+              g.fillStyle = "#ffffff";
+              g.font = "200px Georgia, serif";
+              g.fillText(chr, W / 2, H / 2);
+            },
+            256,
+            256,
+            { depthWrite: false },
+          );
+        hallPlane(2.8, 2.8, noteMat("♫", "rgba(255,93,158,1)"), -ix + 0.02, 6.6, 3.4, Math.PI / 2);
+        hallPlane(2.2, 2.2, noteMat("♪", "rgba(185,138,255,1)"), -ix + 0.02, 6.0, -3.0, Math.PI / 2);
+        hallPlane(2.8, 2.8, noteMat("♬", "rgba(120,190,255,1)"), ix - 0.02, 6.6, 3.4, -Math.PI / 2);
+        hallPlane(2.2, 2.2, noteMat("♩", "rgba(255,209,102,1)"), ix - 0.02, 6.0, -2.6, -Math.PI / 2);
+
+        // ✨ a starry ceiling: tiny lights that twinkle (see updateHall)
+        const STAR_N = 160;
+        const stars = new THREE.InstancedMesh(
+          new THREE.SphereGeometry(0.035, 5, 4),
+          new THREE.MeshBasicMaterial({ color: 0xffffff }),
+          STAR_N,
+        );
+        for (let i = 0; i < STAR_N; i++) {
+          dummy.position.set((Math.random() * 2 - 1) * (ix - 0.4), H - 0.04, (Math.random() * 2 - 1) * (iz - 0.4));
+          dummy.rotation.set(0, 0, 0);
+          dummy.scale.set(1, 1, 1);
+          dummy.updateMatrix();
+          stars.setMatrixAt(i, dummy.matrix);
+          stars.setColorAt(i, tmpColor.setRGB(1, 1, 1));
+          hallFx.starPh.push([Math.random() * 6.28, 0.6 + Math.random() * 2.2, Math.random()]);
+        }
+        hallRoot.add(stars);
+        hallFx.stars = stars;
+        // fairy lights draped across the ceiling
+        const dots = [];
+        const ROWS = 5,
+          PER = 24;
+        for (let r = 0; r < ROWS; r++) {
+          const z = -iz + 1.6 + (r / (ROWS - 1)) * (2 * iz - 3.2);
+          for (let i = 0; i <= PER; i++) {
+            const u = i / PER;
+            dots.push([-ix + 0.6 + u * (2 * ix - 1.2), H - 0.45 - Math.sin(u * Math.PI) * 0.8, z]);
+          }
+        }
+        const fairy = new THREE.InstancedMesh(
+          new THREE.SphereGeometry(0.06, 6, 5),
+          new THREE.MeshBasicMaterial({ color: 0xffffff }),
+          dots.length,
+        );
+        const fc = new THREE.Color();
+        dots.forEach(([x, y, z], i) => {
+          dummy.position.set(x, y, z);
+          dummy.rotation.set(0, 0, 0);
+          dummy.scale.set(1, 1, 1);
+          dummy.updateMatrix();
+          fairy.setMatrixAt(i, dummy.matrix);
+          fairy.setColorAt(i, i % 3 ? fc.setRGB(2.4, 1.7, 1.1) : fc.setRGB(2.6, 0.8, 1.6));
+        });
+        hallRoot.add(fairy);
+
+        // 🎆 four stage lights on the ceiling sweeping slow coloured beams
+        const BEAM_COLS = [0xff5d9e, 0xb98aff, 0x59b7ff, 0xffd166];
+        const beamGeo = new THREE.ConeGeometry(1.15, 10, 24, 1, true);
+        beamGeo.translate(0, -5, 0); // tip at the lamp
+        [[-5.5, -5], [5.5, -5], [-5.5, 5], [5.5, 5]].forEach(([x, z], i) => {
+          const g = new THREE.Group();
+          g.position.set(x, H - 0.45, z);
+          hallRoot.add(g);
+          hallBox(0.05, 0.2, 0.05, 0, 0.35, 0, PIANO_BLACK, g);
+          hallBox(0.3, 0.3, 0.3, 0, 0.12, 0, PIANO_BLACK, g);
+          const lens = new THREE.Mesh(
+            new THREE.CircleGeometry(0.12, 16),
+            new THREE.MeshBasicMaterial({ color: new THREE.Color(BEAM_COLS[i]).multiplyScalar(2.5) }),
+          );
+          lens.rotation.x = Math.PI / 2; // faces down
+          lens.position.y = -0.04;
+          g.add(lens);
+          const beam = new THREE.Mesh(
+            beamGeo,
+            new THREE.MeshBasicMaterial({
+              color: BEAM_COLS[i],
+              transparent: true,
+              opacity: 0.04,
+              blending: THREE.AdditiveBlending,
+              depthWrite: false,
+              side: THREE.DoubleSide,
+            }),
+          );
+          g.add(beam);
+          hallFx.beams.push({ g, beam, ph: i * 1.7 });
+        });
+      }
+      // a twinkling mirror ball: faceted, each facet a random glint colour
+      const mirrorBall = (() => {
+        const geo = new THREE.IcosahedronGeometry(0.7, 2); // non-indexed: 3 verts / face
+        const n = geo.attributes.position.count;
+        geo.setAttribute("color", new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+        const ball = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true }));
+        ball.position.set(0, HALL.h - 2.2, 0);
+        hallRoot.add(ball);
+        hallBox(0.02, 1.5, 0.02, 0, HALL.h - 0.75, 0, HALL_CEIL);
+        hallGlow(0xffffff, 3.2, 0, HALL.h - 2.2, 0, hallRoot, 0.22);
+        return ball;
+      })();
+      function twinkleBall() {
+        const col = mirrorBall.geometry.attributes.color;
+        for (let f = 0; f < col.count / 3; f++) {
+          const r = Math.random();
+          const [a, b, c] =
+            r < 0.06 ? [2.6, 1.0, 1.9] : r < 0.1 ? [1.3, 1.9, 2.8] : r < 0.22 ? [2.2, 2.2, 2.3] : [0.35, 0.33, 0.4];
+          for (let k = 0; k < 3; k++) col.setXYZ(f * 3 + k, a, b, c);
+        }
+        col.needsUpdate = true;
+      }
+      twinkleBall();
+
+      // ---- 🎹 the grand piano -----------------------------------------------------
+      // modelled facing local +Z (keyboard at the front), then turned so the
+      // keyboard faces west and the open lid faces the doorway
+      const piano = new THREE.Group();
+      piano.position.set(-4.4, 0, -1.5);
+      piano.rotation.y = -Math.PI / 2;
+      hallRoot.add(piano);
+      hallSolid(-4.8, -2.15, -2.3, -0.7, 1.1); // body + keyboard
+      function grandShape(k = 1) {
+        const s = new THREE.Shape();
+        s.moveTo(-0.75 * k, 0);
+        s.lineTo(0.75 * k, 0);
+        s.lineTo(0.75 * k, 0.45 * k);
+        s.bezierCurveTo(0.75 * k, 1.0 * k, 0.05 * k, 1.05 * k, -0.05 * k, 1.7 * k);
+        s.bezierCurveTo(-0.12 * k, 2.1 * k, -0.35 * k, 2.2 * k, -0.55 * k, 2.2 * k);
+        s.quadraticCurveTo(-0.75 * k, 2.2 * k, -0.75 * k, 2.0 * k);
+        s.lineTo(-0.75 * k, 0);
+        return s;
+      }
+      function grandExtrude(k, depth) {
+        const g = new THREE.ExtrudeGeometry(grandShape(k), {
+          depth,
+          bevelEnabled: true,
+          bevelThickness: 0.012,
+          bevelSize: 0.012,
+          bevelSegments: 2,
+          curveSegments: 18,
+        });
+        g.rotateX(-Math.PI / 2); // shape → floor plan, extrusion → height
+        return g;
+      }
+      const pianoKeys = { white: null, black: null, map: new Map() };
+      {
+        const body = new THREE.Mesh(grandExtrude(1, 0.3), PIANO_BLACK);
+        body.position.y = 0.72;
+        body.castShadow = true;
+        piano.add(body);
+        // golden iron frame glimpsed under the open lid
+        const harp = new THREE.Mesh(grandExtrude(0.88, 0.01), PIANO_GOLD);
+        harp.position.set(-0.04, 1.025, -0.08);
+        piano.add(harp);
+        // lid, hinged along the straight bass side and propped open
+        const hinge = new THREE.Group();
+        hinge.position.set(-0.75, 1.03, 0);
+        hinge.rotation.z = 0.5;
+        piano.add(hinge);
+        const lid = new THREE.Mesh(grandExtrude(1, 0.025), PIANO_BLACK);
+        lid.position.x = 0.75;
+        lid.castShadow = true;
+        hinge.add(lid);
+        const prop = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.62, 6), PIANO_BLACK);
+        prop.position.set(0.5, 1.32, -0.85);
+        piano.add(prop);
+        // legs, pedal lyre & golden pedals
+        for (const [x, z] of [[-0.62, -0.2], [0.62, -0.2], [-0.5, -1.95]]) {
+          const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.045, 0.72, 10), PIANO_BLACK);
+          leg.position.set(x, 0.36, z);
+          leg.castShadow = true;
+          piano.add(leg);
+        }
+        hallBox(0.22, 0.5, 0.05, 0, 0.3, -0.28, PIANO_BLACK, piano);
+        for (const x of [-0.06, 0, 0.06]) hallBox(0.03, 0.015, 0.12, x, 0.06, -0.22, PIANO_GOLD, piano);
+        // keybed, cheek blocks & fallboard
+        hallBox(1.5, 0.06, 0.34, 0, 0.75, 0.15, PIANO_BLACK, piano);
+        hallBox(0.1, 0.13, 0.34, -0.7, 0.81, 0.15, PIANO_BLACK, piano);
+        hallBox(0.1, 0.13, 0.34, 0.7, 0.81, 0.15, PIANO_BLACK, piano);
+        hallBox(1.3, 0.12, 0.04, 0, 0.86, -0.01, PIANO_BLACK, piano);
+        // music stand with a little score "for Rose"
+        const stand = hallBox(0.78, 0.34, 0.02, 0, 1.2, -0.08, PIANO_BLACK, piano);
+        stand.rotation.x = -0.22;
+        const score = new THREE.Mesh(
+          new THREE.PlaneGeometry(0.6, 0.28),
+          canvasMat(
+            (g, W, H) => {
+              g.fillStyle = "#fffaf3";
+              g.fillRect(0, 0, W, H);
+              g.fillStyle = "#3a1a28";
+              g.font = "italic 700 30px Georgia, serif";
+              g.textAlign = "center";
+              g.fillText("♪ for Rose ♪", W / 2, 36);
+              g.strokeStyle = "#5a3a48";
+              g.lineWidth = 1.5;
+              for (let s = 0; s < 2; s++)
+                for (let l = 0; l < 5; l++) {
+                  const y = 64 + s * 70 + l * 9;
+                  g.beginPath();
+                  g.moveTo(14, y);
+                  g.lineTo(W - 14, y);
+                  g.stroke();
+                }
+              for (let i = 0; i < 18; i++) {
+                const x = 30 + i * 26,
+                  y = 64 + (i % 2) * 70 + ((i * 7) % 5) * 7;
+                g.beginPath();
+                g.ellipse(x, y, 5, 3.6, -0.4, 0, 7);
+                g.fill();
+                g.fillRect(x + 4, y - 22, 1.5, 22);
+              }
+            },
+            512,
+            240,
+            { transparent: false, toneMapped: true },
+          ),
+        );
+        score.position.set(0, 1.21, -0.067);
+        score.rotation.x = -0.22;
+        piano.add(score);
+        // the keys: MIDI 36 (C2) … 96 (C7) — white & black instanced, each one
+        // dips when it plays
+        const isBlack = (m) => [1, 3, 6, 8, 10].includes(m % 12);
+        const KW = 0.036;
+        let whites = 0;
+        for (let m = 36; m <= 96; m++) if (!isBlack(m)) whites++;
+        const KB = whites * KW;
+        const IVORY = new THREE.MeshStandardMaterial({ color: 0xfffaf2, roughness: 0.35, emissive: 0x2a2620, emissiveIntensity: 1 });
+        const EBONY = new THREE.MeshStandardMaterial({ color: 0x111014, roughness: 0.3, metalness: 0.2 });
+        pianoKeys.white = new THREE.InstancedMesh(new THREE.BoxGeometry(KW * 0.92, 0.022, 0.15), IVORY, whites);
+        pianoKeys.black = new THREE.InstancedMesh(new THREE.BoxGeometry(KW * 0.56, 0.03, 0.095), EBONY, 61 - whites);
+        let wi = 0,
+          bi = 0;
+        for (let m = 36; m <= 96; m++) {
+          if (!isBlack(m)) {
+            const x = -KB / 2 + (wi + 0.5) * KW;
+            pianoKeys.map.set(m, { im: pianoKeys.white, i: wi, x, y: 0.79, z: 0.215, down: false });
+            wi++;
+          } else {
+            const x = -KB / 2 + wi * KW; // sits between the previous and next white
+            pianoKeys.map.set(m, { im: pianoKeys.black, i: bi, x, y: 0.81, z: 0.17, down: false });
+            bi++;
+          }
+        }
+        for (const k of pianoKeys.map.values()) setKey(k, false);
+        piano.add(pianoKeys.white, pianoKeys.black);
+        // bench with a velvet cushion
+        const bench = new THREE.Group();
+        bench.position.set(0, 0, 0.8);
+        piano.add(bench);
+        hallBox(0.95, 0.07, 0.38, 0, 0.5, 0, VELVET, bench);
+        hallBox(0.95, 0.04, 0.38, 0, 0.45, 0, PIANO_BLACK, bench);
+        for (const [x, z] of [[-0.42, -0.15], [0.42, -0.15], [-0.42, 0.15], [0.42, 0.15]])
+          hallBox(0.05, 0.45, 0.05, x, 0.225, z, PIANO_BLACK, bench);
+      }
+      function setKey(k, down) {
+        k.down = down;
+        dummy.position.set(k.x, k.y - (down ? 0.012 : 0), k.z);
+        dummy.rotation.set(down ? 0.06 : 0, 0, 0);
+        dummy.scale.set(1, 1, 1);
+        dummy.updateMatrix();
+        k.im.setMatrixAt(k.i, dummy.matrix);
+        k.im.instanceMatrix.needsUpdate = true;
+      }
+
+      // ---- 💿 the vinyl corner: a big turntable + mixer on a DJ console, a giant
+      // record on the wall that spins with it, shelves of sleeves, album covers ----
+      const vinyl = { spin: null, arm: null, ring: null, wall: null, meters: [] };
+      const VINYL_X = 5,
+        VINYL_Z = -HALL.d / 2 + HALL.t + 0.55;
+      {
+        const g = new THREE.Group();
+        g.position.set(VINYL_X, 0, VINYL_Z);
+        hallRoot.add(g);
+        hallSolid(3.45, 6.55, -HALL.d / 2, -HALL.d / 2 + HALL.t + 1.05, 1.1);
+        hallBox(3.0, 0.9, 0.9, 0, 0.45, 0, CAFE_WOOD, g); // console
+        hallBox(3.04, 0.05, 0.94, 0, 0.925, 0, PIANO_BLACK, g);
+        hallBox(3.0, 0.05, 0.02, 0, 0.62, 0.455, NEON_LILAC, g); // glowing front strip
+        hallBox(1.05, 0.1, 0.85, -0.6, 1.0, 0, PIANO_BLACK, g); // turntable plinth
+        const RX = -0.6; // record centre
+        const platter = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.04, 48), HALL_CHROME);
+        platter.position.set(RX, 1.07, 0);
+        g.add(platter);
+        vinyl.ring = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.012, 6, 64), SM(0xb98aff, 0.5));
+        vinyl.ring.rotation.x = Math.PI / 2;
+        vinyl.ring.position.set(RX, 1.06, 0);
+        g.add(vinyl.ring);
+        const recTex = (() => {
+          const S = 512,
+            c0 = S / 2;
+          const cv = document.createElement("canvas");
+          cv.width = cv.height = S;
+          const c = cv.getContext("2d");
+          c.fillStyle = "#0b0b0d";
+          c.beginPath();
+          c.arc(c0, c0, c0, 0, 7);
+          c.fill();
+          c.lineWidth = 1;
+          for (let r = 92; r < 252; r += 2.5) {
+            c.strokeStyle = `rgba(255,255,255,${0.04 + ((r * 7) % 5) * 0.012})`;
+            c.beginPath();
+            c.arc(c0, c0, r, 0, 7);
+            c.stroke();
+          }
+          // two soft sheen wedges — they sweep round as it spins
+          c.save();
+          c.globalCompositeOperation = "lighter";
+          for (const a of [0.6, 0.6 + Math.PI]) {
+            const gr = c.createRadialGradient(c0, c0, 90, c0, c0, 254);
+            gr.addColorStop(0, "rgba(255,190,225,0)");
+            gr.addColorStop(0.5, "rgba(255,190,225,0.16)");
+            gr.addColorStop(1, "rgba(255,190,225,0.04)");
+            c.fillStyle = gr;
+            c.beginPath();
+            c.moveTo(c0, c0);
+            c.arc(c0, c0, 254, a - 0.22, a + 0.22);
+            c.closePath();
+            c.fill();
+          }
+          c.restore();
+          // the label
+          c.fillStyle = "#ff5d9e";
+          c.beginPath();
+          c.arc(c0, c0, 88, 0, 7);
+          c.fill();
+          c.strokeStyle = "#ffd0e4";
+          c.lineWidth = 3;
+          c.beginPath();
+          c.arc(c0, c0, 80, 0, 7);
+          c.stroke();
+          c.fillStyle = "#fff2f8";
+          c.textAlign = "center";
+          c.textBaseline = "middle";
+          c.font = "italic 700 42px Georgia, serif";
+          c.fillText("Rose ♥", c0, c0 - 24);
+          c.font = "600 18px Georgia, serif";
+          c.fillText("Side A · 33⅓", c0, c0 + 28);
+          c.fillStyle = "#0b0b0d";
+          c.beginPath();
+          c.arc(c0, c0, 6, 0, 7);
+          c.fill();
+          const t = new THREE.CanvasTexture(cv);
+          t.colorSpace = THREE.SRGBColorSpace;
+          t.anisotropy = 8;
+          return t;
+        })();
+        const recMat = new THREE.MeshStandardMaterial({
+          map: recTex,
+          emissiveMap: recTex,
+          emissive: 0xffffff,
+          emissiveIntensity: 0.18,
+          roughness: 0.22,
+          metalness: 0.35,
+        });
+        vinyl.spin = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.008, 48), [
+          PIANO_BLACK,
+          recMat,
+          PIANO_BLACK,
+        ]);
+        vinyl.spin.position.set(RX, 1.094, 0);
+        g.add(vinyl.spin);
+        hallBox(0.012, 0.03, 0.012, RX, 1.105, 0, HALL_CHROME, g); // spindle
+        // the tonearm: its pivot sits back-right and it rests beside the record;
+        // it swings on when the record plays and creeps toward the label
+        const PX = RX + 0.46,
+          PZ = -0.3;
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.055, 0.1, 16), HALL_CHROME);
+        post.position.set(PX, 1.1, PZ);
+        g.add(post);
+        vinyl.arm = new THREE.Group();
+        vinyl.arm.position.set(PX, 1.15, PZ);
+        g.add(vinyl.arm);
+        const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.56, 8), HALL_CHROME);
+        rod.rotation.x = Math.PI / 2;
+        rod.position.z = 0.28;
+        vinyl.arm.add(rod);
+        hallBox(0.045, 0.02, 0.08, 0, -0.03, 0.57, PIANO_BLACK, vinyl.arm); // headshell
+        hallBox(0.012, 0.03, 0.012, 0, -0.05, 0.585, PIANO_GOLD, vinyl.arm); // stylus
+        const cw = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.06, 16), HALL_CHROME);
+        cw.rotation.x = Math.PI / 2;
+        cw.position.z = -0.07;
+        vinyl.arm.add(cw); // counterweight
+        hallBox(0.03, 0.07, 0.03, PX, 1.085, PZ + 0.42, HALL_CHROME, g); // arm rest
+        hallBox(0.1, 0.02, 0.06, RX - 0.42, 1.06, 0.33, NEON_PINK, g); // start / stop
+        hallBox(0.06, 0.02, 0.04, RX - 0.28, 1.06, 0.36, HALL_CHROME, g); // 33
+        hallBox(0.06, 0.02, 0.04, RX - 0.2, 1.06, 0.36, HALL_CHROME, g); // 45
+        // a little mixer: knobs, faders and LED level meters that dance to the music
+        hallBox(0.75, 0.09, 0.7, 0.45, 0.995, 0, PIANO_BLACK, g);
+        const knobGeo = new THREE.CylinderGeometry(0.025, 0.025, 0.03, 12);
+        for (let r = 0; r < 3; r++)
+          for (let c = 0; c < 4; c++) {
+            const k = new THREE.Mesh(knobGeo, HALL_CHROME);
+            k.position.set(0.2 + c * 0.16, 1.055, -0.22 + r * 0.12);
+            g.add(k);
+          }
+        for (const fx of [0.28, 0.6]) hallBox(0.03, 0.03, 0.05, fx, 1.055, 0.2, NEON_PINK, g);
+        hallBox(0.3, 0.03, 0.04, 0.44, 1.055, 0.29, PIANO_GOLD, g); // crossfader
+        const meterGeo = new THREE.BoxGeometry(0.035, 0.3, 0.02);
+        meterGeo.translate(0, 0.15, 0); // grows up from its base
+        for (let i = 0; i < 8; i++) {
+          const m = new THREE.Mesh(meterGeo, i % 2 ? NEON_LILAC : NEON_PINK);
+          m.position.set(0.24 + i * 0.058, 1.04, -0.31);
+          m.scale.y = 0.06;
+          g.add(m);
+          vinyl.meters.push(m);
+        }
+        // a few records waiting their turn
+        ["#ff5d9e", "#59b7ff", "#ffd166"].forEach((col, i) => {
+          const sl = hallBox(0.34, 0.012, 0.34, 1.12, 0.957 + i * 0.013, 0.02, new THREE.MeshStandardMaterial({ color: col, roughness: 0.6 }), g);
+          sl.rotation.y = (i - 1) * 0.18;
+        });
+        // a little neon "vinyl" sign + record shelves full of sleeves above
+        hallPlane(
+          1.6,
+          0.55,
+          canvasMat(
+            (c, W, H) => {
+              c.textAlign = "center";
+              c.textBaseline = "middle";
+              c.shadowColor = "rgba(120,190,255,1)";
+              c.shadowBlur = 20;
+              c.fillStyle = "#e8f4ff";
+              c.font = "italic 700 70px Georgia, serif";
+              c.fillText("💿 Vinyl", W / 2, H / 2);
+            },
+            512,
+            160,
+            { depthWrite: false },
+          ),
+          0.6,
+          1.75,
+          -0.5,
+          0,
+          g,
+        );
+        const SLEEVES = [0xff5d9e, 0xffd166, 0x59b7ff, 0xb98aff, 0x6fe0c0, 0xff8c42, 0xffffff, 0x2b2b35];
+        const sleeveIM = new THREE.InstancedMesh(
+          new THREE.BoxGeometry(0.025, 0.32, 0.32),
+          new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 }),
+          52,
+        );
+        let si = 0;
+        for (const sy of [2.3, 3.2]) {
+          hallBox(3.0, 0.05, 0.38, 0, sy - 0.03, -0.36, CAFE_WOOD, g);
+          for (let i = 0; i < 26 && si < 52; i++, si++) {
+            dummy.position.set(-1.3 + i * 0.1, sy + 0.16, -0.36);
+            dummy.rotation.set(0, 0, (Math.random() - 0.5) * 0.08);
+            dummy.scale.set(1, 1, 1);
+            dummy.updateMatrix();
+            sleeveIM.setMatrixAt(si, dummy.matrix);
+            sleeveIM.setColorAt(si, tmpColor.setHex(SLEEVES[(i * 5 + (sy > 2.8 ? 3 : 0)) % SLEEVES.length]));
+          }
+        }
+        g.add(sleeveIM);
+        // three framed album covers on the wall
+        const covers = [
+          ["#ff5d9e", "#7a2fe0", "Rose"],
+          ["#ffd166", "#ff5d9e", "Love Songs"],
+          ["#59b7ff", "#1b1f4a", "Moonlight"],
+        ];
+        covers.forEach(([a, b, title], i) => {
+          hallPlane(
+            0.8,
+            0.8,
+            canvasMat(
+              (c, W, H) => {
+                const gr = c.createLinearGradient(0, 0, W, H);
+                gr.addColorStop(0, a);
+                gr.addColorStop(1, b);
+                c.fillStyle = gr;
+                c.fillRect(0, 0, W, H);
+                c.strokeStyle = "#ffffff";
+                c.lineWidth = 8;
+                c.strokeRect(4, 4, W - 8, H - 8);
+                drawHeartPath(c, W / 2, H * 0.42, 46);
+                c.fillStyle = "rgba(255,255,255,0.9)";
+                c.fill();
+                c.fillStyle = "#ffffff";
+                c.font = "italic 700 34px Georgia, serif";
+                c.textAlign = "center";
+                c.fillText(title, W / 2, H * 0.84);
+              },
+              256,
+              256,
+              { transparent: false },
+            ),
+            -0.95 + i * 0.95,
+            4.2,
+            -0.53,
+            0,
+            g,
+          );
+        });
+        // 💿 a giant record on the wall, ringed in neon — it spins with the music
+        vinyl.wall = new THREE.Mesh(new THREE.CircleGeometry(1.5, 72), recMat);
+        vinyl.wall.position.set(0, 6.5, -0.53);
+        g.add(vinyl.wall);
+        for (const [r, m] of [[1.58, NEON_LILAC], [1.72, NEON_PINK]]) {
+          const ring = new THREE.Mesh(new THREE.TorusGeometry(r, 0.03, 6, 80), m);
+          ring.position.set(0, 6.5, -0.52);
+          g.add(ring);
+        }
+      }
+
+      // ---- speakers & velvet sofas -------------------------------------------------
+      const speakers = [];
+      for (const sx of [-1, 1]) {
+        const g = new THREE.Group();
+        const x = sx * (HALL.w / 2 - HALL.t - 0.7);
+        g.position.set(x, 0, -HALL.d / 2 + HALL.t + 0.62);
+        g.rotation.y = -sx * 0.35;
+        g.scale.setScalar(1.4);
+        hallRoot.add(g);
+        hallSolid(x - 0.65, x + 0.65, -HALL.d / 2, -HALL.d / 2 + HALL.t + 1.2, 2.4);
+        hallBox(0.75, 1.7, 0.6, 0, 0.85, 0, PIANO_BLACK, g);
+        const drivers = [];
+        for (const [y, r] of [[0.55, 0.24], [1.15, 0.15], [1.48, 0.07]]) {
+          const dg = new THREE.Group();
+          dg.position.set(0, y, 0.31);
+          g.add(dg);
+          const cone = new THREE.Mesh(new THREE.CircleGeometry(r, 24), new THREE.MeshStandardMaterial({ color: 0x1c1c22, roughness: 0.7 }));
+          dg.add(cone);
+          const ring = new THREE.Mesh(new THREE.TorusGeometry(r + 0.015, 0.012, 6, 28), NEON_PINK);
+          dg.add(ring);
+          drivers.push(dg);
+        }
+        speakers.push(drivers);
+      }
+      function sofa(x, z, ry) {
+        const g = new THREE.Group();
+        g.position.set(x, 0, z);
+        g.rotation.y = ry;
+        hallRoot.add(g);
+        hallBox(2.2, 0.42, 0.9, 0, 0.3, 0, VELVET, g); // seat
+        hallBox(2.2, 0.7, 0.22, 0, 0.75, -0.38, VELVET, g); // back
+        for (const s of [-1, 1]) hallBox(0.22, 0.55, 0.9, s * 1.1, 0.42, 0, VELVET, g); // arms
+        hallBox(2.3, 0.08, 0.95, 0, 0.06, 0, PIANO_BLACK, g); // plinth
+      }
+      sofa(1.5, -1.5, -Math.PI / 2); // facing the piano
+      hallSolid(1.0, 2.0, -2.7, -0.3, 0.9);
+      sofa(-3.3, 4.4, Math.PI); // facing the piano from the door side
+      hallSolid(-4.5, -2.1, 3.9, 4.9, 0.9);
+
+      // ---- floating music notes rising from the piano -------------------------------
+      const noteTexs = ["♪", "♫", "♬", "♩"].map((ch, i) => {
+        const cv = document.createElement("canvas");
+        cv.width = cv.height = 96;
+        const c = cv.getContext("2d");
+        c.textAlign = "center";
+        c.textBaseline = "middle";
+        c.shadowColor = ["#ff5d9e", "#b98aff", "#59b7ff", "#ffd166"][i];
+        c.shadowBlur = 14;
+        c.fillStyle = "#ffffff";
+        c.font = "72px Georgia, serif";
+        c.fillText(ch, 48, 50);
+        return new THREE.CanvasTexture(cv);
+      });
+      const floatNotes = [];
+      for (let i = 0; i < 18; i++) {
+        const sp = new THREE.Sprite(
+          new THREE.SpriteMaterial({ map: noteTexs[i % 4], transparent: true, depthWrite: false, opacity: 0 }),
+        );
+        sp.scale.set(0.5, 0.5, 1);
+        hallRoot.add(sp);
+        floatNotes.push({ sp, age: 99, vx: 0, vz: 0 });
+      }
+      let noteCursor = 0;
+      function emitNote(x = -3.3, z = -1.5, y = 1.4) {
+        const n = floatNotes[noteCursor++ % floatNotes.length];
+        n.age = 0;
+        n.sp.position.set(x + (Math.random() - 0.5) * 1.4, y, z + (Math.random() - 0.5) * 1.2);
+        n.vx = (Math.random() - 0.5) * 0.4;
+        n.vz = (Math.random() - 0.5) * 0.4;
+      }
+
+      // ---- 🎼 the sound: a WebAudio grand piano + hall reverb -----------------------
+      let hallCtx = null,
+        hallCrackle = null, // the record's soft crackle
+        hallBus = null, // proximity volume
+        hallDry = null,
+        hallRev = null;
+      function initHallAudio() {
+        if (hallCtx) return;
+        try {
+          hallCtx = new (window.AudioContext || window.webkitAudioContext)();
+          const comp = hallCtx.createDynamicsCompressor();
+          comp.threshold.value = -18;
+          comp.ratio.value = 3;
+          comp.connect(hallCtx.destination);
+          // vinyl crackle: soft hiss + a few pops, heard while the record spins
+          {
+            const n = hallCtx.sampleRate * 3;
+            const buf = hallCtx.createBuffer(1, n, hallCtx.sampleRate);
+            const dat = buf.getChannelData(0);
+            for (let i = 0; i < n; i++) {
+              dat[i] = (Math.random() * 2 - 1) * 0.03;
+              if (Math.random() < 0.00016) dat[i] += (Math.random() < 0.5 ? -1 : 1) * (0.3 + Math.random() * 0.6);
+            }
+            const src = hallCtx.createBufferSource();
+            src.buffer = buf;
+            src.loop = true;
+            const hp = hallCtx.createBiquadFilter();
+            hp.type = "highpass";
+            hp.frequency.value = 900;
+            hallCrackle = hallCtx.createGain();
+            hallCrackle.gain.value = 0;
+            src.connect(hp);
+            hp.connect(hallCrackle);
+            hallCrackle.connect(comp);
+            src.start();
+          }
+          hallBus = hallCtx.createGain();
+          hallBus.gain.value = 0;
+          hallBus.connect(comp);
+          hallDry = hallCtx.createGain();
+          hallDry.connect(hallBus);
+          // a soft concert-hall tail: decaying stereo noise impulse
+          const len = Math.floor(hallCtx.sampleRate * 2.6);
+          const ir = hallCtx.createBuffer(2, len, hallCtx.sampleRate);
+          for (let ch = 0; ch < 2; ch++) {
+            const data = ir.getChannelData(ch);
+            for (let i = 0; i < len; i++)
+              data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.6);
+          }
+          const conv = hallCtx.createConvolver();
+          conv.buffer = ir;
+          hallRev = hallCtx.createGain();
+          hallRev.gain.value = 0.32;
+          hallRev.connect(conv);
+          conv.connect(hallBus);
+          // browsers start audio suspended until a tap / key — wake it on any
+          const wake = () => hallCtx.state !== "running" && hallCtx.resume();
+          addEventListener("pointerdown", wake);
+          addEventListener("keydown", wake);
+          addEventListener("touchstart", wake, { passive: true });
+        } catch (e) {
+          hallCtx = null;
+        }
+      }
+      // one piano note: a few detuned partials with a hammer-bright attack that
+      // mellows as it rings (low notes ring longer, like real strings)
+      function pianoVoice(midi, when, vel, dur) {
+        if (!hallCtx) return;
+        const ctx = hallCtx;
+        const f = 440 * Math.pow(2, (midi - 69) / 12);
+        const out = ctx.createGain();
+        const peak = vel * 0.22;
+        const ring = Math.max(0.7, 3.4 - (midi - 40) * 0.04);
+        out.gain.setValueAtTime(0.0001, when);
+        out.gain.exponentialRampToValueAtTime(peak, when + 0.006);
+        out.gain.exponentialRampToValueAtTime(peak * 0.38, when + 0.28);
+        out.gain.exponentialRampToValueAtTime(0.0006, when + dur + ring);
+        const lp = ctx.createBiquadFilter();
+        lp.type = "lowpass";
+        lp.frequency.setValueAtTime(Math.min(14000, f * 9 + 1800 * vel), when);
+        lp.frequency.exponentialRampToValueAtTime(Math.max(f * 2.2, 700), when + 1.4);
+        lp.connect(out);
+        const stopAt = when + dur + ring + 0.05;
+        for (const [h, a, type] of [
+          [1, 1, "triangle"],
+          [2, 0.38, "sine"],
+          [3, 0.14, "sine"],
+          [4, 0.07, "sine"],
+          [1.0015, 0.5, "sine"], // slight detune → the shimmer of paired strings
+        ]) {
+          const o = ctx.createOscillator();
+          o.type = type;
+          o.frequency.value = f * h * (h >= 2 ? 1 + 0.0007 * h : 1);
+          const g = ctx.createGain();
+          g.gain.value = a;
+          o.connect(g);
+          g.connect(lp);
+          o.start(when);
+          o.stop(stopAt);
+        }
+        out.connect(hallDry);
+        out.connect(hallRev);
+      }
+
+      // ---- the songbook ----------------------------------------------------------
+      // Each song is a list of {t (beats), m (MIDI), v (velocity), d (beats)}
+      // events that loops. mel = melody (notes float up, panel keys light up),
+      // bass = a bass note (the speakers thump).
+      const hum = () => (Math.random() - 0.5) * 0.08;
+      // 🌹 "for Rose" — 16 bars, ~70 bpm: a falling-bass romantic progression
+      // (C – G/B – Am – Em/G – F – C/E – Dm7 – G) with a singing melody on top;
+      // the second time round the melody is doubled an octave lower.
+      function buildRoseSong() {
+        const ev = [];
+        const CHORDS = [
+          [48, [55, 60, 64]],
+          [47, [55, 59, 62]],
+          [45, [52, 57, 60]],
+          [43, [52, 55, 59]],
+          [41, [48, 53, 57]],
+          [40, [48, 55, 60]],
+          [38, [45, 53, 60]],
+          [43, [50, 55, 59]],
+        ];
+        const MELODY = [
+          [[76, 1], [79, 1], [84, 2]],
+          [[83, 1.5], [81, 0.5], [79, 2]],
+          [[81, 1], [84, 1], [88, 2]],
+          [[86, 1], [84, 1], [83, 2]],
+          [[81, 1.5], [79, 0.5], [77, 1], [81, 1]],
+          [[79, 2], [76, 2]],
+          [[77, 1], [76, 1], [74, 1], [77, 1]],
+          [[74, 2], [79, 1], [77, 1]],
+        ];
+        const LH = [0, 1, 2, 3, 2, 1, 2, 1];
+        for (let pass = 0; pass < 2; pass++)
+          for (let bar = 0; bar < 8; bar++) {
+            const t0 = (pass * 8 + bar) * 4;
+            const [bass, tones] = CHORDS[bar];
+            for (let e = 0; e < 8; e++) {
+              const idx = LH[e];
+              ev.push({
+                t: t0 + e * 0.5,
+                m: idx === 0 ? bass : tones[idx - 1],
+                v: (idx === 0 ? 0.42 : 0.24) + hum(),
+                d: idx === 0 ? 4 : 1.5,
+                bass: idx === 0,
+              });
+            }
+            let mt = t0;
+            for (const [m, len] of MELODY[bar]) {
+              ev.push({ t: mt + 0.01, m, v: 0.6 + hum(), d: len, mel: true });
+              if (pass === 1) ev.push({ t: mt + 0.01, m: m - 12, v: 0.34 + hum(), d: len });
+              mt += len;
+            }
+          }
+        ev.sort((x, y) => x.t - y.t);
+        return { bpm: 70, beats: 64, ev };
+      }
+      // 🎂 "Happy Birthday" — the melody she knows, in C, as a gentle waltz
+      // (bass on 1, chord on 2 & 3), ending with a little sparkling run;
+      // played twice, the second time with the tune doubled an octave down.
+      function buildBirthdaySong() {
+        const ev = [];
+        const TUNE = [
+          [0, 67, 0.75], [0.75, 67, 0.25], // Hap-py
+          [1, 69, 1], [2, 67, 1], [3, 72, 1], [4, 71, 2], // birth-day to you
+          [6, 67, 0.75], [6.75, 67, 0.25], // Hap-py
+          [7, 69, 1], [8, 67, 1], [9, 74, 1], [10, 72, 2], // birth-day to you
+          [12, 67, 0.75], [12.75, 67, 0.25], // Hap-py
+          [13, 79, 1], [14, 76, 1], [15, 72, 1], // birth-day dear
+          [16, 71, 1], [17, 69, 1], // Ro-se
+          [18, 77, 0.75], [18.75, 77, 0.25], // Hap-py
+          [19, 76, 1], [20, 72, 1], [21, 74, 1], [22, 72, 3], // birth-day to you
+        ];
+        const C = [48, [52, 55, 60]],
+          G = [43, [50, 55, 59]],
+          G7 = [43, [53, 59, 62]],
+          F = [41, [53, 57, 60]];
+        // [bar start beat, chord on 1&2, chord on 3]
+        const BARS = [
+          [1, C, C], [4, G, G], [7, G7, G7], [10, C, C],
+          [13, C, C], [16, F, F], [19, C, G7],
+        ];
+        const PASS = 28;
+        for (let pass = 0; pass < 2; pass++) {
+          const o = pass * PASS;
+          for (const [t, m, d] of TUNE) {
+            ev.push({ t: o + t + 0.01, m, v: 0.66 + hum(), d, mel: true });
+            if (pass === 1) ev.push({ t: o + t + 0.01, m: m - 12, v: 0.32 + hum(), d });
+          }
+          for (const [t0, ch, ch3] of BARS) {
+            ev.push({ t: o + t0, m: ch[0], v: 0.42 + hum(), d: 3, bass: true });
+            for (const n of ch[1]) ev.push({ t: o + t0 + 1, m: n, v: 0.2 + hum(), d: 0.9 });
+            for (const n of ch3[1]) ev.push({ t: o + t0 + 2, m: n, v: 0.2 + hum(), d: 0.9 });
+          }
+          // final bar: a full C chord, then a sparkling run up to the top
+          ev.push({ t: o + 22, m: 36, v: 0.45, d: 4, bass: true });
+          for (const n of [48, 55, 64]) ev.push({ t: o + 22, m: n, v: 0.3 + hum(), d: 3.5 });
+          [72, 76, 79, 84, 88].forEach((n, i) =>
+            ev.push({ t: o + 24.5 + i * 0.22, m: n, v: 0.36 + hum(), d: 1.4, mel: true }),
+          );
+        }
+        ev.sort((x, y) => x.t - y.t);
+        return { bpm: 104, beats: PASS * 2, ev };
+      }
+      const SONGS = { rose: buildRoseSong(), bday: buildBirthdaySong() };
+      let song = SONGS.rose,
+        songOn = false,
+        songT0 = 0,
+        songIdx = 0;
+      const keyEvents = []; // {m, t, d, mel, bass} — visual key presses, in audio time
+      function startSong(name = "rose") {
+        if (!hallCtx) return;
+        song = SONGS[name];
+        songOn = true;
+        songT0 = hallCtx.currentTime + 0.15;
+        songIdx = 0;
+        refreshSongButtons();
+      }
+      function stopSong() {
+        songOn = false;
+        refreshSongButtons();
+      }
+      function pumpSong() {
+        const beat = 60 / song.bpm;
+        const now = hallCtx.currentTime,
+          ahead = now + 0.3;
+        for (let guard = 0; guard < 64; guard++) {
+          const ev = song.ev[songIdx];
+          const t = songT0 + ev.t * beat;
+          if (t > ahead) break;
+          if (t > now - 0.05) {
+            pianoVoice(ev.m, t, ev.v, ev.d * beat);
+            keyEvents.push({ m: ev.m, t, d: Math.min(ev.d * beat, 0.45), mel: ev.mel, bass: ev.bass });
+          }
+          if (++songIdx >= song.ev.length) {
+            songIdx = 0;
+            songT0 += song.beats * beat;
+          }
+        }
+      }
+      // her own playing (from the on-screen piano)
+      function playKey(m, vel = 0.62) {
+        if (!hallCtx) return;
+        if (hallCtx.state !== "running") hallCtx.resume();
+        const t = hallCtx.currentTime + 0.005;
+        pianoVoice(m, t, vel, 0.9);
+        keyEvents.push({ m, t, d: 0.3, mel: true, own: true });
+      }
+
+      // ---- the playable piano panel ------------------------------------------------
+      let pianoOpen = false;
+      const pianoPanel = document.getElementById("piano-panel");
+      const PANEL_LO = 60,
+        PANEL_HI = 84; // C4 … C6
+      const KEYMAP = {
+        KeyA: 60, KeyW: 61, KeyS: 62, KeyE: 63, KeyD: 64, KeyF: 65, KeyT: 66,
+        KeyG: 67, KeyY: 68, KeyH: 69, KeyU: 70, KeyJ: 71, KeyK: 72, KeyO: 73,
+        KeyL: 74, KeyP: 75, Semicolon: 76, Quote: 77,
+      };
+      const panelKeyEls = new Map();
+      {
+        const wrap = document.getElementById("piano-keys");
+        const isBlack = (m) => [1, 3, 6, 8, 10].includes(m % 12);
+        const whites = [];
+        for (let m = PANEL_LO; m <= PANEL_HI; m++) if (!isBlack(m)) whites.push(m);
+        const NAMES = ["C", "D", "E", "F", "G", "A", "B"];
+        let wi = 0;
+        for (let m = PANEL_LO; m <= PANEL_HI; m++) {
+          const el = document.createElement("div");
+          if (!isBlack(m)) {
+            el.className = "pk-w";
+            const lab = document.createElement("span");
+            lab.className = "pk-label";
+            lab.textContent = m % 12 === 0 ? "C" + (m / 12 - 1) : NAMES[[0, 2, 4, 5, 7, 9, 11].indexOf(m % 12)];
+            el.appendChild(lab);
+            wi++;
+          } else {
+            el.className = "pk-b";
+            const kw = 100 / whites.length;
+            el.style.width = kw * 0.62 + "%";
+            el.style.left = wi * kw - kw * 0.31 + "%";
+          }
+          el.addEventListener("pointerdown", (e) => {
+            e.preventDefault();
+            pressPanelKey(m);
+          });
+          wrap.appendChild(el);
+          panelKeyEls.set(m, el);
+        }
+      }
+      function flashPanelKey(m, ms = 180) {
+        const el = panelKeyEls.get(m);
+        if (el) {
+          el.classList.add("on");
+          setTimeout(() => el.classList.remove("on"), ms);
+        }
+      }
+      function pressPanelKey(m) {
+        playKey(m);
+        flashPanelKey(m);
+      }
+      function openPianoPanel() {
+        initHallAudio();
+        if (hallCtx && hallCtx.state !== "running") hallCtx.resume();
+        pianoOpen = true;
+        stopSong();
+        pianoPanel.classList.add("show");
+        pauseUI();
+        track("🎹 Played the Rosmantic piano");
+      }
+      function closePianoPanel() {
+        pianoOpen = false;
+        pianoPanel.classList.remove("show");
+        resumeUI();
+      }
+      document.getElementById("piano-close").addEventListener("click", closePianoPanel);
+      pianoPanel.addEventListener("click", (e) => {
+        if (e.target === pianoPanel) closePianoPanel();
+      });
+      // the panel's song buttons — the hall plays a song for her to play along to
+      // (the playing one just glows; tap it again to stop)
+      const SONG_BTNS = {
+        bday: document.getElementById("piano-bday"),
+        rose: document.getElementById("piano-song"),
+      };
+      function refreshSongButtons() {
+        for (const name in SONG_BTNS)
+          SONG_BTNS[name].classList.toggle("playing", songOn && song === SONGS[name]);
+      }
+      for (const name in SONG_BTNS)
+        SONG_BTNS[name].addEventListener("click", () => {
+          initHallAudio();
+          if (!hallCtx) return;
+          if (hallCtx.state !== "running") hallCtx.resume();
+          if (songOn && song === SONGS[name]) return stopSong();
+          // the record stops so the piano has the room to itself
+          if (music && !music.paused) {
+            music.pause();
+            musicBtn.classList.add("off");
+          }
+          startSong(name);
+          track(`🎹 Piano song: ${name}`);
+        });
+      addEventListener("keydown", (e) => {
+        if (!pianoOpen) return;
+        if (e.code === "Escape") return closePianoPanel();
+        const m = KEYMAP[e.code];
+        if (m && !e.repeat) {
+          e.preventDefault();
+          pressPanelKey(m);
+        }
+      });
+
+      // ---- vinyl: plays the city's song on the record player ----------------------
+      // (whenever the city's ♪ song plays, it's this record that's spinning)
+      function toggleVinyl() {
+        if (music && !music.paused) {
+          music.pause();
+          musicBtn.classList.add("off");
+          track("💿 Stopped the vinyl");
+        } else {
+          startMusic();
+          stopSong();
+          screenBurst(["💿", "🎶", "💗"], 10);
+          track("💿 Put on the vinyl");
+        }
+      }
+
+      // what she can use in the hall right now (piano bench / turntable)
+      const PIANO_SPOT = new THREE.Vector3(HALL.cx - 5.3, 0, HALL.cz - 1.5);
+      const VINYL_SPOT = new THREE.Vector3(HALL.cx + VINYL_X, 0, HALL.z0 + HALL.t + 1.7);
+      function hallNear(p) {
+        if (!inHall(p)) return null;
+        if (Math.hypot(p.x - PIANO_SPOT.x, p.z - PIANO_SPOT.z) < 2.4) return "piano";
+        if (Math.hypot(p.x - VINYL_SPOT.x, p.z - VINYL_SPOT.z) < 2.4) return "vinyl";
+        return null;
+      }
+
+      // ---- per frame -------------------------------------------------------------
+      let hallWasIn = false,
+        hallTw = 0;
+      function updateHall(dt, t) {
+        const fp = focusPos();
+        const inside = vehMode === "walk" && inHall(fp);
+        if (inside && !hallWasIn) {
+          initHallAudio();
+          screenBurst(["🎹", "🎶", "💗", "✨"], 10);
+          track("🎹 Walked into Rosmantic Music");
+        }
+        hallWasIn = inside;
+        // the live piano plays whenever the record isn't spinning
+        const vinylPlaying = !!music && !music.paused;
+        // how loud the hall is where she stands (a little leaks out the door)
+        let vol = 0;
+        if (inside) vol = 1;
+        else {
+          const dd = Math.hypot(fp.x - HALL.cx, fp.z - HALL.z1);
+          if (dd < 30) vol = 0.4 * (1 - dd / 30);
+        }
+        if (hallCtx) {
+          const want = vinylPlaying && !pianoOpen ? 0 : vol;
+          hallBus.gain.setTargetAtTime(want, hallCtx.currentTime, 0.4);
+          if (hallCrackle)
+            hallCrackle.gain.setTargetAtTime(vinylPlaying && inside ? 0.5 : 0, hallCtx.currentTime, 0.3);
+          if (!pianoOpen) {
+            if (want > 0.01 && !songOn) startSong();
+            else if (want <= 0.01 && songOn && hallBus.gain.value < 0.02) stopSong();
+          }
+          if (songOn) pumpSong();
+          // keys dip, notes float up, speakers thump — in time with the audio
+          const now = hallCtx.currentTime;
+          for (let i = keyEvents.length - 1; i >= 0; i--) {
+            const ev = keyEvents[i];
+            const k = pianoKeys.map.get(ev.m);
+            if (now >= ev.t && !ev.fired) {
+              ev.fired = true;
+              if (k) setKey(k, true);
+              if (ev.mel && Math.random() < 0.7) emitNote();
+              if (pianoOpen && !ev.own) flashPanelKey(ev.m, 260); // play-along
+              if (ev.bass) for (const dr of speakers) dr[0].userData.kick = 1;
+            }
+            if (now >= ev.t + ev.d) {
+              if (k) setKey(k, false);
+              keyEvents.splice(i, 1);
+            }
+          }
+          if (keyEvents.length > 400) keyEvents.splice(0, keyEvents.length - 400);
+        }
+        // the record spins while the vinyl plays (33⅓ rpm) and fills the room;
+        // the tonearm swings on and creeps toward the label as the song goes by
+        if (vinylPlaying) {
+          vinyl.spin.rotation.y -= dt * 3.49;
+          vinyl.wall.rotation.z -= dt * 0.9;
+          if (inside && Math.random() < dt * 1.6) emitNote(VINYL_X - 0.6, VINYL_Z + 0.2, 1.3);
+          const mv = inside ? 0.75 : 0.45;
+          music.volume = Math.min(1, Math.max(0, music.volume + (mv - music.volume) * Math.min(1, dt * 2)));
+        }
+        const prog =
+          vinylPlaying && isFinite(music.duration) && music.duration > 0 ? music.currentTime / music.duration : 0;
+        const armTo = vinylPlaying ? -0.4 - 0.34 * prog : 0;
+        vinyl.arm.rotation.y += (armTo - vinyl.arm.rotation.y) * Math.min(1, dt * 2.5);
+        // speaker cones pulse (to the piano's bass, or a steady beat for the vinyl)
+        for (const drivers of speakers) {
+          const w = drivers[0];
+          w.userData.kick = Math.max(0, (w.userData.kick || 0) - dt * 4);
+          if (vinylPlaying) w.userData.kick = Math.max(w.userData.kick, Math.pow(Math.max(0, Math.sin(t * 7.3)), 6));
+          const s = 1 + w.userData.kick * 0.12;
+          w.scale.set(s, s, 1);
+        }
+        // how "loud" the room feels right now — drives the light show
+        const energy = Math.max(vinylPlaying ? 0.6 : 0, speakers[0][0].userData.kick || 0);
+        vinyl.ring.material.emissiveIntensity = vinylPlaying ? 1.4 + energy * 1.6 : 0.5;
+        for (let i = 0; i < vinyl.meters.length; i++) {
+          const lv =
+            vinylPlaying || songOn
+              ? 0.15 + 0.85 * Math.abs(Math.sin(t * (4.1 + i * 0.73) + i * 1.3)) * (0.5 + 0.5 * energy)
+              : 0.06;
+          const m = vinyl.meters[i];
+          m.scale.y += (lv - m.scale.y) * Math.min(1, dt * 14);
+        }
+        if (onHallFoot(fp.x, fp.z, 60)) {
+          // the stage beams sweep slowly and brighten with the music
+          for (const b of hallFx.beams) {
+            b.g.rotation.x = Math.sin(t * 0.37 + b.ph) * 0.34;
+            b.g.rotation.z = Math.cos(t * 0.29 + b.ph * 1.3) * 0.34;
+            b.beam.material.opacity = 0.035 + energy * 0.05;
+          }
+          // the starry ceiling twinkles
+          const st = hallFx.stars;
+          for (let i = 0; i < st.count; i++) {
+            const [ph, sp, hue] = hallFx.starPh[i];
+            const k = 0.35 + 0.65 * Math.pow(0.5 + 0.5 * Math.sin(t * sp + ph), 3);
+            st.setColorAt(i, hue < 0.7 ? tmpColor.setRGB(2.2 * k, 1.9 * k, 1.6 * k) : tmpColor.setRGB(2.4 * k, 1.0 * k, 1.9 * k));
+          }
+          st.instanceColor.needsUpdate = true;
+          // the marquee bulbs chase round
+          const bl = hallFx.bulbs,
+            step = Math.floor(t * 9);
+          for (let i = 0; i < bl.count; i++)
+            bl.setColorAt(i, (i + step) % 3 === 0 ? tmpColor.setRGB(3, 2.2, 1.2) : tmpColor.setRGB(0.9, 0.55, 0.3));
+          bl.instanceColor.needsUpdate = true;
+          // the chandelier sways ever so slightly
+          hallFx.chandelier.rotation.y = Math.sin(t * 0.3) * 0.08;
+        }
+        // mirror ball + rising notes
+        mirrorBall.rotation.y += dt * 0.5;
+        hallTw += dt;
+        if (hallTw > 0.12) {
+          hallTw = 0;
+          if (onHallFoot(fp.x, fp.z, 40)) twinkleBall();
+        }
+        for (const n of floatNotes) {
+          if (n.age > 3.2) {
+            n.sp.material.opacity = 0;
+            continue;
+          }
+          n.age += dt;
+          n.sp.position.x += n.vx * dt;
+          n.sp.position.z += n.vz * dt;
+          n.sp.position.y += 0.9 * dt;
+          const k = n.age / 3.2;
+          n.sp.material.opacity = Math.min(1, n.age * 4) * (1 - k);
+          n.sp.material.rotation = Math.sin(n.age * 3 + n.vx * 10) * 0.3;
+        }
+      }
+
+      // ────────────────────────────────────────────────────────────────────────────
       // 🌳🎠 ROSE PARK — a WIDE 5×5-lot green clearing west of downtown: open
       // lawns, a lit football pitch, a basketball court, a kids' playground whose
       // swings / seesaw / carousel really move, an outdoor cinema screen (plays
@@ -4487,8 +6558,16 @@
       function inPark(gx, gz) {
         return gx >= -7 && gx <= -3 && gz >= -1 && gz <= 3;
       }
-      const PARK = { x: -117, z: 39, w: 130, d: 130 }; // world-space centre + size
+      // world-space centre + size of the 5×5-lot clearing (follows TILE)
+      const PARK = { x: -4.5 * TILE, z: 1.5 * TILE, w: 5 * TILE, d: 5 * TILE };
+      // the pitch / court / playground / cinema layout below was drawn around
+      // PARK0 — parkRoot (and the pooled spots via pk()) shift it onto PARK
+      const PARK0 = { x: -117, z: 39 };
+      const PDX = PARK.x - PARK0.x,
+        PDZ = PARK.z - PARK0.z;
+      const pk = (x, z) => [x + PDX, z + PDZ];
       const parkRoot = new THREE.Group();
+      parkRoot.position.set(PDX, 0, PDZ);
       scene.add(parkRoot);
       const parkSwings = [],
         parkSeesaws = [],
@@ -4511,7 +6590,7 @@
           GRASS,
         );
         lawn.rotation.x = -Math.PI / 2;
-        lawn.position.set(PARK.x, 0.05, PARK.z);
+        lawn.position.set(PARK0.x, 0.05, PARK0.z);
         lawn.receiveShadow = true;
         parkRoot.add(lawn);
         const PATH_MAT = new THREE.MeshStandardMaterial({
@@ -4527,7 +6606,7 @@
         ]) {
           const path = new THREE.Mesh(new THREE.PlaneGeometry(pw, pd), PATH_MAT);
           path.rotation.x = -Math.PI / 2;
-          path.position.set(PARK.x, 0.09, PARK.z);
+          path.position.set(PARK0.x, 0.09, PARK0.z);
           path.receiveShadow = true;
           parkRoot.add(path);
         }
@@ -4537,7 +6616,7 @@
           SM(0xff7da0, 0.8),
         );
         cross.rotation.x = Math.PI / 2;
-        cross.position.set(PARK.x, 0.16, PARK.z);
+        cross.position.set(PARK0.x, 0.16, PARK0.z);
         parkRoot.add(cross);
 
         // ---- ⚽ football pitch: painted lines, glowing goals ----------------------
@@ -4961,8 +7040,8 @@
             [-134, 74],
           ])
             benchSpots.push({
-              x: bx,
-              z: bz,
+              x: bx + PDX,
+              z: bz + PDZ,
               rot: Math.atan2(-152 - bx, 74 - bz),
             });
         }
@@ -4983,7 +7062,7 @@
           }),
         );
         sign.scale.set(28, 14, 1);
-        sign.position.set(-54, 11, 39);
+        sign.position.set(PARK.x + PARK.w / 2 - 6, 11, PARK.z);
         scene.add(sign);
         // rose bushes: a loose ring around the park + a few by the paths
         for (let i = 0; i < 26; i++) {
@@ -5003,11 +7082,11 @@
           [-65, 35],
           [-69, 60],
         ])
-          plantBush(bx, bz, 1.5);
+          plantBush(...pk(bx, bz), 1.5);
         // lamp posts along both paths (shared instanced lamps, like the plazas)
         for (let i = 0; i < 6; i++) {
-          lampSpots.push({ x: -172 + i * 22, z: 42.6 });
-          lampSpots.push({ x: -113.4, z: -14 + i * 21 });
+          lampSpots.push({ x: -172 + i * 22 + PDX, z: 42.6 + PDZ });
+          lampSpots.push({ x: -113.4 + PDX, z: -14 + i * 21 + PDZ });
         }
         // benches looking over the lawn & the pitch
         for (const [bx, bz, tx, tz] of [
@@ -5017,39 +7096,113 @@
           [-70, 43, -90, 39],
           [-99, 88, -99, 70],
         ])
-          benchSpots.push({ x: bx, z: bz, rot: Math.atan2(tx - bx, tz - bz) });
+          benchSpots.push({
+            x: bx + PDX,
+            z: bz + PDZ,
+            rot: Math.atan2(tx - bx, tz - bz),
+          });
       }
 
-      // ---- 🎈🧺 hot-air balloons (مناطيد) — big striped روز balloons drifting ----
+      // ---- 🎂 "Happy Birthday Rose ♥" lettering, shared by every balloon --------
+      // Balloon skins are 2:1 canvases wrapped round a sphere, so a pixel is the
+      // same size both ways; the front face (towards the viewer) is the middle
+      // half of the canvas width, which is where the lettering goes.
+      function drawHeartPath(g, x, y, r) {
+        g.beginPath();
+        g.moveTo(x, y + r * 0.95);
+        g.bezierCurveTo(x + r * 1.1, y + r * 0.1, x + r * 0.8, y - r * 1.1, x, y - r * 0.45);
+        g.bezierCurveTo(x - r * 0.8, y - r * 1.1, x - r * 1.1, y + r * 0.1, x, y + r * 0.95);
+        g.closePath();
+      }
+      function drawBirthday(g, cx, cy, maxW, px, stroke) {
+        g.save();
+        g.textAlign = "center";
+        g.textBaseline = "middle";
+        g.lineJoin = "round";
+        // set the font, shrinking it until the text fits the visible face
+        const fit = (tx, mk, size) => {
+          g.font = mk(size);
+          const w = g.measureText(tx).width;
+          if (w > maxW) {
+            size *= maxW / w;
+            g.font = mk(size);
+          }
+          return size;
+        };
+        const ink = (tx, x, y, size, fill) => {
+          g.lineWidth = Math.max(4, size * 0.16);
+          g.strokeStyle = stroke;
+          g.strokeText(tx, x, y);
+          g.fillStyle = fill;
+          g.fillText(tx, x, y);
+        };
+        const SERIF = (s) => `italic 700 ${s}px Georgia, "Palatino Linotype", serif`;
+        let sz = fit("Happy", SERIF, px);
+        ink("Happy", cx, cy - px * 1.08, sz, "#ffffff");
+        sz = fit("Birthday", SERIF, px);
+        ink("Birthday", cx, cy, sz, "#ffffff");
+        // "Rose" in gold, with a real painted heart beside it
+        const r = px * 0.42;
+        sz = fit("Rose", (s) => `italic 900 ${s}px Georgia, serif`, px * 1.12);
+        const rw = g.measureText("Rose").width;
+        const ry = cy + px * 1.15;
+        ink("Rose", cx - r * 1.2, ry, sz, "#ffe1a8");
+        const hx = cx + rw / 2 + r * 0.25;
+        drawHeartPath(g, hx, ry, r);
+        g.lineWidth = Math.max(3, r * 0.3);
+        g.strokeStyle = stroke;
+        g.stroke();
+        g.fillStyle = "#ff2d5e";
+        g.fill();
+        g.restore();
+      }
+      // a sprinkle of birthday confetti over a balloon skin
+      function sprinkleConfetti(g, W, H, n) {
+        const C = ["#ffffff", "#ffe1a8", "#ff9ec2", "#bfe0ff", "#c6f7e2"];
+        for (let i = 0; i < n; i++) {
+          g.fillStyle = C[i % C.length];
+          g.globalAlpha = 0.55 + Math.random() * 0.35;
+          const x = Math.random() * W,
+            y = H * (0.12 + Math.random() * 0.76),
+            s = 3 + Math.random() * 5;
+          if (i % 3) {
+            g.beginPath();
+            g.arc(x, y, s * 0.6, 0, 7);
+            g.fill();
+          } else g.fillRect(x, y, s * 1.6, s * 0.6);
+        }
+        g.globalAlpha = 1;
+      }
+
+      // ---- 🎈🧺 hot-air balloons (مناطيد) — big striped birthday balloons ----
       // slow circles over the park and downtown, wicker basket, flickering burner.
       function makeAirshipTexture(a, b) {
-        const s = 512,
+        const W = 1024,
+          H = 512,
           cv = document.createElement("canvas");
-        cv.width = cv.height = s;
+        cv.width = W;
+        cv.height = H;
         const g = cv.getContext("2d");
-        for (let i = 0; i < 16; i++) {
+        for (let i = 0; i < 32; i++) {
           g.fillStyle = i % 2 ? a : b;
-          g.fillRect((i * s) / 16, 0, s / 16 + 1, s);
+          g.fillRect((i * W) / 32, 0, W / 32 + 1, H);
         }
-        const hl = g.createLinearGradient(0, 0, 0, s);
+        const hl = g.createLinearGradient(0, 0, 0, H);
         hl.addColorStop(0, "rgba(255,255,255,0.35)");
         hl.addColorStop(0.55, "rgba(255,255,255,0)");
         hl.addColorStop(1, "rgba(30,0,15,0.4)");
         g.fillStyle = hl;
-        g.fillRect(0, 0, s, s);
-        g.textAlign = "center";
-        g.textBaseline = "middle";
-        g.lineJoin = "round";
-        const draw = (tx, font, y) => {
-          g.font = font;
-          g.lineWidth = 10;
-          g.strokeStyle = "rgba(55,8,28,0.65)";
-          g.strokeText(tx, s / 2, y);
-          g.fillStyle = "rgba(255,255,255,0.97)";
-          g.fillText(tx, s / 2, y);
-        };
-        draw("روز", '900 118px "Segoe UI", Tahoma, sans-serif', s * 0.44);
-        draw("Rose", "italic 700 62px Georgia, serif", s * 0.66);
+        g.fillRect(0, 0, W, H);
+        // the wish is painted twice (front & back) so it reads as the balloon turns
+        for (const cx of [W * 0.25, W * 0.75]) {
+          const plaque = g.createRadialGradient(cx, H * 0.5, 10, cx, H * 0.5, 230);
+          plaque.addColorStop(0, "rgba(70,10,45,0.55)");
+          plaque.addColorStop(0.7, "rgba(70,10,45,0.3)");
+          plaque.addColorStop(1, "rgba(70,10,45,0)");
+          g.fillStyle = plaque;
+          g.fillRect(cx - 240, 0, 480, H);
+          drawBirthday(g, cx, H * 0.47, 300, 70, "rgba(55,8,28,0.75)");
+        }
         const t = new THREE.CanvasTexture(cv);
         t.anisotropy = 4;
         return t;
@@ -5119,7 +7272,7 @@
         // the airfield — all in violet & white, matching her car 💜
         { colA: "#9b4dff", colB: "#ffffff", cx: PARK.x, cz: PARK.z, r: 38, h: 68, speed: 0.055, phase: 0 },
         { colA: "#7a2fe0", colB: "#f4ecff", cx: 0, cz: 0, r: 85, h: 108, speed: 0.038, phase: 2.4 },
-        { colA: "#ba7bff", colB: "#ffffff", cx: 180, cz: 13, r: 55, h: 88, speed: 0.045, phase: 4.4 },
+        { colA: "#ba7bff", colB: "#ffffff", cx: 8.5 * TILE - 41, cz: 0.5 * TILE, r: 55, h: 88, speed: 0.045, phase: 4.4 },
       ]) {
         const a = makeAirship(spec.colA, spec.colB);
         airships.push(Object.assign(a, spec));
@@ -5324,44 +7477,38 @@
       const balloonRoot = new THREE.Group();
       scene.add(balloonRoot);
       const BAL_COLORS = [
-        0xff5d83, 0xff9ec2, 0xffd700, 0xff2d5e, 0xba94ff, 0xffffff,
+        0xff5d83, 0xff9ec2, 0xffd700, 0xff2d5e, 0xba94ff, 0x59b7ff, 0x3ccf9a,
       ];
       const balloons = [];
-      // Balloon skin: the balloon colour + a glossy highlight + روز / Rose on the front.
+      // Balloon skin: the balloon colour + a glossy highlight + birthday confetti,
+      // and "Happy Birthday Rose ♥" across the front (the face that turns to her).
       function makeBalloonTexture(css) {
-        const s = 256,
+        const W = 1024,
+          H = 512,
           cv = document.createElement("canvas");
-        cv.width = cv.height = s;
+        cv.width = W;
+        cv.height = H;
         const g = cv.getContext("2d");
         g.fillStyle = css;
-        g.fillRect(0, 0, s, s);
+        g.fillRect(0, 0, W, H);
         const hl = g.createRadialGradient(
-          s * 0.34,
-          s * 0.28,
-          4,
-          s * 0.5,
-          s * 0.5,
-          s * 0.78,
+          W * 0.43,
+          H * 0.26,
+          6,
+          W * 0.5,
+          H * 0.5,
+          W * 0.4,
         );
         hl.addColorStop(0, "rgba(255,255,255,0.5)");
         hl.addColorStop(0.35, "rgba(255,255,255,0.1)");
         hl.addColorStop(1, "rgba(255,255,255,0)");
         g.fillStyle = hl;
-        g.fillRect(0, 0, s, s);
-        g.textAlign = "center";
-        g.textBaseline = "middle";
-        g.lineJoin = "round";
-        const draw = (tx, font, y) => {
-          g.font = font;
-          g.lineWidth = 6;
-          g.strokeStyle = "rgba(55,8,28,0.6)";
-          g.strokeText(tx, s / 2, y);
-          g.fillStyle = "rgba(255,255,255,0.97)";
-          g.fillText(tx, s / 2, y);
-        };
-        draw("روز", '900 78px "Segoe UI", Tahoma, sans-serif', s * 0.42);
-        draw("Rose", "italic 700 50px Georgia, serif", s * 0.63);
-        return new THREE.CanvasTexture(cv);
+        g.fillRect(0, 0, W, H);
+        sprinkleConfetti(g, W, H, 70);
+        drawBirthday(g, W / 2, H * 0.47, 330, 74, "rgba(55,8,28,0.7)");
+        const t = new THREE.CanvasTexture(cv);
+        t.anisotropy = 4;
+        return t;
       }
       function makeBalloon(color) {
         const g = new THREE.Group();
@@ -5425,7 +7572,7 @@
         b.size = 3.6 + Math.random() * 2.6;
         b.group.scale.setScalar(b.size);
       }
-      for (let i = 0; i < 9; i++) {
+      for (let i = 0; i < 12; i++) {
         const g = makeBalloon(BAL_COLORS[i % BAL_COLORS.length]);
         balloonRoot.add(g);
         const b = { group: g };
@@ -5763,10 +7910,12 @@
       }
 
       // ---- Rose Airfield grounds: apron field, painted runway, lights, sign -----
-      const RUNWAY_Z = 13; // runway centreline (z, metres)
+      const RUNWAY_Z = 0.5 * TILE; // runway centreline (z, metres)
+      const AIR_X = 8.5 * TILE; // centre of the airfield clearing (x, metres)
+      const RW_LEN = 7 * TILE - 10; // runway length
       {
         const field = new THREE.Mesh(
-          new THREE.PlaneGeometry(184, 80),
+          new THREE.PlaneGeometry(7 * TILE + 2, 3 * TILE + 2),
           new THREE.MeshStandardMaterial({
             color: 0x3a3450, // readable violet-grey apron, glows softly at night
             roughness: 0.9,
@@ -5776,7 +7925,7 @@
           }),
         );
         field.rotation.x = -Math.PI / 2;
-        field.position.set(221, 0.06, RUNWAY_Z);
+        field.position.set(AIR_X, 0.06, RUNWAY_Z);
         field.receiveShadow = true;
         scene.add(field);
 
@@ -5810,7 +7959,7 @@
         const rwTex = new THREE.CanvasTexture(rw);
         rwTex.anisotropy = 8;
         const runway = new THREE.Mesh(
-          new THREE.PlaneGeometry(172, 17),
+          new THREE.PlaneGeometry(RW_LEN, 17),
           new THREE.MeshStandardMaterial({
             map: rwTex,
             emissiveMap: rwTex,
@@ -5821,7 +7970,7 @@
           }),
         );
         runway.rotation.x = -Math.PI / 2;
-        runway.position.set(221, 0.14, RUNWAY_Z);
+        runway.position.set(AIR_X, 0.14, RUNWAY_Z);
         runway.receiveShadow = true;
         scene.add(runway);
 
@@ -5839,7 +7988,7 @@
         );
         let li = 0;
         for (let i = 0; i < 16; i++) {
-          const x = 138 + i * (166 / 15);
+          const x = AIR_X - RW_LEN / 2 + 3 + i * ((RW_LEN - 6) / 15);
           for (const s of [-1, 1]) {
             dummy.position.set(x, 0.17, RUNWAY_Z + s * 9.4);
             dummy.rotation.set(0, 0, 0);
@@ -5865,7 +8014,7 @@
           }),
         );
         sign.scale.set(30, 15, 1);
-        sign.position.set(150, 13, 47);
+        sign.position.set(AIR_X - RW_LEN / 2 + 15, 13, 2 * TILE - 5);
         scene.add(sign);
       }
 
@@ -5933,100 +8082,211 @@
         roughness: 0.5,
         metalness: 0.1,
       });
-      function makeCarWheel(front) {
+      // ---- modern car shape (shared by her VIP car & every parked car) ---------
+      // A side silhouette — long hood, raked windscreen, fastback, ducktail — is
+      // extruded across the car's width with rounded (bevelled) edges, so cars read
+      // as smooth sculpted bodies instead of stacked boxes. Nose = +Z locally.
+      function carBodyShape() {
+        const s = new THREE.Shape();
+        s.moveTo(-2.2, 0.3);
+        s.lineTo(2.05, 0.3);
+        s.quadraticCurveTo(2.32, 0.32, 2.34, 0.52); // front bumper
+        s.quadraticCurveTo(2.33, 0.74, 1.95, 0.82); // nose
+        s.quadraticCurveTo(1.3, 0.92, 0.8, 0.98); // long hood up to the windscreen
+        s.lineTo(-1.55, 1.02); // beltline
+        s.quadraticCurveTo(-2.15, 1.04, -2.3, 0.86); // ducktail
+        s.quadraticCurveTo(-2.36, 0.5, -2.2, 0.3); // rear bumper
+        return s;
+      }
+      function carGlassShape() {
+        const s = new THREE.Shape();
+        s.moveTo(0.92, 0.94);
+        s.quadraticCurveTo(0.35, 1.36, -0.35, 1.4); // raked windscreen → glass roof
+        s.quadraticCurveTo(-1.25, 1.38, -1.85, 0.99); // fastback
+        s.lineTo(0.92, 0.94);
+        return s;
+      }
+      // extrude a side profile across `width` (m); the result lies along +Z
+      function extrudeSide(shape, width, bevel, segs = 10) {
+        const depth = width - bevel * 2;
+        const geo = new THREE.ExtrudeGeometry(shape, {
+          depth,
+          bevelEnabled: true,
+          bevelThickness: bevel,
+          bevelSize: bevel * 0.8,
+          bevelSegments: segs > 6 ? 3 : 2,
+          curveSegments: segs,
+        });
+        geo.translate(0, 0, -depth / 2);
+        geo.rotateY(-Math.PI / 2); // profile length → car +Z, extrusion → car X
+        geo.computeVertexNormals();
+        return geo;
+      }
+      const WHEEL_XZ = [
+        [0.86, 1.45],
+        [-0.86, 1.45],
+        [0.86, -1.45],
+        [-0.86, -1.45],
+      ];
+      function makeCarWheel(front, vip) {
         const pivot = new THREE.Group(); // steering pivot (front wheels)
         const spin = new THREE.Group(); // rolling pivot
         pivot.add(spin);
         const tire = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.37, 0.37, 0.27, 18),
+          new THREE.CylinderGeometry(0.37, 0.37, 0.3, 22),
           TIRE,
         );
         tire.rotation.z = Math.PI / 2;
         tire.castShadow = true;
         spin.add(tire);
+        // flush aero rim: dark disc, chrome spokes (+ a glowing lilac ring on the VIP)
         const rim = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.21, 0.21, 0.29, 10),
-          CHROME,
+          new THREE.CylinderGeometry(0.27, 0.27, 0.32, 20),
+          TRIM_DARK,
         );
         rim.rotation.z = Math.PI / 2;
         spin.add(rim);
-        return { pivot, spin, front };
-      }
-      const car = {
-        g: new THREE.Group(),
-        pos: new THREE.Vector3(2.7, 0, -34), // kerb of the first road south of spawn
-        yaw: Math.PI, // nose pointing south, toward the gift
-        speed: 0,
-        steer: 0,
-        wheels: [],
-        lamps: [],
-        tail: null,
-      };
-      {
-        const c = car.g;
-        mkBox(c, 1.86, 0.3, 4.3, 0, 0.45, 0, TRIM_DARK); // chassis / rockers
-        mkBox(c, 1.9, 0.42, 4.4, 0, 0.79, 0, PAINT_VIOLET); // main body
-        mkBox(c, 1.84, 0.26, 1.6, 0, 0.98, 1.45, PAINT_VIOLET, 0.1); // sloping hood
-        mkBox(c, 1.84, 0.24, 1.2, 0, 1.0, -1.7, PAINT_VIOLET, -0.08); // rear deck
-        mkBox(c, 1.58, 0.44, 1.9, 0, 1.24, -0.3, GLASS_DARK); // cabin glass
-        mkBox(c, 1.6, 0.5, 0.95, 0, 1.06, 0.83, GLASS_DARK, 0.52); // windshield
-        mkBox(c, 1.6, 0.46, 0.85, 0, 1.05, -1.36, GLASS_DARK, -0.5); // rear glass
-        mkBox(c, 1.46, 0.07, 1.05, 0, 1.47, -0.32, PAINT_VIOLET); // roof
-        mkBox(c, 1.7, 0.07, 0.44, 0, 1.2, -2.12, PAINT_VIOLET); // spoiler wing
-        mkBox(c, 0.1, 0.22, 0.2, 0.62, 1.05, -2.08, TRIM_DARK);
-        mkBox(c, 0.1, 0.22, 0.2, -0.62, 1.05, -2.08, TRIM_DARK);
-        mkBox(c, 1.92, 0.2, 0.5, 0, 0.34, 2.1, TRIM_DARK); // splitter
-        mkBox(c, 1.92, 0.22, 0.5, 0, 0.36, -2.1, TRIM_DARK); // diffuser
-        mkBox(c, 0.16, 0.1, 0.34, 0.99, 1.12, 0.55, PAINT_VIOLET); // mirrors
-        mkBox(c, 0.16, 0.1, 0.34, -0.99, 1.12, 0.55, PAINT_VIOLET);
-        // ✨ modern touches: lilac neon side skirts + a full-width EV light bar
-        mkBox(c, 0.06, 0.05, 3.6, 0.94, 0.36, 0, SM(0xba7bff, 1.8));
-        mkBox(c, 0.06, 0.05, 3.6, -0.94, 0.36, 0, SM(0xba7bff, 1.8));
-        mkBox(c, 1.5, 0.05, 0.06, 0, 1.03, 2.21, SM(0xd9b8ff, 2.2));
-        mkBox(c, 0.46, 0.13, 0.08, 0.6, 0.9, 2.19, headlightMat);
-        mkBox(c, 0.46, 0.13, 0.08, -0.6, 0.9, 2.19, headlightMat);
-        car.tail = mkBox(c, 1.5, 0.11, 0.07, 0, 0.92, -2.2, taillightMat);
-        for (const s of [-1, 1]) {
-          const ex = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.07, 0.07, 0.22, 10),
+        for (let i = 0; i < 5; i++) {
+          const spoke = new THREE.Mesh(
+            new THREE.BoxGeometry(0.33, 0.05, 0.4),
             CHROME,
           );
-          ex.rotation.x = Math.PI / 2;
-          ex.position.set(s * 0.38, 0.42, -2.2);
-          c.add(ex);
+          spoke.rotation.x = (i / 5) * Math.PI;
+          spin.add(spoke);
         }
-        for (const [sx, sz] of [
-          [0.83, 1.42],
-          [-0.83, 1.42],
-          [0.83, -1.42],
-          [-0.83, -1.42],
-        ]) {
-          const w = makeCarWheel(sz > 0);
+        if (vip)
+          for (const sx of [-1, 1]) {
+            const ring = new THREE.Mesh(
+              new THREE.TorusGeometry(0.255, 0.012, 6, 28),
+              SM(0xba7bff, 1.6),
+            );
+            ring.rotation.y = Math.PI / 2;
+            ring.position.x = sx * 0.165;
+            spin.add(ring);
+          }
+        return { pivot, spin, front };
+      }
+      // A drivable car rig. Two exist: her violet VIP car, and the "street car" —
+      // whichever parked car she gets into becomes this rig (same shape, its paint).
+      function buildCarRig(paint, vip, pos, yaw) {
+        const rig = {
+          g: new THREE.Group(),
+          pos: pos.clone(),
+          yaw,
+          speed: 0,
+          steer: 0,
+          wheels: [],
+          lamps: [],
+          tail: null,
+          paint,
+          vip,
+          headMat: headlightMat.clone(),
+          tailMat: taillightMat.clone(),
+        };
+        const c = rig.g;
+        const add = (geo, mat) => {
+          const m = new THREE.Mesh(geo, mat);
+          m.castShadow = true;
+          c.add(m);
+          return m;
+        };
+        // sculpted body + one-piece panoramic glass canopy
+        add(extrudeSide(carBodyShape(), 1.94, 0.1, 14), paint);
+        add(extrudeSide(carGlassShape(), 1.58, 0.08, 14), GLASS_DARK);
+        // dark wheel arches & sills give it a planted, sporty stance
+        for (const [sx, sz] of WHEEL_XZ) {
+          const arch = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.46, 0.46, 0.1, 22),
+            TRIM_DARK,
+          );
+          arch.rotation.z = Math.PI / 2;
+          arch.position.set(sx * 1.13, 0.38, sz);
+          c.add(arch);
+        }
+        mkBox(c, 2.0, 0.12, 2.3, 0, 0.3, 0, TRIM_DARK); // sills between the arches
+        mkBox(c, 1.7, 0.1, 0.35, 0, 0.27, 2.12, TRIM_DARK); // front splitter
+        mkBox(c, 1.6, 0.14, 0.3, 0, 0.33, -2.18, TRIM_DARK); // rear diffuser
+        // camera-stalk mirrors
+        mkBox(c, 0.2, 0.07, 0.13, 1.03, 1.02, 0.72, paint);
+        mkBox(c, 0.2, 0.07, 0.13, -1.03, 1.02, 0.72, paint);
+        // ✨ LED signature: slim headlights joined by a full-width light bar,
+        // and a full-width tail bar
+        mkBox(c, 0.5, 0.05, 0.1, 0.58, 0.74, 2.24, rig.headMat);
+        mkBox(c, 0.5, 0.05, 0.1, -0.58, 0.74, 2.24, rig.headMat);
+        mkBox(c, 1.7, 0.025, 0.05, 0, 0.66, 2.3, vip ? SM(0xd9b8ff, 2.4) : rig.headMat);
+        rig.tail = mkBox(c, 1.78, 0.07, 0.06, 0, 0.86, -2.3, rig.tailMat);
+        if (vip) {
+          // lilac underglow along the sills + a "ROSE" badge on the tail
+          mkBox(c, 0.04, 0.04, 2.3, 1.0, 0.27, 0, SM(0xba7bff, 2.2));
+          mkBox(c, 0.04, 0.04, 2.3, -1.0, 0.27, 0, SM(0xba7bff, 2.2));
+          const badge = new THREE.Mesh(
+            new THREE.PlaneGeometry(0.62, 0.155),
+            new THREE.MeshBasicMaterial({
+              map: makeLabel(
+                [{ t: "R O S E", font: EN(150), color: LC.white }],
+                "rgba(200,150,255,0.9)",
+              ),
+              transparent: true,
+              depthWrite: false,
+              toneMapped: false,
+            }),
+          );
+          badge.position.set(0, 0.68, -2.37);
+          badge.rotation.y = Math.PI;
+          c.add(badge);
+        }
+        for (const [sx, sz] of WHEEL_XZ) {
+          const w = makeCarWheel(sz > 0, vip);
           w.pivot.position.set(sx, 0.37, sz);
           c.add(w.pivot);
-          car.wheels.push(w);
+          rig.wheels.push(w);
         }
         // real headlight beams that light the road at night
         for (const s of [-1, 1]) {
           const L = new THREE.SpotLight(0xfff2cf, 0, 60, 0.58, 0.45, 1.4);
-          L.position.set(s * 0.6, 0.9, 2.1);
+          L.position.set(s * 0.58, 0.74, 2.2);
           const tgt = new THREE.Object3D();
           tgt.position.set(s * 0.6, 0.1, 14);
           c.add(tgt);
           L.target = tgt;
           c.add(L);
-          car.lamps.push(L);
+          rig.lamps.push(L);
         }
-        c.position.copy(car.pos);
-        c.rotation.y = car.yaw;
+        c.position.copy(rig.pos);
+        c.rotation.y = rig.yaw;
         scene.add(c);
+        return rig;
       }
+      // her violet VIP car, parked at the kerb of the first road south of spawn,
+      // nose pointing south toward the gift
+      const car = buildCarRig(
+        PAINT_VIOLET,
+        true,
+        new THREE.Vector3(4.1, 0, -34),
+        Math.PI,
+      );
+      // the borrowed street car — parked far below the world until she takes one
+      // (kept in the scene so its lights never change the shader light count)
+      const streetCar = buildCarRig(
+        new THREE.MeshStandardMaterial({
+          color: 0xffffff,
+          roughness: 0.28,
+          metalness: 0.65,
+        }),
+        false,
+        new THREE.Vector3(0, -500, 0),
+        0,
+      );
+      streetCar.active = false;
+      streetCar.col = 0xffffff;
+      let drv = car; // the car she is driving (or drove last)
+      const driving = (rig) => vehMode === "car" && drv === rig;
 
       // ---- the plane — white with rose-red trim (nose = +Z locally) --------------
       const PLANE_GEAR = 1.6; // wheel-contact height below the fuselage origin
       const plane = {
         g: new THREE.Group(),
-        pos: new THREE.Vector3(146, PLANE_GEAR, RUNWAY_Z),
+        pos: new THREE.Vector3(AIR_X - RW_LEN / 2 + 11, PLANE_GEAR, RUNWAY_Z),
         yaw: Math.PI / 2, // lined up with the runway, facing east
         pitch: 0,
         roll: 0,
@@ -6276,6 +8536,9 @@
               )
                 best = t.h;
           }
+        // the flat roof of Rosmantic Music
+        if (onHallFoot(x, z, 0.3) && HALL.h + 0.4 <= y + 3 && HALL.h + 0.4 > best)
+          best = HALL.h + 0.4;
         return best;
       }
 
@@ -6321,7 +8584,7 @@
         try {
           engOsc.frequency.value =
             vehMode === "car"
-              ? 52 + Math.abs(car.speed) * 2.7
+              ? 52 + Math.abs(drv.speed) * 2.7
               : 60 + plane.throttle * 75 + plane.speed * 0.5;
         } catch (e) {}
       }
@@ -6339,27 +8602,28 @@
       );
       vehBtn.addEventListener("click", () => interact());
 
-      function enterCar() {
+      function enterCar(rig = car) {
+        drv = rig;
         vehMode = "car";
-        car.speed = 0;
+        drv.speed = 0;
         girl.g.visible = false;
-        yaw = car.yaw + Math.PI;
+        yaw = drv.yaw + Math.PI;
         pitch = -0.16;
         vehHud.style.display = "block";
         promptEl.classList.remove("show");
         startEngine();
-        track("🚗 Riding the red car");
+        track(rig.vip ? "🚗 Riding the VIP car" : "🚗 Borrowed a car from the street");
       }
       function exitCar() {
         vehMode = "walk";
-        car.speed = 0;
+        drv.speed = 0;
         girl.pos
-          .copy(car.pos)
+          .copy(drv.pos)
           .add(
             new THREE.Vector3(
-              Math.cos(car.yaw) * 2.6,
+              Math.cos(drv.yaw) * 2.6,
               0.05,
-              -Math.sin(car.yaw) * 2.6,
+              -Math.sin(drv.yaw) * 2.6,
             ),
           );
         pushOutPoint(girl.pos, 0.5);
@@ -6410,11 +8674,11 @@
 
       // ---- driving the car -----------------------------------------------------------
       function carCollide() {
-        const p = car.pos;
+        const p = drv.pos;
         const gx0 = Math.floor(p.x / TILE),
           gz0 = Math.floor(p.z / TILE);
-        const fx = Math.sin(car.yaw),
-          fz = Math.cos(car.yaw);
+        const fx = Math.sin(drv.yaw),
+          fz = Math.cos(drv.yaw);
         for (let gx = gx0 - 1; gx <= gx0 + 1; gx++)
           for (let gz = gz0 - 1; gz <= gz0 + 1; gz++) {
             const spec = towerSpec(gx, gz);
@@ -6437,13 +8701,13 @@
               nz = Math.sign(pz);
             }
             if (Math.abs(fx * nx + fz * nz) > 0.55) {
-              if (Math.abs(car.speed) > 13 && nowS() - lastCrashT > 1.2) {
+              if (Math.abs(drv.speed) > 13 && nowS() - lastCrashT > 1.2) {
                 lastCrashT = nowS();
                 screenBurst(["💥", "💫"], 6);
               }
-              car.speed *= -0.18; // soft bounce off the wall
+              drv.speed *= -0.18; // soft bounce off the wall
             } else {
-              car.speed *= 0.92; // scraping along it
+              drv.speed *= 0.92; // scraping along it
             }
           }
       }
@@ -6467,51 +8731,64 @@
         }
         const top = boost ? 52 : 38;
         if (thr)
-          car.speed +=
+          drv.speed +=
             16 *
             (boost ? 1.5 : 1) *
-            Math.max(0.25, 1 - Math.abs(car.speed) / top) *
+            Math.max(0.25, 1 - Math.abs(drv.speed) / top) *
             thr *
             dt;
         if (brk) {
-          if (car.speed > 0.5) car.speed -= 30 * brk * dt;
-          else car.speed = Math.max(car.speed - 9 * brk * dt, -12);
+          if (drv.speed > 0.5) drv.speed -= 30 * brk * dt;
+          else drv.speed = Math.max(drv.speed - 9 * brk * dt, -12);
         }
         if (handbrake)
-          car.speed -=
-            Math.sign(car.speed) * Math.min(Math.abs(car.speed), 34 * dt);
-        car.speed -=
-          car.speed * 0.55 * dt +
-          Math.sign(car.speed) * Math.min(Math.abs(car.speed), 0.9 * dt);
-        if (Math.abs(car.speed) < 0.03 && !thr && !brk) car.speed = 0;
+          drv.speed -=
+            Math.sign(drv.speed) * Math.min(Math.abs(drv.speed), 34 * dt);
+        drv.speed -=
+          drv.speed * 0.55 * dt +
+          Math.sign(drv.speed) * Math.min(Math.abs(drv.speed), 0.9 * dt);
+        if (Math.abs(drv.speed) < 0.03 && !thr && !brk) drv.speed = 0;
 
-        const maxSteer = 0.6 / (1 + Math.abs(car.speed) * 0.05);
-        car.steer += (steerIn * maxSteer - car.steer) * Math.min(1, dt * 7);
-        car.yaw += car.steer * (car.speed / 2.9) * dt;
+        const maxSteer = 0.6 / (1 + Math.abs(drv.speed) * 0.05);
+        drv.steer += (steerIn * maxSteer - drv.steer) * Math.min(1, dt * 7);
+        drv.yaw += drv.steer * (drv.speed / 2.9) * dt;
 
-        car.pos.x += Math.sin(car.yaw) * car.speed * dt;
-        car.pos.z += Math.cos(car.yaw) * car.speed * dt;
+        drv.pos.x += Math.sin(drv.yaw) * drv.speed * dt;
+        drv.pos.z += Math.cos(drv.yaw) * drv.speed * dt;
         carCollide();
-
-        car.g.position.copy(car.pos);
-        car.g.rotation.set(0, car.yaw, 0);
-        for (const w of car.wheels) {
-          if (w.front) w.pivot.rotation.y = car.steer;
-          w.spin.rotation.x -= (car.speed / 0.37) * dt;
+        // parked & passing cars: shove apart, and bounce if she drove into one
+        if (hallPush(drv.pos, 1.05, true)) drv.speed *= 0.4; // the music hall
+        const bump = pushOffCars(drv.pos, 1.05);
+        if (bump) {
+          const into = Math.sin(drv.yaw) * bump[0] + Math.cos(drv.yaw) * bump[1];
+          if (into * Math.sign(drv.speed || 1) < -0.4) {
+            if (Math.abs(drv.speed) > 10 && nowS() - lastCrashT > 1.2) {
+              lastCrashT = nowS();
+              screenBurst(["💥", "💫"], 6);
+            }
+            drv.speed *= -0.25;
+          } else drv.speed *= 0.95;
         }
-        car.tail.material.emissiveIntensity =
-          brk && car.speed > 0.5 ? 3.4 : 0.9;
-        for (const L of car.lamps) L.intensity = 2.4 + 4.2 * uNight.value;
-        headlightMat.emissiveIntensity = 0.4 + 1.8 * uNight.value;
+
+        drv.g.position.copy(drv.pos);
+        drv.g.rotation.set(0, drv.yaw, 0);
+        for (const w of drv.wheels) {
+          if (w.front) w.pivot.rotation.y = drv.steer;
+          w.spin.rotation.x -= (drv.speed / 0.37) * dt;
+        }
+        drv.tail.material.emissiveIntensity =
+          brk && drv.speed > 0.5 ? 3.4 : 0.9;
+        for (const L of drv.lamps) L.intensity = 2.4 + 4.2 * uNight.value;
+        drv.headMat.emissiveIntensity = 0.4 + 1.8 * uNight.value;
 
         // chase camera — mouse / touch peeks around, then settles behind the car
         const recent = nowS() - lastLookT < 1.3;
-        yaw = angLerp(yaw, car.yaw + Math.PI, dt * (recent ? 0.6 : 3.4));
+        yaw = angLerp(yaw, drv.yaw + Math.PI, dt * (recent ? 0.6 : 3.4));
         pitch += (-0.16 - pitch) * Math.min(1, dt * (recent ? 0.4 : 2.2));
         pitch = Math.max(-1.1, Math.min(0.6, pitch));
-        const tx = car.pos.x,
-          ty = car.pos.y + 1.5,
-          tz = car.pos.z;
+        const tx = drv.pos.x,
+          ty = drv.pos.y + 1.5,
+          tz = drv.pos.z;
         const cp = Math.cos(pitch),
           d = 8.8;
         camera.position.set(
@@ -6520,6 +8797,7 @@
           tz + Math.cos(yaw) * cp * d,
         );
         pushOutPoint(camera.position, 0.7);
+        hallCamera(camera.position, focusPos());
         if (camera.position.y < 1.3) camera.position.y = 1.3;
         camera.lookAt(tx, ty, tz);
       }
@@ -6712,6 +8990,7 @@
           tz + Math.cos(yaw) * cp * d,
         );
         pushOutPoint(camera.position, 0.7);
+        hallCamera(camera.position, focusPos());
         if (camera.position.y < 1.3) camera.position.y = 1.3;
         camera.lookAt(tx, ty, tz);
       }
@@ -6743,7 +9022,7 @@
         }
 
         // beams + floating icons only while parked
-        const carParked = vehMode !== "car";
+        const carParked = !driving(car);
         carBeam.visible = carParked;
         carMark.visible = carParked;
         if (carParked) {
@@ -6754,10 +9033,14 @@
             6 + Math.sin(t * 1.5) * 0.5,
             car.pos.z,
           );
-          car.tail.material.emissiveIntensity = 0.7;
-          headlightMat.emissiveIntensity = 0.3;
-          for (const L of car.lamps) L.intensity = 0;
         }
+        // a car nobody is driving keeps its lights low
+        for (const rig of [car, streetCar])
+          if (!driving(rig)) {
+            rig.tailMat.emissiveIntensity = 0.7;
+            rig.headMat.emissiveIntensity = 0.3;
+            for (const L of rig.lamps) L.intensity = 0;
+          }
         const planeParked = vehMode !== "plane";
         planeBeam.visible = planeParked;
         planeMark.visible = planeParked;
@@ -6773,19 +9056,50 @@
 
         // proximity prompt (on foot only)
         nearVehicle = null;
+        nearParked = null;
         if (vehMode === "walk" && started && !uiPaused) {
           if (girl.pos.distanceTo(car.pos) < 5.5) nearVehicle = "car";
+          else if (streetCar.active && girl.pos.distanceTo(streetCar.pos) < 4.2)
+            nearVehicle = "street";
           else if (girl.pos.distanceTo(plane.pos) < 10) nearVehicle = "plane";
+          else if (girl.pos.y < 1.5) {
+            // 🚗 every parked car on the street can be driven
+            nearParked = nearestParked(girl.pos, 3.9);
+            if (nearParked) nearVehicle = "parked";
+          }
         }
-        if (nearVehicle) {
+        nearMusic =
+          !nearVehicle && vehMode === "walk" && started && !uiPaused
+            ? hallNear(girl.pos)
+            : null;
+        if (!nearVehicle && nearMusic) {
+          const txt =
+            nearMusic === "piano"
+              ? isTouch
+                ? "🎹 Play the piano"
+                : "🎹 F — Play the piano"
+              : music && !music.paused
+                ? isTouch
+                  ? "💿 Stop the record"
+                  : "💿 F — Stop the record"
+                : isTouch
+                  ? "💿 Play the record"
+                  : "💿 F — Play the record";
+          if (promptEl.textContent !== txt) promptEl.textContent = txt;
+          promptEl.classList.add("show");
+        } else if (nearVehicle) {
           const txt =
             nearVehicle === "car"
               ? isTouch
                 ? "🚗 Rose VIP Car"
                 : "🚗 F — Rose VIP Car"
-              : isTouch
-                ? "🛩️ Rose VIP Plane"
-                : "🛩️ F — Rose VIP Plane";
+              : nearVehicle === "plane"
+                ? isTouch
+                  ? "🛩️ Rose VIP Plane"
+                  : "🛩️ F — Rose VIP Plane"
+                : isTouch
+                  ? "🚗 Drive"
+                  : "🚗 F — Drive";
           if (promptEl.textContent !== txt) promptEl.textContent = txt;
           promptEl.classList.add("show");
         } else if (vehMode === "walk" && promptEl.classList.contains("show")) {
@@ -6795,13 +9109,13 @@
         // speed HUD while riding
         if (vehMode !== "walk") {
           const kmh = Math.round(
-            Math.abs(vehMode === "car" ? car.speed : plane.speed) * 3.6,
+            Math.abs(vehMode === "car" ? drv.speed : plane.speed) * 3.6,
           );
           // on phones the ⬇️ button is the way out — no "F" hint there
           const exitHint = isTouch ? "" : " · F للنزول";
           const txt =
             vehMode === "car"
-              ? `🚗 Rose VIP · ${kmh} km/h${exitHint}`
+              ? `🚗 ${drv.vip ? "Rose VIP · " : ""}${kmh} km/h${exitHint}`
               : `🛩️ Rose VIP · ${kmh} km/h · ⬆ ${Math.max(0, Math.round(plane.pos.y - PLANE_GEAR))}m${exitHint}`;
           if (txt !== lastVehHud) {
             vehHud.textContent = txt;
@@ -6815,11 +9129,17 @@
             ? ""
             : vehMode !== "walk"
               ? "⬇️"
-              : nearVehicle === "car"
+              : nearVehicle === "car" ||
+                  nearVehicle === "street" ||
+                  nearVehicle === "parked"
                 ? "🚗"
                 : nearVehicle === "plane"
                   ? "🛫"
-                  : "";
+                  : nearMusic === "piano"
+                    ? "🎹"
+                    : nearMusic === "vinyl"
+                      ? "💿"
+                      : "";
         if (btnIcon !== lastVehBtn) {
           lastVehBtn = btnIcon;
           vehBtn.style.display = btnIcon ? "flex" : "none";
@@ -6827,6 +9147,652 @@
         }
 
         tuneEngine();
+      }
+
+      // ============================================================================
+      // 🚦🚗  STREET LIFE — traffic lights, parked cars she can get into and drive,
+      // bus shelters with glowing birthday posters, and rooftop details (water
+      // tanks, AC units, helipads). Everything is instanced into a handful of
+      // shared meshes: the static props are re-poured from a per-chunk cache
+      // whenever she crosses into a new chunk; the lights update every frame.
+      // ============================================================================
+      const PARK_LAT = 4.0; // parked cars hug the kerb
+      const CAR_PAINTS = [
+        0xf4f4f6, 0x111216, 0x9aa1ad, 0xd21324, 0x2b5fd9, 0xff8fb8, 0x6fe0c0,
+        0xe8c26a, 0xb08cff, 0x1d6b4a, 0xff6a3d,
+      ];
+      const mergeNI = (list) =>
+        mergeGeometries(list.map((g) => (g.index ? g.toNonIndexed() : g)));
+      const placed = (geo, x, y, z, rx = 0, ry = 0, rz = 0) => {
+        geo.rotateX(rx);
+        geo.rotateY(ry);
+        geo.rotateZ(rz);
+        geo.translate(x, y, z);
+        return geo;
+      };
+
+      // ---- 🚦 traffic-light timing ----------------------------------------------
+      // dir 0 = faces for streets along X, dir 1 = along Z. 0 green · 1 amber · 2 red
+      const TL_CYCLE = 18;
+      function tlState(gx, gz, t, dir) {
+        const ph = (t + hash(gx, gz, 80) * TL_CYCLE) % TL_CYCLE;
+        if (dir === 1) return ph < 7 ? 0 : ph < 9 ? 1 : 2;
+        return ph < 9 ? 2 : ph < 16 ? 0 : 1;
+      }
+      const inClearing = (gx, gz) => inPark(gx, gz) || inAirport(gx, gz);
+      function isLightNode(gx, gz) {
+        return !(
+          inClearing(gx - 1, gz - 1) ||
+          inClearing(gx, gz - 1) ||
+          inClearing(gx - 1, gz) ||
+          inClearing(gx, gz)
+        );
+      }
+
+      // ---- parked cars: deterministic per road segment (so collisions can find
+      // them without storing anything). dir/n = the road, m = segment along it.
+      // A car she drove away is "taken"; cars she leaves behind go in extraCars.
+      const takenParked = new Set();
+      const extraCars = [];
+      const EXTRA_MAX = 24;
+      function parkedAt(dir, m, n) {
+        if (hash(m, n, 90 + dir) > 0.3) return null;
+        const key = dir + "," + m + "," + n;
+        if (takenParked.has(key)) return null;
+        const ax = dir ? n - 1 : m,
+          az = dir ? m : n - 1,
+          bx = dir ? n : m,
+          bz = dir ? m : n;
+        if (inClearing(ax, az) || inClearing(bx, bz)) return null;
+        const side = hash(m, n, 92 + dir) < 0.5 ? -1 : 1;
+        const along = (m + 0.5 + (hash(m, n, 94 + dir) - 0.5) * 0.25) * TILE;
+        const lat = n * TILE + side * PARK_LAT;
+        const col = CAR_PAINTS[(hash(m, n, 96 + dir) * CAR_PAINTS.length) | 0];
+        return dir === 0
+          ? { x: along, z: lat, yaw: side > 0 ? Math.PI / 2 : -Math.PI / 2, col, dir, m, n, key }
+          : { x: lat, z: along, yaw: side > 0 ? Math.PI : 0, col, dir, m, n, key };
+      }
+
+      // ---- shared low-poly car parts (same sculpted shape as her VIP car) --------
+      const fleetBodyGeo = extrudeSide(carBodyShape(), 1.9, 0.08, 6);
+      const fleetGlassGeo = extrudeSide(carGlassShape(), 1.54, 0.06, 6);
+      const fleetDarkGeo = mergeNI([
+        ...WHEEL_XZ.map(([x, z]) =>
+          placed(new THREE.CylinderGeometry(0.36, 0.36, 0.28, 12), x, 0.36, z, 0, 0, Math.PI / 2),
+        ),
+        placed(new THREE.BoxGeometry(1.96, 0.12, 2.3), 0, 0.3, 0),
+        placed(new THREE.BoxGeometry(1.6, 0.1, 0.3), 0, 0.27, 2.12),
+      ]);
+      const fleetHeadGeo = mergeNI([
+        placed(new THREE.BoxGeometry(0.5, 0.06, 0.1), 0.58, 0.74, 2.24),
+        placed(new THREE.BoxGeometry(0.5, 0.06, 0.1), -0.58, 0.74, 2.24),
+      ]);
+      const fleetTailGeo = placed(new THREE.BoxGeometry(1.74, 0.08, 0.06), 0, 0.86, -2.3);
+      const FLEET_PAINT = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        roughness: 0.28,
+        metalness: 0.65,
+      });
+      const LIGHT_MAT = new THREE.MeshBasicMaterial({ color: 0xffffff });
+
+      // ---- pools: one InstancedMesh per part, refilled as she moves --------------
+      function makePool(geo, mat, cap, colored, shadow = false) {
+        const im = new THREE.InstancedMesh(geo, mat, cap);
+        im.count = 0;
+        im.frustumCulled = false; // instances move around — skip stale culling
+        im.castShadow = shadow;
+        if (colored)
+          im.instanceColor = new THREE.InstancedBufferAttribute(
+            new Float32Array(cap * 3),
+            3,
+          );
+        scene.add(im);
+        return im;
+      }
+      const PROP_R = isTouch ? 1 : 2; // chunks (radius) that get street props
+      const PROP_CHUNKS = (2 * PROP_R + 1) * (2 * PROP_R + 1);
+      const LOT_N = CHUNK * CHUNK;
+      const FLEET_CAP = PROP_CHUNKS * LOT_N * 2 + EXTRA_MAX;
+      const fleet = {
+        body: makePool(fleetBodyGeo, FLEET_PAINT, FLEET_CAP, true, true),
+        glass: makePool(fleetGlassGeo, GLASS_DARK, FLEET_CAP, false),
+        dark: makePool(fleetDarkGeo, TIRE, FLEET_CAP, false),
+        head: makePool(fleetHeadGeo, LIGHT_MAT, FLEET_CAP, true),
+        tail: makePool(fleetTailGeo, LIGHT_MAT, FLEET_CAP, true),
+      };
+      let parkedCount = 0;
+
+      // 🚏 bus shelters: metal frame, glass back, and a glowing birthday poster
+      const busFrames = makePool(
+        mergeNI([
+          placed(new THREE.BoxGeometry(3.8, 0.12, 1.5), 0, 2.55, 0),
+          ...[
+            [-1.8, -0.6],
+            [1.8, -0.6],
+            [-1.8, 0.6],
+            [1.8, 0.6],
+          ].map(([x, z]) => placed(new THREE.BoxGeometry(0.09, 2.5, 0.09), x, 1.25, z)),
+          placed(new THREE.BoxGeometry(2.4, 0.08, 0.42), 0, 0.5, -0.35),
+          placed(new THREE.BoxGeometry(0.06, 0.5, 0.35), -1.0, 0.25, -0.35),
+          placed(new THREE.BoxGeometry(0.06, 0.5, 0.35), 1.0, 0.25, -0.35),
+        ]),
+        new THREE.MeshStandardMaterial({
+          color: 0x23242c,
+          roughness: 0.4,
+          metalness: 0.75,
+        }),
+        PROP_CHUNKS * LOT_N,
+        false,
+      );
+      const busGlass = makePool(
+        placed(new THREE.BoxGeometry(3.5, 1.9, 0.04), 0, 1.3, -0.66),
+        new THREE.MeshStandardMaterial({
+          color: 0x9fc8ff,
+          roughness: 0.05,
+          metalness: 0.2,
+          transparent: true,
+          opacity: 0.28,
+          depthWrite: false,
+        }),
+        PROP_CHUNKS * LOT_N,
+        false,
+      );
+      function makePosterTexture() {
+        const W = 256,
+          H = 400,
+          cv = document.createElement("canvas");
+        cv.width = W;
+        cv.height = H;
+        const g = cv.getContext("2d");
+        const bg = g.createLinearGradient(0, 0, 0, H);
+        bg.addColorStop(0, "#ff5d9e");
+        bg.addColorStop(1, "#7a2fe0");
+        g.fillStyle = bg;
+        g.fillRect(0, 0, W, H);
+        g.strokeStyle = "rgba(255,255,255,0.85)";
+        g.lineWidth = 8;
+        g.strokeRect(10, 10, W - 20, H - 20);
+        sprinkleConfetti(g, W, H, 40);
+        g.font = '64px "Segoe UI Emoji", "Apple Color Emoji", serif';
+        g.textAlign = "center";
+        g.textBaseline = "middle";
+        g.fillText("🎂", W / 2, 80);
+        drawBirthday(g, W / 2, 225, 210, 44, "rgba(60,8,40,0.7)");
+        const t = new THREE.CanvasTexture(cv);
+        t.colorSpace = THREE.SRGBColorSpace;
+        return t;
+      }
+      const posterTex = makePosterTexture();
+      const busAds = makePool(
+        placed(new THREE.PlaneGeometry(1.2, 1.9), 1.82, 1.3, 0, 0, Math.PI / 2),
+        new THREE.MeshStandardMaterial({
+          map: posterTex,
+          emissiveMap: posterTex,
+          emissive: 0xffffff,
+          emissiveIntensity: 0.9,
+          roughness: 0.4,
+          side: THREE.DoubleSide,
+        }),
+        PROP_CHUNKS * LOT_N,
+        false,
+      );
+
+      // 🏙️ rooftops: water tanks on legs, AC units, and a few glowing helipads
+      const roofTanks = makePool(
+        mergeNI([
+          ...[
+            [0.6, 0.6],
+            [-0.6, 0.6],
+            [0.6, -0.6],
+            [-0.6, -0.6],
+          ].map(([x, z]) => placed(new THREE.CylinderGeometry(0.07, 0.07, 0.5, 5), x, 0.25, z)),
+          placed(new THREE.CylinderGeometry(1, 1, 1.5, 12), 0, 1.25, 0),
+          placed(new THREE.ConeGeometry(1.06, 0.55, 12), 0, 2.28, 0),
+        ]),
+        new THREE.MeshStandardMaterial({
+          color: 0x6a5560,
+          roughness: 0.85,
+          metalness: 0.2,
+        }),
+        PROP_CHUNKS * LOT_N,
+        false,
+        true,
+      );
+      const roofACs = makePool(
+        mergeNI([
+          placed(new THREE.BoxGeometry(1, 0.7, 1), 0, 0.35, 0),
+          placed(new THREE.CylinderGeometry(0.33, 0.33, 0.06, 12), 0, 0.73, 0),
+        ]),
+        new THREE.MeshStandardMaterial({
+          color: 0x9aa0aa,
+          roughness: 0.6,
+          metalness: 0.5,
+        }),
+        PROP_CHUNKS * LOT_N * 8,
+        false,
+      );
+      function makeHelipadTexture() {
+        const S = 256,
+          cv = document.createElement("canvas");
+        cv.width = cv.height = S;
+        const g = cv.getContext("2d");
+        g.fillStyle = "#1c1a22";
+        g.beginPath();
+        g.arc(S / 2, S / 2, S * 0.49, 0, 7);
+        g.fill();
+        g.strokeStyle = "#ffd76a";
+        g.lineWidth = 10;
+        g.beginPath();
+        g.arc(S / 2, S / 2, S * 0.4, 0, 7);
+        g.stroke();
+        g.strokeStyle = "#ff5d9e";
+        g.lineWidth = 5;
+        g.beginPath();
+        g.arc(S / 2, S / 2, S * 0.46, 0, 7);
+        g.stroke();
+        g.fillStyle = "#ffffff";
+        g.font = "900 120px Arial, sans-serif";
+        g.textAlign = "center";
+        g.textBaseline = "middle";
+        g.fillText("H", S / 2, S / 2 + 6);
+        const t = new THREE.CanvasTexture(cv);
+        t.colorSpace = THREE.SRGBColorSpace;
+        t.anisotropy = 4;
+        return t;
+      }
+      const padTex = makeHelipadTexture();
+      const roofPads = makePool(
+        placed(new THREE.PlaneGeometry(2, 2), 0, 0, 0, -Math.PI / 2),
+        new THREE.MeshStandardMaterial({
+          map: padTex,
+          emissiveMap: padTex,
+          emissive: 0xffffff,
+          emissiveIntensity: 0.55,
+          roughness: 0.7,
+          alphaTest: 0.5,
+        }),
+        PROP_CHUNKS * LOT_N,
+        false,
+      );
+
+      // ---- per-chunk prop placement (pure data, cached) --------------------------
+      function propBucket(colored) {
+        return { m: [], c: colored ? [] : null };
+      }
+      function pushProp(b, x, y, z, ry, sx, sy, sz, col) {
+        dummy.position.set(x, y, z);
+        dummy.rotation.set(0, ry, 0);
+        dummy.scale.set(sx, sy, sz);
+        dummy.updateMatrix();
+        for (let i = 0; i < 16; i++) b.m.push(dummy.matrix.elements[i]);
+        if (b.c) {
+          tmpColor.setHex(col);
+          b.c.push(tmpColor.r, tmpColor.g, tmpColor.b);
+        }
+      }
+      const SIDES = [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ];
+      function computeChunkProps(cx, cz) {
+        const P = {
+          bus: propBucket(false),
+          tank: propBucket(false),
+          ac: propBucket(false),
+          pad: propBucket(false),
+          cars: propBucket(true),
+        };
+        const dB = TILE / 2 - ROAD_HW - 1.35; // bus-shelter line
+        for (let lx = 0; lx < CHUNK; lx++)
+          for (let lz = 0; lz < CHUNK; lz++) {
+            const gx = cx * CHUNK + lx,
+              gz = cz * CHUNK + lz;
+            // parked cars on the two road segments this lot "owns"
+            for (let dir = 0; dir < 2; dir++) {
+              const pc = dir ? parkedAt(1, gz, gx) : parkedAt(0, gx, gz);
+              if (pc) pushProp(P.cars, pc.x, 0, pc.z, pc.yaw, 1, 1, 1, pc.col);
+            }
+            const spec = towerSpec(gx, gz);
+            if (!spec) continue;
+            const lcx = gx * TILE + TILE / 2,
+              lcz = gz * TILE + TILE / 2;
+            // ---- pavements: the odd bus shelter
+            for (let si = 0; si < 4; si++) {
+              const [nx, nz] = SIDES[si];
+              const ext = nx
+                ? (spec.x - lcx) * nx + spec.fw / 2
+                : (spec.z - lcz) * nz + spec.fd / 2;
+              if (hash(gx, gz, 60 + si) < 0.07 && ext <= dB - 0.85)
+                pushProp(P.bus, lcx + nx * dB, 0, lcz + nz * dB, Math.atan2(nx, nz), 1, 1, 1);
+            }
+            // ---- rooftops
+            const H = spec.roof;
+            if (!spec.masts.length && H >= 70 && hash(gx, gz, 70) < 0.35) {
+              const r = Math.min(spec.topW, spec.topD) * 0.46;
+              pushProp(P.pad, spec.x, H + 0.07, spec.z, 0, r, 1, r);
+            } else if (hash(gx, gz, 71) < 0.6) {
+              const sx = spec.masts.length ? -Math.sign(spec.masts[0].x) : hash(gx, gz, 72) < 0.5 ? -1 : 1;
+              const sz = spec.masts.length ? -Math.sign(spec.masts[0].z) : hash(gx, gz, 73) < 0.5 ? -1 : 1;
+              const ts = Math.min(spec.topW, spec.topD) * 0.14;
+              pushProp(P.tank, spec.x + sx * spec.topW * 0.24, H, spec.z + sz * spec.topD * 0.24, hash(gx, gz, 74) * 6, ts, ts * 1.1, ts);
+            }
+            if (spec.tiers.length === 3) {
+              // AC units on the setback terraces
+              for (let ti = 0; ti < 2; ti++) {
+                const lo = spec.tiers[ti],
+                  hi = spec.tiers[ti + 1];
+                for (let si = 0; si < 4; si++) {
+                  if (hash(gx * 5 + ti, gz * 7 + si, 75) > (ti ? 0.3 : 0.55)) continue;
+                  const [nx, nz] = SIDES[si];
+                  const ox = (nx * (lo.w + hi.w)) / 4,
+                    oz = (nz * (lo.d + hi.d)) / 4;
+                  pushProp(P.ac, spec.x + ox, lo.h, spec.z + oz, nx ? Math.PI / 2 : 0, 0.9, 0.9, 0.9);
+                }
+              }
+            } else {
+              pushProp(P.ac, spec.x + spec.fw * 0.2, H, spec.z - spec.fd * 0.2, 0, 1, 1, 1);
+              pushProp(P.ac, spec.x - spec.fw * 0.2, H, spec.z + spec.fd * 0.18, 0.3, 1, 1, 1);
+            }
+          }
+        for (const k in P) {
+          P[k].m = new Float32Array(P[k].m);
+          if (P[k].c) P[k].c = new Float32Array(P[k].c);
+        }
+        return P;
+      }
+      const propCache = new Map();
+      function chunkProps(cx, cz) {
+        const key = cx + "," + cz;
+        let p = propCache.get(key);
+        if (!p) {
+          if (propCache.size > 160) propCache.clear();
+          p = computeChunkProps(cx, cz);
+          propCache.set(key, p);
+        }
+        return p;
+      }
+      // pour a field of several chunks' buckets into a pool; returns the count
+      function pour(im, list, field) {
+        const cap = im.instanceMatrix.count;
+        let n = 0;
+        for (const P of list) {
+          const b = P[field];
+          const k = Math.min(b.m.length / 16, cap - n);
+          if (k <= 0) break;
+          im.instanceMatrix.array.set(b.m.subarray(0, k * 16), n * 16);
+          if (b.c && im.instanceColor)
+            im.instanceColor.array.set(b.c.subarray(0, k * 3), n * 3);
+          n += k;
+        }
+        im.instanceMatrix.needsUpdate = true;
+        if (im.instanceColor) im.instanceColor.needsUpdate = true;
+        return n;
+      }
+      const _headOff = new THREE.Color(0.32, 0.3, 0.28),
+        _tailOff = new THREE.Color(0.35, 0.02, 0.03);
+      let propKey = "";
+      function updateStreetProps() {
+        const ccx = Math.floor(camera.position.x / CHUNK_SIZE),
+          ccz = Math.floor(camera.position.z / CHUNK_SIZE);
+        const key = ccx + "," + ccz;
+        if (key === propKey) return;
+        propKey = key;
+        const list = [];
+        for (let dx = -PROP_R; dx <= PROP_R; dx++)
+          for (let dz = -PROP_R; dz <= PROP_R; dz++)
+            if (dx * dx + dz * dz <= (PROP_R + 0.5) * (PROP_R + 0.5))
+              list.push(chunkProps(ccx + dx, ccz + dz));
+        busFrames.count = pour(busFrames, list, "bus");
+        busGlass.count = pour(busGlass, list, "bus");
+        busAds.count = pour(busAds, list, "bus");
+        roofTanks.count = pour(roofTanks, list, "tank");
+        roofACs.count = pour(roofACs, list, "ac");
+        roofPads.count = pour(roofPads, list, "pad");
+        // the street's parked cars, then the cars she drove & left behind
+        parkedCount = Math.min(pour(fleet.body, list, "cars"), FLEET_CAP - EXTRA_MAX);
+        for (const part of ["glass", "dark", "head", "tail"])
+          pour(fleet[part], list, "cars");
+        let n = parkedCount;
+        for (const e of extraCars) {
+          dummy.position.set(e.x, 0, e.z);
+          dummy.rotation.set(0, e.yaw, 0);
+          dummy.scale.set(1, 1, 1);
+          dummy.updateMatrix();
+          for (const part in fleet) fleet[part].setMatrixAt(n, dummy.matrix);
+          fleet.body.setColorAt(n, tmpColor.setHex(e.col));
+          n++;
+        }
+        for (let i = 0; i < n; i++) {
+          fleet.head.setColorAt(i, _headOff);
+          fleet.tail.setColorAt(i, _tailOff);
+        }
+        for (const part in fleet) {
+          fleet[part].count = n;
+          fleet[part].instanceMatrix.needsUpdate = true;
+          if (fleet[part].instanceColor) fleet[part].instanceColor.needsUpdate = true;
+        }
+      }
+
+      // ---- 🚗 getting into any parked car ----------------------------------------
+      function nearestParked(p, maxD) {
+        let best = null,
+          bd = maxD;
+        const test = (o) => {
+          const d = Math.hypot(o.x - p.x, o.z - p.z);
+          if (d < bd) {
+            bd = d;
+            best = o;
+          }
+        };
+        const n0 = Math.round(p.z / TILE),
+          m0 = Math.floor(p.x / TILE);
+        for (let m = m0 - 1; m <= m0 + 1; m++) {
+          const pc = parkedAt(0, m, n0);
+          if (pc) test(pc);
+        }
+        const n1 = Math.round(p.x / TILE),
+          m1 = Math.floor(p.z / TILE);
+        for (let m = m1 - 1; m <= m1 + 1; m++) {
+          const pc = parkedAt(1, m, n1);
+          if (pc) test(pc);
+        }
+        extraCars.forEach((e, i) => {
+          e.extra = i;
+          test(e);
+        });
+        return best;
+      }
+      // the street car she drove before is left parked where she stopped it
+      function stashStreetCar() {
+        extraCars.push({
+          x: streetCar.pos.x,
+          z: streetCar.pos.z,
+          yaw: streetCar.yaw,
+          col: streetCar.col,
+        });
+        if (extraCars.length > EXTRA_MAX) extraCars.shift();
+        streetCar.active = false;
+        streetCar.pos.set(0, -500, 0);
+        streetCar.g.position.copy(streetCar.pos);
+      }
+      function takeParked(t) {
+        if (!t) return;
+        // lift this car off the street…
+        if (t.extra !== undefined) extraCars.splice(t.extra, 1);
+        else {
+          takenParked.add(t.key);
+          const gx = t.dir ? t.n : t.m,
+            gz = t.dir ? t.m : t.n;
+          propCache.delete(
+            Math.floor(gx / CHUNK) + "," + Math.floor(gz / CHUNK),
+          );
+        }
+        // …park the one she had before in its place on the kerb…
+        if (streetCar.active) stashStreetCar();
+        propKey = ""; // re-pour the parked cars next frame
+        // …and turn the street-car rig into this one, then drive off
+        streetCar.pos.set(t.x, 0, t.z);
+        streetCar.yaw = t.yaw;
+        streetCar.speed = 0;
+        streetCar.steer = 0;
+        streetCar.col = t.col;
+        streetCar.paint.color.setHex(t.col);
+        streetCar.active = true;
+        streetCar.g.position.copy(streetCar.pos);
+        streetCar.g.rotation.set(0, t.yaw, 0);
+        enterCar(streetCar);
+      }
+
+      // ---- 🚦 traffic lights around her (pooled K×K intersections) ---------------
+      const TL_K = isTouch ? 7 : 9;
+      const TL_N = TL_K * TL_K;
+      const tlPoles = makePool(
+        mergeNI([
+          placed(new THREE.CylinderGeometry(0.09, 0.12, 4.4, 8), 0, 2.2, 0),
+          placed(new THREE.BoxGeometry(0.48, 1.32, 0.48), 0, 4.25, 0),
+          placed(new THREE.BoxGeometry(0.58, 0.08, 0.58), 0, 4.95, 0),
+        ]),
+        new THREE.MeshStandardMaterial({
+          color: 0x15161c,
+          roughness: 0.5,
+          metalness: 0.7,
+        }),
+        TL_N,
+        false,
+      );
+      const tlBulbs = makePool(
+        new THREE.SphereGeometry(0.11, 8, 6),
+        LIGHT_MAT,
+        TL_N * 12,
+        true,
+      );
+      tlPoles.count = TL_N;
+      tlBulbs.count = TL_N * 12;
+      // per face: normal (x, z) and which traffic stream that face talks to
+      const TL_FACES = [
+        [1, 0, 0],
+        [-1, 0, 0],
+        [0, 1, 1],
+        [0, -1, 1],
+      ];
+      const TL_ON = [
+        new THREE.Color(0.25, 3.2, 0.9), // green
+        new THREE.Color(3.4, 2.1, 0.15), // amber
+        new THREE.Color(3.6, 0.12, 0.12), // red
+      ];
+      const TL_OFF = [
+        new THREE.Color(0.02, 0.12, 0.05),
+        new THREE.Color(0.14, 0.09, 0.02),
+        new THREE.Color(0.16, 0.02, 0.02),
+      ];
+      const tlNodes = new Array(TL_N).fill(null);
+      let tlKey = "";
+      function updateTrafficLights(t) {
+        const bx = Math.round(camera.position.x / TILE),
+          bz = Math.round(camera.position.z / TILE);
+        const key = bx + "," + bz;
+        if (key !== tlKey) {
+          tlKey = key;
+          let i = 0;
+          const h = (TL_K - 1) / 2;
+          for (let ox = -h; ox <= h; ox++)
+            for (let oz = -h; oz <= h; oz++, i++) {
+              const gx = bx + ox,
+                gz = bz + oz;
+              const live = isLightNode(gx, gz);
+              tlNodes[i] = live ? [gx, gz] : null;
+              // the pole stands on the corner diagonally opposite the street lamp
+              const px = gx * TILE - LAMP_OFF,
+                pz = gz * TILE - LAMP_OFF;
+              dummy.rotation.set(0, 0, 0);
+              dummy.scale.setScalar(live ? 1 : 0.0001);
+              dummy.position.set(px, live ? 0 : -50, pz);
+              dummy.updateMatrix();
+              tlPoles.setMatrixAt(i, dummy.matrix);
+              for (let f = 0; f < 4; f++)
+                for (let b = 0; b < 3; b++) {
+                  const [fx, fz] = TL_FACES[f];
+                  dummy.position.set(
+                    px + fx * 0.25,
+                    live ? 4.25 + 0.38 - b * 0.38 : -50,
+                    pz + fz * 0.25,
+                  );
+                  dummy.updateMatrix();
+                  tlBulbs.setMatrixAt(i * 12 + f * 3 + b, dummy.matrix);
+                }
+            }
+          tlPoles.instanceMatrix.needsUpdate = true;
+          tlBulbs.instanceMatrix.needsUpdate = true;
+        }
+        // bulbs top → bottom: red, amber, green
+        for (let i = 0; i < TL_N; i++) {
+          const nd = tlNodes[i];
+          if (!nd) continue;
+          for (let f = 0; f < 4; f++) {
+            const st = tlState(nd[0], nd[1], t, TL_FACES[f][2]);
+            for (let b = 0; b < 3; b++) {
+              const which = 2 - b; // b0 = red(2), b1 = amber(1), b2 = green(0)
+              tlBulbs.setColorAt(
+                i * 12 + f * 3 + b,
+                st === which ? TL_ON[which] : TL_OFF[which],
+              );
+            }
+          }
+        }
+        tlBulbs.instanceColor.needsUpdate = true;
+      }
+
+      // ---- bumping into cars: every car she isn't driving is solid -----------------
+      const _circles = [];
+      function carCircles(x, z) {
+        _circles.length = 0;
+        const add = (cx, cz, yaw) => {
+          const fx = Math.sin(yaw) * 1.2,
+            fz = Math.cos(yaw) * 1.2;
+          _circles.push(cx + fx, cz + fz, cx - fx, cz - fz);
+        };
+        const n0 = Math.round(z / TILE),
+          m0 = Math.floor(x / TILE);
+        for (let m = m0 - 1; m <= m0 + 1; m++) {
+          const pc = parkedAt(0, m, n0);
+          if (pc) add(pc.x, pc.z, pc.yaw);
+        }
+        const n1 = Math.round(x / TILE),
+          m1 = Math.floor(z / TILE);
+        for (let m = m1 - 1; m <= m1 + 1; m++) {
+          const pc = parkedAt(1, m, n1);
+          if (pc) add(pc.x, pc.z, pc.yaw);
+        }
+        for (const e of extraCars)
+          if (Math.abs(e.x - x) < 9 && Math.abs(e.z - z) < 9) add(e.x, e.z, e.yaw);
+        for (const rig of [car, streetCar])
+          if (
+            !driving(rig) &&
+            Math.abs(rig.pos.x - x) < 9 &&
+            Math.abs(rig.pos.z - z) < 9
+          )
+            add(rig.pos.x, rig.pos.z, rig.yaw);
+        return _circles;
+      }
+      // push point p out of every nearby car; returns the last push normal (or null)
+      function pushOffCars(p, r) {
+        if (p.y > 1.5) return null;
+        const cs = carCircles(p.x, p.z);
+        let hit = null;
+        for (let i = 0; i < cs.length; i += 2) {
+          const dx = p.x - cs[i],
+            dz = p.z - cs[i + 1];
+          const d = Math.hypot(dx, dz),
+            R = 1.05 + r;
+          if (d < R && d > 1e-4) {
+            p.x += (dx / d) * (R - d);
+            p.z += (dz / d) * (R - d);
+            hit = [dx / d, dz / d];
+          }
+        }
+        return hit;
       }
 
       // ============================================================================
@@ -6841,8 +9807,8 @@
       });
       const HAIR_MAT = new THREE.MeshStandardMaterial({
         color: 0x2b1a12,
-        roughness: 0.75,
-        metalness: 0.05,
+        roughness: 0.42, // sleek, glossy straight hair
+        metalness: 0.12,
       });
       const DRESS_MAT = new THREE.MeshStandardMaterial({
         color: 0xd21324,
@@ -7181,28 +10147,23 @@
         bangs.scale.set(1.04, 0.45, 0.75);
         bangs.position.set(0, 1.9, 0.035);
         body.add(bangs);
+        // long straight hair: sleek flat panels that fall straight down — two
+        // framing her face over the shoulders, two behind them — blunt-cut ends
+        const panel = (w, len, depth) => {
+          const m = new THREE.Mesh(
+            new THREE.CylinderGeometry(w, w * 0.92, len, 14),
+            HAIR_MAT,
+          );
+          m.scale.set(0.55, 1, depth);
+          m.castShadow = true;
+          return m;
+        };
         for (const s of [-1, 1]) {
-          const front = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.022, 0.011, 0.34, 8),
-            HAIR_MAT,
-          );
-          front.position.set(s * 0.135, 1.63, 0.06);
-          front.rotation.z = s * 0.1;
+          const front = panel(0.04, 0.4, 1.5);
+          front.position.set(s * 0.138, 1.69, 0.045);
           body.add(front);
-          const mid = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.026, 0.013, 0.42, 8),
-            HAIR_MAT,
-          );
-          mid.position.set(s * 0.148, 1.61, -0.02);
-          mid.rotation.z = s * 0.14;
-          body.add(mid);
-          const back = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.028, 0.013, 0.4, 8),
-            HAIR_MAT,
-          );
-          back.position.set(s * 0.115, 1.62, -0.1);
-          back.rotation.z = s * 0.07;
-          back.rotation.x = -0.08;
+          const back = panel(0.05, 0.56, 1.4);
+          back.position.set(s * 0.12, 1.62, -0.12);
           body.add(back);
         }
         // 🦸‍♀️ golden tiara with a little ruby, resting on the bangs
@@ -7218,25 +10179,19 @@
         const gem = hero(ball(0.015, DRESS_MAT));
         gem.position.set(0, 1.872, 0.142);
         body.add(gem);
-        // high ponytail: scrunchie + a two-piece tail that curves and swings
+        // the long straight fall down her back — one sleek sheet hung from the
+        // crown, cut blunt at mid-back; it sways gently as she moves
         girl.pony = new THREE.Group();
-        girl.pony.position.set(0, 1.88, -0.13);
-        const scrunchie = new THREE.Mesh(
-          new THREE.TorusGeometry(0.042, 0.017, 10, 16),
-          DRESS_MAT,
+        girl.pony.position.set(0, 1.86, -0.17);
+        const fall = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.15, 0.135, 0.66, 22),
+          HAIR_MAT,
         );
-        scrunchie.rotation.x = Math.PI / 2;
-        girl.pony.add(scrunchie);
-        girl.pony.add(tube(0.05, 0.035, 0.34, HAIR_MAT)); // upper fall
-        const tailEnd = new THREE.Group();
-        tailEnd.position.y = -0.34;
-        tailEnd.rotation.x = -0.32; // the tail flicks softly back out
-        tailEnd.add(tube(0.034, 0.009, 0.38, HAIR_MAT));
-        const tip = ball(0.016, HAIR_MAT, 1, 1.5, 1);
-        tip.position.y = -0.39;
-        tailEnd.add(tip);
-        girl.pony.add(tailEnd);
-        girl.pony.rotation.x = 0.5;
+        fall.scale.set(1, 1, 0.32);
+        fall.position.y = -0.33;
+        fall.castShadow = true;
+        girl.pony.add(fall);
+        girl.pony.rotation.x = 0.06;
         body.add(girl.pony);
         // 🦸‍♀️ her red super-cape — real cloth now: a flared sheet whose
         // vertices ripple in the wind (see waveCape below)
@@ -7305,7 +10260,7 @@
       // where "she" is for pickups & beacons: her body, or whatever she's riding
       function focusPos() {
         return vehMode === "car"
-          ? car.pos
+          ? drv.pos
           : vehMode === "plane"
             ? plane.pos
             : girl.pos;
@@ -7485,6 +10440,12 @@
             if (w.nx) p.x = w.spec.x + w.nx * (w.t.w / 2 + 0.42);
             else p.z = w.spec.z + w.nz * (w.t.d / 2 + 0.42);
           }
+          pushOffCars(p, 0.35); // parked & passing cars are solid
+          hallPush(p, 0.35); // Rosmantic Music's walls & furniture
+          if (inHall(p) && p.y > HALL.h - 2.1) {
+            p.y = HALL.h - 2.1; // mind the ceiling
+            vel.y = Math.min(0, vel.y);
+          }
           let gy = roofUnder(p.x, p.z, p.y - 2.55);
           const dy2 = deckUnder(p);
           if (dy2 > gy) gy = dy2;
@@ -7530,6 +10491,12 @@
               vel.set(0, Math.max(0, vel.y * 0.2), 0);
             } else if (w.nx) vel.x = 0;
             else vel.z = 0;
+          }
+          pushOffCars(p, 0.35); // parked & passing cars are solid
+          hallPush(p, 0.35); // Rosmantic Music's walls & furniture
+          if (inHall(p) && p.y > HALL.h - 2.1) {
+            p.y = HALL.h - 2.1; // mind the ceiling
+            vel.y = Math.min(0, vel.y);
           }
 
           // ground: streets, rooftops (small step-up only) and bridge decks
@@ -7656,10 +10623,11 @@
           girl.body.rotation.set(0, 0, 0);
           girl.body.position.y = 0;
         }
+        // straight hair hangs down, swinging back a touch when she runs
         girl.pony.rotation.x =
-          0.5 +
-          Math.abs(Math.cos(at)) * 0.16 * runAmp +
-          Math.sin(at * 0.55) * 0.05;
+          0.06 +
+          Math.abs(Math.cos(at)) * 0.12 * runAmp +
+          Math.sin(at * 0.55) * 0.02;
         // the cape relaxes when she's not soaring
         if (girl.cape.visible && (girl.grounded || girl.climbing))
           girl.cape.rotation.x = 0.25 + runAmp * 0.5;
@@ -7677,8 +10645,379 @@
           tz + Math.cos(yaw) * cp * d,
         );
         pushOutPoint(camera.position, 0.6);
+        hallCamera(camera.position, p);
         if (camera.position.y < 1.0) camera.position.y = 1.0;
         camera.lookAt(tx, ty, tz);
+      }
+
+      // ============================================================================
+      // ✈️💌  THE BIRTHDAY BANNER PLANE — a pink-and-white plane circles the sky
+      // around her, towing a long waving banner from its tail:
+      //        ♥ 12/11/2026 ♥
+      //        ♥ Your smile matters ♥
+      // The circle drifts after her wherever she goes (on foot, flying or riding),
+      // and the plane climbs over any tower ahead so the banner never cuts
+      // through the skyline. The banner reads the right way round from BOTH sides.
+      // ============================================================================
+      const BP_R = 200, // flight-circle radius (m)
+        BP_SPEED = 26, // m/s
+        BP_ALT = 105, // cruising height when the skyline allows it
+        BP_LEN = 100, // banner length
+        BP_H = 25, // banner height (two lines of big lettering)
+        BP_ROPE = 24; // tow hook → banner leading edge (m behind the plane's origin)
+      function makeBannerTexture() {
+        const W = 2048,
+          H = 512,
+          cv = document.createElement("canvas");
+        cv.width = W;
+        cv.height = H;
+        const g = cv.getContext("2d");
+        // cream cloth with a soft rose wash, rose hems and a dotted trim
+        const bg = g.createLinearGradient(0, 0, 0, H);
+        bg.addColorStop(0, "#fff8fb");
+        bg.addColorStop(1, "#ffe0ec");
+        g.fillStyle = bg;
+        g.fillRect(0, 0, W, H);
+        g.fillStyle = "#ff2d5e";
+        g.fillRect(0, 0, W, 18);
+        g.fillRect(0, H - 18, W, 18);
+        g.fillStyle = "#ff9ec2";
+        for (let x = 22; x < W; x += 44)
+          for (const y of [36, H - 36]) {
+            g.beginPath();
+            g.arc(x, y, 6, 0, 7);
+            g.fill();
+          }
+        // two lines, each sized to fill the cloth:
+        //   ♥ 12/11/2026 ♥
+        //   ♥ Your smile matters ♥
+        const FONT = (s) => `italic 800 ${s}px Georgia, "Palatino Linotype", serif`;
+        const line = (tx, cy, maxFs, color) => {
+          let fs = maxFs;
+          const total = () => {
+            g.font = FONT(fs);
+            return g.measureText(tx).width + 2 * (fs * 0.4 * 2.2 + fs * 0.3);
+          };
+          const w0 = total();
+          if (w0 > W - 150) fs *= (W - 150) / w0;
+          const tw = (g.font = FONT(fs), g.measureText(tx).width);
+          const hr = fs * 0.4,
+            gap = fs * 0.3;
+          const heart = (x) => {
+            drawHeartPath(g, x, cy, hr);
+            g.fillStyle = "#ff2d5e";
+            g.fill();
+            g.lineWidth = 6;
+            g.strokeStyle = "#b80d3c";
+            g.stroke();
+          };
+          let x = (W - total()) / 2;
+          heart(x + hr * 1.1);
+          x += hr * 2.2 + gap;
+          g.font = FONT(fs);
+          g.textAlign = "left";
+          g.textBaseline = "middle";
+          g.shadowColor = "rgba(184,13,60,0.35)";
+          g.shadowBlur = 12;
+          g.fillStyle = color;
+          g.fillText(tx, x, cy);
+          g.shadowBlur = 0;
+          x += tw + gap;
+          heart(x + hr * 1.1);
+        };
+        line("12/11/2026", H * 0.33, 220, "#c8104a");
+        line("Your smile matters", H * 0.7, 170, "#9e1250");
+        const t = new THREE.CanvasTexture(cv);
+        t.colorSpace = THREE.SRGBColorSpace; // decoded to linear, re-encoded on output
+        t.anisotropy = 8;
+        return t;
+      }
+      const bannerPlane = {
+        root: new THREE.Group(),
+        cx: 0,
+        cz: -8,
+        ang: -Math.PI / 2, // starts dead ahead of her first view, crossing left → right
+        x: 0,
+        y: BP_ALT,
+        z: -8 - BP_R,
+        yaw: Math.PI / 2,
+        prop: null,
+        strobe: null,
+        mat: null,
+        hearts: [],
+        heartT: 0,
+      };
+      {
+        const bp = bannerPlane;
+        // its own unfogged materials so the plane stays crisp far up in the sky
+        const PM = (c, e) =>
+          new THREE.MeshStandardMaterial({
+            color: c,
+            emissive: c,
+            emissiveIntensity: e,
+            roughness: 0.38,
+            metalness: 0.3,
+            fog: false,
+          });
+        const WHITE = PM(0xfff4f8, 0.3),
+          ROSE = PM(0xff3d6e, 0.55),
+          DARKM = PM(0x1a0d12, 0.05);
+        const GLASS = new THREE.MeshStandardMaterial({
+          color: 0x1b2a3a,
+          emissive: 0x3a6a9a,
+          emissiveIntensity: 0.3,
+          roughness: 0.1,
+          metalness: 0.9,
+          fog: false,
+        });
+        const body = new THREE.Group(); // modelled like « Rose », then scaled up
+        body.scale.setScalar(2.6);
+        bp.root.add(body);
+        const fus = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.34, 0.44, 4.6, 14),
+          WHITE,
+        );
+        fus.rotation.x = Math.PI / 2;
+        body.add(fus);
+        const nose = new THREE.Mesh(new THREE.ConeGeometry(0.34, 0.9, 14), WHITE);
+        nose.rotation.x = Math.PI / 2;
+        nose.position.z = 2.72;
+        body.add(nose);
+        const tail = new THREE.Mesh(new THREE.ConeGeometry(0.44, 1.9, 14), WHITE);
+        tail.rotation.x = -Math.PI / 2;
+        tail.position.z = -3.2;
+        body.add(tail);
+        const cowl = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.4, 0.42, 0.5, 14),
+          ROSE,
+        );
+        cowl.rotation.x = Math.PI / 2;
+        cowl.position.z = 2.42;
+        body.add(cowl);
+        const canopy = new THREE.Mesh(new THREE.SphereGeometry(0.5, 14, 12), GLASS);
+        canopy.scale.set(0.78, 0.6, 1.5);
+        canopy.position.set(0, 0.36, 0.85);
+        body.add(canopy);
+        mkBox(body, 9.6, 0.13, 1.6, 0, -0.02, 0.4, WHITE); // wings
+        mkBox(body, 0.8, 0.14, 1.61, 4.42, -0.02, 0.4, ROSE); // rose wingtips
+        mkBox(body, 0.8, 0.14, 1.61, -4.42, -0.02, 0.4, ROSE);
+        mkBox(body, 9.62, 0.14, 0.18, 0, -0.02, 1.12, ROSE); // leading-edge stripe
+        mkBox(body, 3.4, 0.1, 0.95, 0, 0.12, -3.45, WHITE); // tailplane
+        mkBox(body, 0.55, 0.11, 0.96, 1.44, 0.12, -3.45, ROSE);
+        mkBox(body, 0.55, 0.11, 0.96, -1.44, 0.12, -3.45, ROSE);
+        mkBox(body, 0.1, 1.5, 1.15, 0, 0.85, -3.4, ROSE); // fin
+        // a white heart painted on both sides of the fin
+        const hcv = document.createElement("canvas");
+        hcv.width = hcv.height = 128;
+        {
+          const hg = hcv.getContext("2d");
+          drawHeartPath(hg, 64, 66, 46);
+          hg.fillStyle = "#ffffff";
+          hg.fill();
+        }
+        const finHeart = new THREE.MeshBasicMaterial({
+          map: new THREE.CanvasTexture(hcv),
+          transparent: true,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+          toneMapped: false,
+          fog: false,
+        });
+        for (const s of [-1, 1]) {
+          const fh = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.8), finHeart);
+          fh.position.set(s * 0.06, 0.92, -3.4);
+          fh.rotation.y = (s * Math.PI) / 2;
+          body.add(fh);
+        }
+        // nav lights + tail strobe
+        const bulb = new THREE.SphereGeometry(0.1, 6, 5);
+        const navL = new THREE.Mesh(bulb, PM(0xff2020, 2.2));
+        navL.position.set(-4.82, 0, 0.4);
+        body.add(navL);
+        const navR = new THREE.Mesh(bulb, PM(0x2fff5a, 2.2));
+        navR.position.set(4.82, 0, 0.4);
+        body.add(navR);
+        bp.strobe = PM(0xffffff, 0.3);
+        const strobe = new THREE.Mesh(bulb, bp.strobe);
+        strobe.position.set(0, 1.65, -3.4);
+        body.add(strobe);
+        // spinning propeller
+        bp.prop = new THREE.Group();
+        bp.prop.position.z = 3.22;
+        const spinner = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.34, 10), ROSE);
+        spinner.rotation.x = Math.PI / 2;
+        spinner.position.z = 0.12;
+        bp.prop.add(spinner);
+        for (const a of [0, Math.PI / 2]) {
+          const blade = new THREE.Mesh(new THREE.BoxGeometry(0.13, 1.8, 0.05), DARKM);
+          blade.rotation.z = a;
+          bp.prop.add(blade);
+        }
+        body.add(bp.prop);
+
+        // ---- the banner: tow rope → lead pole → waving cloth ----
+        const top = -2,
+          bot = -2 - BP_H;
+        const rope = new THREE.LineSegments(
+          new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(0, -0.6, -10.6),
+            new THREE.Vector3(0, top, -BP_ROPE),
+            new THREE.Vector3(0, -0.6, -10.6),
+            new THREE.Vector3(0, bot, -BP_ROPE),
+          ]),
+          new THREE.LineBasicMaterial({ color: 0xffe6ef, fog: false }),
+        );
+        bp.root.add(rope);
+        const pole = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.16, 0.16, BP_H + 0.8, 8),
+          DARKM,
+        );
+        pole.position.set(0, (top + bot) / 2, -BP_ROPE);
+        bp.root.add(pole);
+        const weight = new THREE.Mesh(new THREE.SphereGeometry(0.45, 10, 8), ROSE);
+        weight.position.set(0, bot - 0.5, -BP_ROPE);
+        bp.root.add(weight);
+        // one double-sided sheet: the vertex shader ripples it in the wind and
+        // the back face mirrors its UVs so the words read correctly from both sides
+        bp.mat = new THREE.ShaderMaterial({
+          side: THREE.DoubleSide,
+          uniforms: {
+            uMap: { value: makeBannerTexture() },
+            uTime: { value: 0 },
+            uDim: { value: 1 },
+          },
+          vertexShader: `
+    uniform float uTime;
+    varying vec2 vUv;
+    varying float vShade;
+    void main() {
+      vUv = uv;
+      vec3 p = position;
+      float k = uv.x;                                   // 0 at the pole → 1 at the free end
+      float ph = uTime * 5.0 - uv.x * 11.0;             // waves travel down the cloth
+      p.z += sin(ph) * (0.25 + 1.5 * k) + sin(uTime * 2.3 - uv.x * 4.0 + uv.y * 2.0) * 0.5 * k;
+      p.y -= k * k * 1.6;                               // the free end sags a little
+      vShade = 0.8 + 0.2 * cos(ph);
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+    }`,
+          fragmentShader: `
+    uniform sampler2D uMap;
+    uniform float uDim;
+    varying vec2 vUv;
+    varying float vShade;
+    void main() {
+      vec2 uv = vUv;
+      if (!gl_FrontFacing) uv.x = 1.0 - uv.x;          // readable from the other side too
+      vec3 c = texture2D(uMap, uv).rgb;
+      gl_FragColor = vec4(c * vShade * uDim, 1.0);
+      #include <colorspace_fragment>
+    }`,
+        });
+        const cloth = new THREE.Mesh(
+          new THREE.PlaneGeometry(BP_LEN, BP_H, 64, 6),
+          bp.mat,
+        );
+        cloth.rotation.y = Math.PI / 2; // lies along the flight path, text from the pole back
+        cloth.position.set(0, (top + bot) / 2, -BP_ROPE - BP_LEN / 2);
+        cloth.frustumCulled = false; // the shader moves it beyond its bounding sphere
+        bp.root.add(cloth);
+
+        // a little trail of hearts puffing out behind the tail
+        for (let i = 0; i < 16; i++) {
+          const sp = new THREE.Sprite(
+            new THREE.SpriteMaterial({
+              map: i % 2 ? heartTexB : heartTexA,
+              transparent: true,
+              depthWrite: false,
+              fog: false,
+              opacity: 0,
+            }),
+          );
+          scene.add(sp);
+          bp.hearts.push({ sp, age: 99 });
+        }
+
+        bp.root.position.set(bp.x, bp.y, bp.z);
+        bp.root.rotation.set(0, bp.yaw, 0, "YXZ");
+        scene.add(bp.root);
+      }
+      // tallest roof / mast around a point — what the banner plane must clear
+      function skylineAt(x, z) {
+        let top = 0;
+        const gx0 = Math.floor(x / TILE),
+          gz0 = Math.floor(z / TILE);
+        for (let gx = gx0 - 1; gx <= gx0 + 1; gx++)
+          for (let gz = gz0 - 1; gz <= gz0 + 1; gz++) {
+            const s = towerSpec(gx, gz);
+            if (!s) continue;
+            if (s.roof > top) top = s.roof;
+            for (const m of s.masts) if (m.h > top) top = m.h;
+          }
+        return top;
+      }
+      function updateBannerPlane(dt, t) {
+        const bp = bannerPlane;
+        const fp = focusPos();
+        // the flight circle drifts after her, so the banner always stays in her sky
+        const follow = Math.min(1, dt * 0.12);
+        bp.cx += (fp.x - bp.cx) * follow;
+        bp.cz += (fp.z - bp.cz) * follow;
+        bp.ang += (BP_SPEED / BP_R) * dt;
+        const nx = bp.cx + Math.cos(bp.ang) * BP_R,
+          nz = bp.cz + Math.sin(bp.ang) * BP_R;
+        const mx = nx - bp.x,
+          mz = nz - bp.z;
+        if (mx * mx + mz * mz > 1e-8)
+          bp.yaw = angLerp(bp.yaw, Math.atan2(mx, mz), dt * 4);
+        bp.x = nx;
+        bp.z = nz;
+        // climb over the skyline ahead — and keep the trailing banner clear too;
+        // when she flies high, the plane rises to keep her company
+        const fx = Math.sin(bp.yaw),
+          fz = Math.cos(bp.yaw);
+        let need = Math.max(BP_ALT, fp.y + 20);
+        for (const a of [-110, -60, 0, 45, 90])
+          need = Math.max(need, skylineAt(nx + fx * a, nz + fz * a) + BP_H + 22);
+        const prevY = bp.y;
+        bp.y += (need - bp.y) * Math.min(1, dt * (need > bp.y ? 1.3 : 0.25));
+        const climb = dt > 0 ? (bp.y - prevY) / dt : 0;
+        bp.root.position.set(nx, bp.y + Math.sin(t * 0.6) * 1.2, nz);
+        // nose up while climbing, a gentle bank into the turn
+        bp.root.rotation.set(
+          -clamp(climb / BP_SPEED, -0.3, 0.3),
+          bp.yaw,
+          0.17,
+          "YXZ",
+        );
+        bp.prop.rotation.z += 42 * dt;
+        bp.strobe.emissiveIntensity = t % 1.1 < 0.08 ? 7 : 0.3;
+        bp.mat.uniforms.uTime.value = t;
+        bp.mat.uniforms.uDim.value = 1 - 0.15 * uNight.value;
+
+        // heart puffs: one every 0.3s from just above the tail, rising & fading
+        bp.heartT += dt;
+        if (bp.heartT > 0.3) {
+          bp.heartT = 0;
+          let h = bp.hearts[0];
+          for (const c of bp.hearts) if (c.age > h.age) h = c;
+          h.age = 0;
+          h.sp.position.set(nx - fx * 12, bp.y + 2.5, nz - fz * 12);
+          h.drift = (Math.random() - 0.5) * 3;
+        }
+        for (const h of bp.hearts) {
+          if (h.age > 4) {
+            h.sp.material.opacity = 0;
+            continue;
+          }
+          h.age += dt;
+          const k = h.age / 4;
+          h.sp.position.y += 2.2 * dt;
+          h.sp.position.x += fz * h.drift * dt;
+          h.sp.position.z -= fx * h.drift * dt;
+          const sz = 3 + k * 5;
+          h.sp.scale.set(sz, sz, 1);
+          h.sp.material.opacity = Math.sin(Math.min(1, k * 4) * Math.PI * 0.5) * (1 - k) * 0.95;
+        }
       }
 
       // ============================================================================
@@ -7743,8 +11082,9 @@
           );
         }
         // her rides (hidden while she's inside them)
-        if (vehMode !== "car") put(car.pos.x, car.pos.z, "#ffb347", 3.2);
+        if (!driving(car)) put(car.pos.x, car.pos.z, "#ffb347", 3.2);
         if (vehMode !== "plane") put(plane.pos.x, plane.pos.z, "#59b7ff", 3.2);
+        put(HALL.cx, HALL.cz, "#c58bff", 3.4); // 🎹 Rosmantic Music
 
         // north tick + her arrow (she always points up)
         radarG.fillStyle = "rgba(255, 220, 235, 0.75)";
@@ -7804,19 +11144,19 @@
 
       // --- street-level surprises (fly straight to them) ---
       // spread wide across the city so every discovery is its own little journey
-      const gift = buildGift(P(0, -104));
+      const gift = buildGift(P(0, -4 * TILE));
       addSurprise({
         id: "gift",
         emoji: "🎁",
         label: "افتحي الهدية",
         color: 0xba94ff,
-        pos: P(0, -104),
+        pos: P(0, -4 * TILE),
         centerY: 9,
         markerY: 16,
         radius: 36,
         update: (s, t) => {
           gift.grp.rotation.y = t * 0.4;
-          gift.grp.position.y = Math.sin(t * 1.2) * 0.6;
+          gift.grp.position.y = 3.4 + Math.sin(t * 1.2) * 0.6; // floats above the street
           s.lo = (s.lo || 0) + ((s.opened ? 1 : 0) - (s.lo || 0)) * 0.1;
           gift.lid.position.y = 2.15 + s.lo * 1.4;
           gift.lid.rotation.z = -s.lo * 0.5;
@@ -7827,13 +11167,13 @@
         },
       });
 
-      const mood = buildMood(P(-156, 0));
+      const mood = buildMood(P(...pk(-156, 0)));
       addSurprise({
         id: "mood",
         emoji: "🌈",
         label: "حديقة المزاج",
         color: 0xff9ec2,
-        pos: P(-156, 0),
+        pos: P(...pk(-156, 0)),
         centerY: 12,
         markerY: 18,
         radius: 36,
@@ -7845,14 +11185,14 @@
         activate: () => openMood(),
       });
 
-      const sec = buildSecret(P(0, 156));
+      const sec = buildSecret(P(0, 6 * TILE));
       addSurprise({
         id: "secret",
         emoji: "🔒",
         markerTex: makeLockTexture(),
         label: "سرّ القوة",
         color: 0x9b5cff,
-        pos: P(0, 156),
+        pos: P(0, 6 * TILE),
         centerY: 12,
         markerY: 18,
         radius: 36,
@@ -7940,20 +11280,20 @@
       });
 
       // --- the locked golden box (street) + its golden key (hidden on a rooftop) ---
-      const gbox = buildGoldenBox(P(130, -130));
+      const gbox = buildGoldenBox(P(5 * TILE, -5 * TILE));
       addSurprise({
         id: "goldenbox",
         emoji: "🔐",
         label: "الصندوق الذهبي",
         color: 0xffd24a,
         obj: gbox.grp,
-        pos: P(130, -130),
+        pos: P(5 * TILE, -5 * TILE),
         centerY: 11,
         markerY: 18,
         radius: 38,
         update: (s, t) => {
           gbox.grp.rotation.y = t * 0.3;
-          gbox.grp.position.y = Math.sin(t * 1.1) * 0.5;
+          gbox.grp.position.y = 3.4 + Math.sin(t * 1.1) * 0.5; // floats above the street
           s.lo = (s.lo || 0) + ((s.opened ? 1 : 0) - (s.lo || 0)) * 0.1;
           gbox.lid.position.y = 2.2 + s.lo * 1.5;
           gbox.lid.rotation.z = -s.lo * 0.5;
