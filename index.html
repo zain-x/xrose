@@ -272,12 +272,15 @@
         direction: ltr;
       }
       body.touch #veh-hud {
-        /* top-centre under the kiss counter — clear of the ⚡ / ▲▼ buttons */
-        top: 56px;
-        bottom: auto;
+        /* bottom-centre, between the joystick and the ⚡ / ▲▼ buttons — well
+           away from the street-name pill at the top */
+        top: auto;
+        bottom: max(14px, env(safe-area-inset-bottom));
         left: 50%;
         right: auto;
         transform: translateX(-50%);
+        font-size: 12px;
+        padding: 4px 11px;
       }
       /* ride / exit — sits in its own slot ABOVE the Super-Woman button */
       #btn-vehicle {
@@ -308,16 +311,17 @@
 
       /* ─────────── Music button ─────────── */
       #music-btn {
+        /* a small round ♪, just left of the 📍 street-name pill */
         position: fixed;
-        top: 62px;
-        right: max(16px, env(safe-area-inset-right));
+        top: 48px;
+        left: 14px;
         z-index: 13;
-        width: 42px;
-        height: 42px;
+        width: 30px;
+        height: 30px;
         border-radius: 50%;
         cursor: pointer;
         color: #fff;
-        font-size: 18px;
+        font-size: 15px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -331,6 +335,22 @@
       }
       body.touch #hud {
         display: none;
+      }
+      #title #bday-cd {
+        margin-top: 4px;
+        font-size: 12px;
+        color: #ffd6e8;
+      }
+      #title #bday-cd.today {
+        font-size: 13px;
+        font-weight: 700;
+        color: #ffe08a;
+        animation: bd-glow 1.6s ease-in-out infinite alternate;
+      }
+      @keyframes bd-glow {
+        to {
+          text-shadow: 0 0 10px rgba(255, 200, 90, 0.9), 0 1px 6px #000;
+        }
       }
       body.touch #title {
         font-size: 0.92em;
@@ -354,12 +374,12 @@
       #where {
         position: fixed;
         top: 50px;
-        left: 14px;
+        left: 52px; /* (the ♪ button sits just before it) */
         z-index: 12;
         display: none;
         align-items: center;
         gap: 6px;
-        max-width: calc(100vw - 28px);
+        max-width: calc(100vw - 66px);
         padding: 4px 12px 4px 9px;
         border-radius: 14px;
         font-size: 12px;
@@ -1338,6 +1358,7 @@
 
     <div id="title">
       <h1>ROSE CITY ♥</h1>
+      <p id="bday-cd"></p>
     </div>
 
     <div id="stats"></div>
@@ -3480,6 +3501,17 @@
         }
       }
 
+      // 🎂 her birthday: 12 November (the banner's 12/11, day first). On the day —
+      // or with ?bday in the address, to preview it — the whole island celebrates
+      const BDAY = { month: 10, day: 12 };
+      const BDAY_FORCE = /[?&]bday(=|&|$)/.test((typeof location !== "undefined" && location.search) || "");
+      const isBdayNow = () => {
+        const d = new Date();
+        return BDAY_FORCE || (d.getMonth() === BDAY.month && d.getDate() === BDAY.day);
+      };
+      let BDAY_TODAY = isBdayNow();
+      const citySong = () => "calm"; // what ♪ plays — the soft « Calm » lullaby
+
       // ----------------------------------------------------------------------------
       // Day / night cycle + weather mood
       // ----------------------------------------------------------------------------
@@ -3623,11 +3655,13 @@
         rainMat.opacity = 0.15 + 0.2 * clamp(storm, 0, 1);
 
         // rose petals always fall; the "petal storm" just sends down more of them
+        // (on her birthday the petals pour down all day 🌹)
+        const pet = BDAY_TODAY ? Math.max(storm, 0.9) : storm;
         petals.geometry.setDrawRange(
           0,
-          Math.floor(PETAL_COUNT * (0.5 + 0.5 * clamp(storm, 0, 1))),
+          Math.floor(PETAL_COUNT * (0.5 + 0.5 * clamp(pet, 0, 1))),
         );
-        petalMat.uniforms.uOpacity.value = 0.72 + 0.23 * clamp(storm, 0, 1);
+        petalMat.uniforms.uOpacity.value = 0.72 + 0.23 * clamp(pet, 0, 1);
       }
 
       function clockLabel() {
@@ -3809,7 +3843,7 @@
         if (!hallCtx) return;
         if (hallCtx.state !== "running") hallCtx.resume();
         if (music && !music.paused) music.pause(); // the vinyl gives way
-        if (!songOn || song !== SONGS.rose) startSong("rose");
+        if (!songOn || song !== SONGS[citySong()]) startSong(citySong());
       }
       musicBtn.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -3825,6 +3859,7 @@
         initHallAudio(); // (created on this tap so the hall's piano may play later)
         if (!isTouch) canvas.requestPointerLock();
         track("🌹 Entered Rose Dream Land");
+        if (BDAY_TODAY) setTimeout(bdayWelcome, 1500); // 🎂 it's her day
       }
 
       // ---- phone controls: joystick, touch-look, fly buttons --------------------
@@ -6776,7 +6811,41 @@
         ev.sort((x, y) => x.t - y.t);
         return { bpm: 104, beats: PASS * 2, ev };
       }
-      const SONGS = { rose: buildRoseSong(), bday: buildBirthdaySong() };
+      // 🌙 « Calm » — what ♪ plays now: a slow, soft lullaby. Low bass notes held
+      // under gently rising broken chords (Cmaj7 · Am7 · Fmaj7 · Gsus…), and a
+      // sparse, quiet melody floating over them. 58 bpm, 16 bars, then again.
+      function buildCalmSong() {
+        const ev = [];
+        // [bass, broken chord (4 notes), melody [[beat, note, beats]…]]
+        const BARS = [
+          [36, [48, 55, 59, 64], [[0, 76, 2], [2, 74, 1], [3, 72, 1]]], // Cmaj7
+          [33, [45, 52, 55, 60], [[0, 72, 3], [3, 71, 1]]], // Am7
+          [29, [41, 48, 52, 57], [[0, 69, 2], [2, 72, 2]]], // Fmaj7
+          [31, [43, 50, 55, 60], [[0, 74, 3], [3, 71, 1]]], // Gsus4
+          [28, [40, 47, 50, 55], [[0, 71, 2], [2, 67, 2]]], // Em7
+          [33, [45, 52, 55, 60], [[0, 72, 2], [2, 76, 2]]], // Am7
+          [38, [50, 53, 57, 60], [[0, 77, 2], [2, 76, 1], [3, 74, 1]]], // Dm7
+          [31, [43, 50, 55, 59], [[0, 74, 4]]], // G
+          [36, [48, 55, 59, 64], [[0, 79, 2], [2, 76, 2]]], // Cmaj7
+          [33, [45, 52, 55, 60], [[0, 76, 2], [2, 72, 2]]], // Am7
+          [29, [41, 48, 52, 57], [[0, 72, 1], [1, 74, 1], [2, 76, 2]]], // Fmaj7
+          [29, [41, 48, 53, 56], [[0, 72, 2], [2, 68, 2]]], // Fm6 — a tender turn
+          [28, [40, 47, 50, 55], [[0, 71, 2], [2, 74, 2]]], // Em7
+          [33, [45, 52, 55, 60], [[0, 72, 4]]], // Am7
+          [38, [50, 57, 60, 64], [[0, 74, 2], [2, 77, 2]]], // Dm9
+          [31, [43, 50, 53, 59], [[0, 74, 2], [2, 71, 2]]], // G7 → home
+        ];
+        BARS.forEach(([bass, arp, mel], b) => {
+          const o = b * 4;
+          ev.push({ t: o, m: bass, v: 0.26 + hum(), d: 4, bass: true });
+          ev.push({ t: o, m: bass + 12, v: 0.12 + hum(), d: 4 });
+          arp.forEach((n, k) => ev.push({ t: o + k + 0.02, m: n, v: 0.13 + hum() * 0.5, d: 2.6 }));
+          for (const [t, m, d] of mel) ev.push({ t: o + t + 0.04, m, v: 0.28 + hum(), d, mel: true });
+        });
+        ev.sort((x, y) => x.t - y.t);
+        return { bpm: 58, beats: BARS.length * 4, ev };
+      }
+      const SONGS = { rose: buildRoseSong(), bday: buildBirthdaySong(), calm: buildCalmSong() };
       let song = SONGS.rose,
         songOn = false,
         songT0 = 0,
@@ -6968,7 +7037,7 @@
           const dd = Math.hypot(fp.x - HALL.cx, fp.z - HALL.z1);
           if (dd < 30) vol = 0.4 * (1 - dd / 30);
         }
-        if (roseOn) vol = Math.max(vol, 0.85); // ♪ the Rose song, all over the island
+        if (roseOn) vol = Math.max(vol, 0.7); // ♪ the calm song, softly, all over the island
         if (bdaySong) vol = Math.max(vol, 0.9); // 🎂 « Happy Birthday », after the candles
         if (hallCtx) {
           const want = vinylPlaying && !pianoOpen ? 0 : vol;
@@ -6976,7 +7045,7 @@
           if (hallCrackle)
             hallCrackle.gain.setTargetAtTime(vinylPlaying && inside ? 0.5 : 0, hallCtx.currentTime, 0.3);
           if (!pianoOpen) {
-            if (want > 0.01 && !songOn) startSong();
+            if (want > 0.01 && !songOn) startSong(roseOn ? citySong() : "rose");
             else if (want <= 0.01 && songOn && hallBus.gain.value < 0.02) stopSong();
           }
           if (songOn) pumpSong();
@@ -9821,8 +9890,9 @@
       const RADIO_MUSIC = RADIO_SONGS.filter((s) => s.lang !== "mix");
       // 💗 the first song she hears each visit is « العام الجديد » — Fadl Shaker &
       // Sherine — and it always comes in at 0:27; every other song starts where it may
-      const RF_OPENER = "fadl-sherine-al-am-al-jadid";
-      const RF_START = { [RF_OPENER]: 27 };
+      // (on her birthday the radio opens with « Sana Helwa » instead — see bdayGoLive)
+      let RF_OPENER = "fadl-sherine-al-am-al-jadid";
+      const RF_START = { "fadl-sherine-al-am-al-jadid": 27 };
       // the 100-songs DJ mix, cut at every song change into short clips
       const RADIO_MIX = RADIO_SONGS.filter((s) => s.lang === "mix");
       const isMix = (i) => i >= 0 && RADIO_SONGS[i].lang === "mix";
@@ -14049,7 +14119,7 @@
         } else if (!CAKE.blowing && !allLit() && Math.hypot(girl.pos.x - CAKE.x, girl.pos.z - CAKE.z) > 30) relightCandles();
         if (bdaySong && nowS() > bdayUntil) {
           bdaySong = false;
-          if (roseOn) startSong("rose"); // back to her ♪ song, if it was on
+          if (roseOn) startSong(citySong()); // back to her ♪ song, if it was on
         }
       }
       RESORT_SPOTS.push({
@@ -14438,12 +14508,329 @@
         },
       });
 
+      // ---- 🎂 her birthday, live: a countdown under the title, and on the day itself
+      // every rooftop sign wishes her happy birthday, petals pour down, the radio
+      // opens with « Sana Helwa »
+      const bdayCdEl = document.getElementById("bday-cd");
+      let BDAY_LABELS = null;
+      function bdayGoLive(atLoad) {
+        BDAY_TODAY = true;
+        if (!BDAY_LABELS) {
+          const two = (a, fa, ca, b, fb, cb, glow) => makeLabel([{ t: a, font: fa, color: ca }, { t: b, font: fb, color: cb }], glow);
+          BDAY_LABELS = [
+            two("Happy Birthday", EN(70), LC.white, "Rose ♥", EN(66), LC.pink, "rgba(255,110,165,0.95)"),
+            two("Happy Birthday", EN(70), LC.gold, "روز", AR(76), LC.blush, "rgba(255,180,90,0.9)"),
+            two("♥ Rose ♥", EN(78), LC.white, "Birthday Girl", EN(56), LC.gold, "rgba(170,120,255,0.95)"),
+            two("Happy Birthday", EN(70), LC.sky, "Rose", EN(70), LC.white, "rgba(120,180,255,0.9)"),
+            two("12 · 11", EN(80), LC.gold, "Rose's Day ♥", EN(56), LC.white, "rgba(255,90,150,0.95)"),
+          ];
+        }
+        LABEL_MATS.forEach((m, i) => {
+          m.map = BDAY_LABELS[i % BDAY_LABELS.length];
+          m.needsUpdate = true;
+        });
+        const h1 = document.querySelector("#title h1");
+        if (h1) h1.textContent = "HAPPY BIRTHDAY ROSE ♥";
+        if (!radio.everOn) {
+          RF_OPENER = "ehab-tawfik-sana-helwa"; // « Sana Helwa » — from the top
+          RF_START[RF_OPENER] = 0;
+        }
+        if (!atLoad && started) bdayWelcome();
+      }
+      function bdayWelcome() {
+        bdayCaption("Happy Birthday, Rose! 🎂", "Today the whole island is yours ♥", 9);
+        screenBurst(["🎂", "🎉", "🌹", "💗", "✨", "🎈"], 34);
+        track("🎂 Birthday mode: welcomed on her day");
+      }
+      function bdayCountdown() {
+        if (!BDAY_TODAY && isBdayNow()) bdayGoLive(false); // midnight just struck 🎉
+        if (BDAY_TODAY) {
+          bdayCdEl.textContent = "🎂 Happy Birthday, Rose! Today is yours ♥";
+          bdayCdEl.classList.add("today");
+          return;
+        }
+        const now = new Date();
+        let target = new Date(now.getFullYear(), BDAY.month, BDAY.day);
+        if (target <= now) target = new Date(now.getFullYear() + 1, BDAY.month, BDAY.day);
+        const ms = target - now;
+        const d = Math.floor(ms / 864e5),
+          h = Math.floor((ms % 864e5) / 36e5),
+          m = Math.floor((ms % 36e5) / 6e4);
+        bdayCdEl.textContent =
+          d > 0 ? `🎂 ${d} day${d > 1 ? "s" : ""} · ${h} h to Rose's birthday` : `🎂 ${h} h ${m} min to Rose's birthday!`;
+      }
+      if (BDAY_TODAY) bdayGoLive(true);
+      bdayCountdown();
+      setInterval(bdayCountdown, 20000);
+
+      // ---- 🐬 dolphins: a little pod that leaps alongside the swan boat — and plays
+      // out past the villas whenever she isn't out on the water
+      const DOLPHIN_MAT = new THREE.MeshStandardMaterial({
+        vertexColors: true,
+        roughness: 0.32,
+        metalness: 0.1,
+        emissive: 0x1c2232,
+        emissiveIntensity: 0.4,
+      });
+      const DOLPHIN_GEO = (() => {
+        const strip = (g) => {
+          g = g.index ? g.toNonIndexed() : g;
+          for (const k of Object.keys(g.attributes)) if (k !== "position" && k !== "normal") g.deleteAttribute(k);
+          return g;
+        };
+        // the body: a sphere drawn out into a torpedo — round melon, slim tail stock
+        const body = new THREE.SphereGeometry(0.5, 22, 14).rotateX(Math.PI / 2);
+        const p = body.attributes.position;
+        for (let i = 0; i < p.count; i++) {
+          const u = p.getZ(i) / 0.5; // −1 tail … 1 head
+          const taper = u < 0 ? 1 - 0.78 * u * u : 1 - 0.22 * u * u;
+          p.setXYZ(i, p.getX(i) * 0.6 * taper, p.getY(i) * 0.66 * taper + (u < 0 ? 0.04 * u : 0), p.getZ(i) * 2.3);
+        }
+        body.computeVertexNormals();
+        const beak = new THREE.ConeGeometry(0.085, 0.32, 12).rotateX(Math.PI / 2).translate(0, -0.06, 1.25);
+        const fin = (pts, depth) => {
+          const s = new THREE.Shape(pts.map(([a, b]) => new THREE.Vector2(a, b)));
+          return new THREE.ExtrudeGeometry(s, { depth, bevelEnabled: false, curveSegments: 6 });
+        };
+        // dorsal fin, swept back
+        const dorsal = fin([[0.28, 0], [-0.08, 0.42], [-0.3, 0.4], [-0.22, 0.2], [-0.3, 0]], 0.05).translate(0, 0, -0.025).rotateY(-Math.PI / 2).translate(0, 0.24, -0.1);
+        // the tail flukes, flat
+        const flukes = fin([[0, 0.06], [0.44, -0.2], [0.4, -0.3], [0.05, -0.12], [0, -0.16], [-0.05, -0.12], [-0.4, -0.3], [-0.44, -0.2]], 0.04)
+          .translate(0, 0, -0.02)
+          .rotateX(Math.PI / 2)
+          .translate(0, -0.04, -1.08);
+        const pecs = [-1, 1].map((sx) => new THREE.BoxGeometry(0.34, 0.03, 0.16).rotateZ(sx * -0.5).rotateY(sx * 0.5).translate(sx * 0.3, -0.16, 0.45));
+        const g = mergeGeometries([body, beak, dorsal, flukes, ...pecs].map(strip));
+        // blue-grey back, pale belly
+        const pos = g.attributes.position,
+          col = new Float32Array(pos.count * 3);
+        for (let i = 0; i < pos.count; i++) {
+          const t = THREE.MathUtils.smoothstep(pos.getY(i), -0.14, 0.1);
+          col[i * 3] = 0.93 + (0.42 - 0.93) * t;
+          col[i * 3 + 1] = 0.94 + (0.52 - 0.94) * t;
+          col[i * 3 + 2] = 0.97 + (0.66 - 0.97) * t;
+        }
+        g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+        return g;
+      })();
+      const POD_HOME = { x: RX + 40, z: VILLA_Z + 70 }; // out beyond the villas
+      const SPLASH = glowPoints(260);
+      const splVel = new Float32Array(SPLASH.n * 3),
+        splLife = new Float32Array(SPLASH.n);
+      let splNext = 0,
+        splAlive = 0;
+      function splash(x, z, n = 16) {
+        for (let k = 0; k < n; k++) {
+          const i = splNext++ % SPLASH.n;
+          if (splLife[i] <= 0) splAlive++;
+          const a = Math.random() * 6.283,
+            s = 0.6 + Math.random() * 1.6;
+          SPLASH.pos.set([x + Math.cos(a) * 0.3, 0.05, z + Math.sin(a) * 0.3], i * 3);
+          splVel.set([Math.cos(a) * s, 2.2 + Math.random() * 2.6, Math.sin(a) * s], i * 3);
+          SPLASH.col.set([0.8, 0.9, 1.0], i * 3);
+          SPLASH.size[i] = 0.32 + Math.random() * 0.2;
+          splLife[i] = 0.7 + Math.random() * 0.5;
+        }
+        poolRipple(x, z, 1.5, 0.05);
+      }
+      const pod = [];
+      for (let i = 0; i < 4; i++) {
+        const m = new THREE.Mesh(DOLPHIN_GEO, DOLPHIN_MAT);
+        m.rotation.order = "YXZ";
+        m.scale.setScalar(0.92 + i * 0.05);
+        scene.add(m);
+        pod.push({
+          m,
+          side: [-1, 1, -1, 1][i],
+          lane: [4.5, 5, 8, 8.5][i],
+          lead: [2, -1.5, -4, 3][i],
+          ph: i * 1.9,
+          w: 1.15 + i * 0.09,
+          x: POD_HOME.x + i * 3,
+          z: POD_HOME.z,
+          yaw: 0,
+          y: -2,
+        });
+      }
+      let podT = 0;
+      const _dp = new THREE.Vector3();
+      function updateDolphins(dt, t) {
+        const onBoat = vehMode === "car" && drv === boat;
+        let cx, cz, hy, spd;
+        if (onBoat) {
+          cx = boat.pos.x;
+          cz = boat.pos.z;
+          hy = boat.yaw;
+          spd = Math.abs(boat.speed);
+        } else {
+          podT += dt * 0.07;
+          cx = POD_HOME.x + Math.cos(podT) * 60;
+          cz = POD_HOME.z + Math.sin(podT) * 28;
+          hy = Math.atan2(-Math.sin(podT) * 60, Math.cos(podT) * 28);
+          spd = 5;
+        }
+        for (const d of pod) {
+          let tx, tz;
+          if (onBoat && spd < 1.5) {
+            // she's stopped: they circle round her, curious
+            const a = t * 0.45 + d.ph;
+            tx = cx + Math.cos(a) * (6 + d.lane * 0.4);
+            tz = cz + Math.sin(a) * (6 + d.lane * 0.4);
+          } else {
+            const fx = Math.sin(hy),
+              fz = Math.cos(hy);
+            tx = cx + fz * d.side * d.lane + fx * d.lead;
+            tz = cz - fx * d.side * d.lane + fz * d.lead;
+          }
+          const ox = d.x,
+            oz = d.z;
+          const k = Math.min(1, dt * (onBoat ? 2.2 : 1.2));
+          d.x += (tx - d.x) * k;
+          d.z += (tz - d.z) * k;
+          // never up on the beach or through the decks
+          _dp.set(d.x, 0, d.z);
+          keepOnSea(_dp, 2.5);
+          d.x = _dp.x;
+          d.z = _dp.z;
+          const vx = (d.x - ox) / Math.max(dt, 1e-3),
+            vz = (d.z - oz) / Math.max(dt, 1e-3);
+          const vh = Math.hypot(vx, vz);
+          if (vh > 0.3) d.yaw += ((((Math.atan2(vx, vz) - d.yaw + Math.PI) % 6.2832) + 6.2832) % 6.2832 - Math.PI) * Math.min(1, dt * 4);
+          // porpoising: up out of the water in a long arc, and back under
+          d.ph += dt * d.w * (onBoat ? 1 + Math.min(1, spd / 12) * 0.6 : 1);
+          const py = d.y;
+          d.y = 1.55 * Math.sin(d.ph) - 0.45;
+          const vy = 1.55 * Math.cos(d.ph) * d.w;
+          if ((py < 0) !== (d.y < 0) && camera.position.distanceTo(_dp.set(d.x, 0, d.z)) < 260) splash(d.x, d.z, d.y > py ? 14 : 20);
+          d.m.position.set(d.x, d.y, d.z);
+          d.m.rotation.set(-Math.atan2(vy, Math.max(2.5, vh)), d.yaw, Math.sin(d.ph * 0.5) * 0.08);
+          d.m.visible = d.y > -1.4;
+        }
+        if (!splAlive) {
+          SPLASH.pts.visible = false;
+          return;
+        }
+        SPLASH.pts.visible = true;
+        for (let i = 0; i < SPLASH.n; i++) {
+          if (splLife[i] <= 0) continue;
+          splLife[i] -= dt;
+          if (splLife[i] <= 0) {
+            SPLASH.alpha[i] = 0;
+            splAlive--;
+            continue;
+          }
+          splVel[i * 3 + 1] -= 9.8 * dt;
+          SPLASH.pos[i * 3] += splVel[i * 3] * dt;
+          SPLASH.pos[i * 3 + 1] = Math.max(0, SPLASH.pos[i * 3 + 1] + splVel[i * 3 + 1] * dt);
+          SPLASH.pos[i * 3 + 2] += splVel[i * 3 + 2] * dt;
+          SPLASH.alpha[i] = Math.min(1, splLife[i] * 2) * 0.55;
+        }
+        SPLASH.dirty();
+      }
+
+      // ---- 🐠 fish in the lagoon: little schools of koi gliding just under the
+      // surface — they scatter when she swims among them
+      const FISH_TEX = bdayTex(128, 64, (g) => {
+        g.fillStyle = "#ffffff";
+        g.beginPath();
+        g.ellipse(72, 32, 40, 14, 0, 0, Math.PI * 2); // body
+        g.fill();
+        g.beginPath();
+        g.moveTo(36, 32); // tail
+        g.lineTo(6, 13);
+        g.quadraticCurveTo(17, 32, 6, 51);
+        g.closePath();
+        g.fill();
+        g.globalAlpha = 0.75;
+        for (const s of [-1, 1]) {
+          g.beginPath();
+          g.ellipse(82, 32 + s * 15, 11, 4.5, s * 0.6, 0, Math.PI * 2); // fins
+          g.fill();
+        }
+        g.globalAlpha = 1;
+        g.fillStyle = "rgba(120,40,40,0.22)"; // a darker back
+        g.beginPath();
+        g.ellipse(74, 32, 28, 4, 0, 0, Math.PI * 2);
+        g.fill();
+        g.fillStyle = "#2a1a20"; // eyes
+        for (const s of [-1, 1]) {
+          g.beginPath();
+          g.arc(102, 32 + s * 6, 2.4, 0, Math.PI * 2);
+          g.fill();
+        }
+      });
+      const FISH_N = 28;
+      const fishMat = new THREE.MeshBasicMaterial({ map: FISH_TEX, transparent: true, depthWrite: false, opacity: 0.9 });
+      const fishIM = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.9, 0.45).rotateX(-Math.PI / 2), fishMat, FISH_N);
+      fishIM.frustumCulled = false;
+      resortRoot.add(fishIM);
+      const FISH_COLS = [0xff7a3a, 0xff8fb8, 0xffd166, 0xfff2e8, 0xe2334f, 0xffa86a, 0xc58bff];
+      const fish = [];
+      for (let i = 0; i < FISH_N; i++) {
+        const school = i % 4;
+        fish.push({
+          school,
+          ox: (Math.random() - 0.5) * 3.2,
+          oz: (Math.random() - 0.5) * 2.2,
+          ph: Math.random() * 6.28,
+          s: 0.7 + Math.random() * 0.55,
+          fx: 0,
+          fz: 0,
+        });
+        fishIM.setColorAt(i, tmpColor.setHex(FISH_COLS[i % FISH_COLS.length]));
+      }
+      const SCHOOLS = [0, 1, 2, 3].map((k) => ({ a: 0.05 + k * 0.013, b: 0.09 + k * 0.017, p: k * 1.7, q: k * 2.3 }));
+      const _fm = new THREE.Matrix4(),
+        _fq = new THREE.Quaternion(),
+        _fe = new THREE.Euler(),
+        _fs = new THREE.Vector3();
+      function updateFish(dt, t) {
+        fishIM.visible = camera.position.distanceTo(_dp.set(LAGOON.x, 0, LAGOON.z)) < 160;
+        if (!fishIM.visible) return;
+        fishMat.color.setScalar(1 - 0.45 * uNight.value);
+        const RX_ = LAGOON.w / 2 - 6,
+          RZ_ = LAGOON.d / 2 - 3.2;
+        const gp = girl.pos,
+          swim = girl.swim;
+        for (let i = 0; i < FISH_N; i++) {
+          const f = fish[i],
+            S = SCHOOLS[f.school];
+          const u = t + f.ph * 0.15;
+          const x = LAGOON.x + Math.sin(u * S.a * 6.28 + S.p) * RX_,
+            z = LAGOON.z + Math.sin(u * S.b * 6.28 + S.q) * RZ_;
+          const dx = Math.cos(u * S.a * 6.28 + S.p) * RX_ * S.a,
+            dz = Math.cos(u * S.b * 6.28 + S.q) * RZ_ * S.b;
+          // dart away from her when she swims close
+          let px = x + f.ox + f.fx,
+            pz = z + f.oz + f.fz;
+          const ax = px - gp.x,
+            az = pz - gp.z,
+            ad = Math.hypot(ax, az);
+          if (swim && ad < 3.2 && ad > 1e-3) {
+            f.fx += (ax / ad) * dt * 6;
+            f.fz += (az / ad) * dt * 6;
+          }
+          f.fx *= Math.exp(-dt * 0.6);
+          f.fz *= Math.exp(-dt * 0.6);
+          px = clamp(x + f.ox + f.fx, LAGOON.x - LAGOON.w / 2 + 1.5, LAGOON.x + LAGOON.w / 2 - 1.5);
+          pz = clamp(z + f.oz + f.fz, LAGOON.z - LAGOON.d / 2 + 1.5, LAGOON.z + LAGOON.d / 2 - 1.5);
+          const wig = Math.sin(t * 7 + f.ph * 3) * 0.18;
+          _fe.set(0, Math.atan2(-dz, dx) + wig, 0);
+          _fm.compose(_fs.set(px, 0.095 + i * 0.0004, pz), _fq.setFromEuler(_fe), _dp.setScalar(f.s));
+          fishIM.setMatrixAt(i, _fm);
+          if (Math.random() < dt * 0.04) poolRipple(px, pz, 0.35, 0.1); // one comes up to the surface
+        }
+        fishIM.instanceMatrix.needsUpdate = true;
+      }
+
       function updateBirthday(dt, t) {
         glowScale.value = (innerHeight * renderer.getPixelRatio()) / (2 * Math.tan(d2r(camera.fov / 2)));
         updateCake(dt, t);
         updateFireworks(dt, t);
         updateLanterns(dt, t);
         updateNameSky(dt, t);
+        updateDolphins(dt, t);
+        updateFish(dt, t);
       }
 
       // ============================================================================
