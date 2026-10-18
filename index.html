@@ -336,6 +336,74 @@
         font-size: 0.92em;
       }
 
+      /* ─────────── 🏝️ where she is: district · street, and a pop-up per new area ─────────── */
+      #where {
+        position: fixed;
+        top: 50px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 12;
+        display: none;
+        color: #ffe0ec;
+        font-size: 12.5px;
+        font-weight: 600;
+        background: rgba(40, 10, 28, 0.45);
+        border: 1px solid rgba(255, 120, 150, 0.35);
+        border-radius: 16px;
+        padding: 4px 13px;
+        text-shadow: 0 1px 3px #000;
+        pointer-events: none;
+        white-space: nowrap;
+      }
+      #where.on {
+        display: block;
+      }
+      #area-pop {
+        position: fixed;
+        top: 20%;
+        left: 50%;
+        z-index: 14;
+        transform: translate(-50%, -12px) scale(0.94);
+        opacity: 0;
+        pointer-events: none;
+        text-align: center;
+        color: #fff;
+        text-shadow:
+          0 2px 16px rgba(255, 60, 140, 0.85),
+          0 1px 3px #000;
+        transition:
+          opacity 0.5s,
+          transform 0.6s cubic-bezier(0.2, 1.3, 0.4, 1);
+      }
+      #area-pop.show {
+        opacity: 1;
+        transform: translate(-50%, 0) scale(1);
+      }
+      #area-pop .ap-i {
+        display: block;
+        font-size: 40px;
+      }
+      #area-pop b {
+        display: block;
+        font-size: 34px;
+        letter-spacing: 1px;
+      }
+      #area-pop i {
+        display: block;
+        font-style: normal;
+        font-size: 13px;
+        letter-spacing: 4px;
+        text-transform: uppercase;
+        color: #ffd6e8;
+      }
+      body.touch #where {
+        top: 46px;
+        font-size: 11px;
+      }
+      body.touch #area-pop b {
+        font-size: 26px;
+      }
+
       /* ─────────── 📻 Rose FM — a mini radio on the left, in every car / plane ─────────── */
       #radio {
         position: fixed;
@@ -489,20 +557,6 @@
       }
       body.touch .rf-btn b {
         display: none;
-      }
-      #rf-prog {
-        grid-column: 1 / -1;
-        height: 4px;
-        border-radius: 4px;
-        background: rgba(255, 220, 235, 0.25);
-        overflow: hidden;
-      }
-      #rf-bar {
-        height: 100%;
-        width: 0;
-        border-radius: 4px;
-        background: linear-gradient(90deg, #ffd166, #ff5d9e, #c58bff);
-        box-shadow: 0 0 8px rgba(255, 110, 170, 0.9);
       }
       body.touch #radio {
         left: max(10px, env(safe-area-inset-left));
@@ -1199,6 +1253,8 @@
       <span id="disc-count">0</span> / <span id="disc-total">7</span> 💗
     </div>
     <div id="kisses">💋 <span id="kiss-count">0</span> / <span id="kiss-goal">7</span></div>
+    <div id="where" dir="rtl"></div>
+    <div id="area-pop"></div>
     <div id="prompt"></div>
     <div id="veh-hud"></div>
     <canvas id="radar" width="170" height="170"></canvas>
@@ -1220,7 +1276,6 @@
           <div class="rf-btn" id="rf-next" title="التالي (N)">⏭<b>N</b></div>
         </div>
       </div>
-      <div id="rf-prog"><div id="rf-bar"></div></div>
     </div>
 
 
@@ -1989,6 +2044,7 @@
       });
       groundMat.onBeforeCompile = (shader) => {
         shader.uniforms.uNight = uNight;
+        shader.uniforms.uTime = uCityTime; // the sea's swell
         shader.vertexShader = shader.vertexShader
           .replace(
             "#include <common>",
@@ -2005,6 +2061,7 @@
             `#include <common>
       varying vec3 vWPos;
       uniform float uNight;
+      uniform float uTime;
       float rcHash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
       float rcNoise(vec2 p){
         vec2 i = floor(p), f = fract(p);
@@ -2032,6 +2089,7 @@
           .replace(
             "#include <emissivemap_fragment>",
             `#include <emissivemap_fragment>
+      vec3 rcEm0 = totalEmissiveRadiance;
       const float TILE = ${TILE.toFixed(1)};  // same lot size as the JS grid
       const float ROADHW = ${ROAD_HW.toFixed(1)};        // road half-width (m)
       vec2 g = vWPos.xz;
@@ -2057,6 +2115,14 @@
       float grout = max(step(sf.x, 0.05), step(sf.y, 0.05));
       vec3 paving = vec3(0.32, 0.22, 0.27) * (0.8 + 0.4 * rcHash(floor(slab)));
       paving *= 1.0 - 0.45 * grout;
+      // each district paves its pavements in its own stone (same map as districtLot)
+      vec2 lot = floor(g / TILE);
+      vec3 dTint = vec3(0.92, 0.96, 1.4);                                  // ✨ star heights: lavender-blue
+      if (lot.x >= -2.0 && lot.x <= 4.0 && lot.y >= -4.0 && lot.y <= 4.0) dTint = vec3(1.0); // 🏙️ rose-stone
+      else if (lot.y >= 5.0 && lot.x <= 4.0) dTint = vec3(1.4, 0.86, 1.02); // 🌹 rose quarter: pinker
+      else if (lot.y <= -5.0) dTint = vec3(1.2, 1.24, 1.38);                // ⛵ marina: pale shell-white
+      else if (lot.x <= -3.0) dTint = vec3(1.34, 1.12, 0.9);                // 🌼 jasmine village: honey
+      paving *= dTint;
       float kerbX = (1.0 - onX) * step(dx, ROADHW + 0.45);
       float kerbZ = (1.0 - onZ) * step(dz, ROADHW + 0.45);
       float kerb = clamp(kerbX + kerbZ, 0.0, 1.0) * (1.0 - road);
@@ -2116,7 +2182,45 @@
       // ---- warm golden light pool under each lamp (lamps are on the grid nodes)
       float dn = distance(g, node);
       float pool = smoothstep(11.0, 0.0, dn);
-      totalEmissiveRadiance += pool * pool * vec3(1.0, 0.56, 0.22) * (0.9 + 0.5 * pud) * uNight;`,
+      totalEmissiveRadiance += pool * pool * vec3(1.0, 0.56, 0.22) * (0.9 + 0.5 * pud) * uNight;
+
+      // ---- 🏝️ beyond the Corniche: a promenade, golden sand — and the sea
+      float cityOut = max(max(${CITY_X0.toFixed(1)} - g.x, g.x - ${CITY_X1.toFixed(1)}),
+                          max(${CITY_Z0.toFixed(1)} - g.y, g.y - ${CITY_Z1.toFixed(1)})) - (ROADHW + 0.45);
+      if (cityOut > 0.0) {
+        totalEmissiveRadiance = rcEm0;
+        vec2 cq = abs(g - vec2(${LAND_CX.toFixed(1)}, ${LAND_CZ.toFixed(1)}))
+                - vec2(${LAND_HX.toFixed(1)}, ${LAND_HZ.toFixed(1)});
+        float sd = length(max(cq, 0.0)) + min(max(cq.x, cq.y), 0.0) - ${ISLE_R.toFixed(1)}; // <0 land
+        float t = uTime;
+        float prom = 1.0 - step(6.5, cityOut);                  // paved promenade by the road
+        vec3 sand = vec3(0.95, 0.80, 0.62) * (0.86 + 0.22 * rcNoise(g * 0.7));
+        sand = mix(sand, vec3(0.70, 0.55, 0.45), smoothstep(-9.0, 0.0, sd) * 0.55); // damp
+        vec3 land = mix(sand, paving * 1.3, prom);
+        // the sea: turquoise shallows → deep blue, a slow swell and small ripples
+        float w1 = rcNoise(g * 0.045 + vec2(t * 0.05, t * 0.035));
+        float w2 = rcNoise(g * 0.19 - vec2(t * 0.16, -t * 0.11));
+        float wv = 0.6 * w1 + 0.4 * w2;
+        float deep = smoothstep(0.0, 70.0, sd);
+        vec3 seaCol = mix(vec3(0.30, 0.86, 0.88), vec3(0.10, 0.38, 0.68), deep) * (0.82 + 0.32 * wv);
+        float isSea = step(0.0, sd);
+        // foam where the waves lap the sand (the line breathes in and out)
+        float lap = 1.8 + 1.4 * sin(t * 0.9 + g.x * 0.045 + g.y * 0.037);
+        float foam = isSea * (1.0 - smoothstep(0.0, lap, sd))
+                   + (1.0 - isSea) * smoothstep(-1.2, 0.0, sd) * 0.6;
+        foam += isSea * step(0.83, w2) * (1.0 - deep) * 0.35;    // little whitecaps
+        foam = clamp(foam, 0.0, 1.0);
+        diffuseColor.rgb = mix(land, seaCol, isSea);
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.97, 0.98, 1.0), foam);
+        roughnessFactor = mix(mix(0.92, 0.75, prom), 0.08, isSea);
+        // the sea glows softly with the sky, so it never turns black at night
+        vec3 skyTint = mix(vec3(0.05, 0.24, 0.32), vec3(0.17, 0.15, 0.42), uNight);
+        totalEmissiveRadiance += isSea * skyTint * (0.6 + 0.5 * wv) * (1.0 - 0.45 * deep);
+        float glint = pow(rcNoise(g * 0.9 + vec2(t * 0.7, -t * 0.5)), 14.0) * isSea;
+        totalEmissiveRadiance += glint * mix(vec3(1.0, 0.86, 0.6), vec3(0.85, 0.85, 1.0), uNight) * 2.4;
+        totalEmissiveRadiance += foam * vec3(0.25, 0.3, 0.35) * (0.4 + 0.6 * uNight);
+        totalEmissiveRadiance += land * (1.0 - isSea) * 0.3 * uNight; // moonlit sand
+      }`,
           );
       };
       const ground = new THREE.Mesh(
@@ -2138,7 +2242,7 @@
       }
 
       // ----------------------------------------------------------------------------
-      // Infinite city via chunked instanced buildings
+      // 🏝️ Rose Island — the city, built from chunked instanced buildings
       // ----------------------------------------------------------------------------
       // 🌆 roomier city: 32m lots (was 26m) around the SAME tower footprints, so
       // the streets between the towers are wider and the skyline can breathe
@@ -2147,8 +2251,53 @@
       const ROAD_HW = 5; // painted road half-width (m)
       const CHUNK = 6; // lots per chunk side
       const CHUNK_SIZE = TILE * CHUNK;
-      const VIEW_CHUNKS = isTouch ? 3 : 4; // radius of chunks kept loaded (smaller on phones)
       const MAX_PER_CHUNK = CHUNK * CHUNK * 5; // up to 3 telescoping tiers + 2 masts per lot
+
+      // 🏝️ ROSE ISLAND — the city is one island (no endless repeating streets):
+      // lots gx −8…11 × gz −9…8, ringed by the coastal Corniche road, a promenade
+      // and a sandy beach — and then open sea on every side.
+      const ISLE = { gx0: -8, gx1: 11, gz0: -9, gz1: 8 };
+      const BEACH = 34; // land beyond the Corniche's centre line (promenade + sand)
+      const ISLE_R = 46; // the coast's rounded corners
+      const CITY_X0 = ISLE.gx0 * TILE,
+        CITY_X1 = (ISLE.gx1 + 1) * TILE,
+        CITY_Z0 = ISLE.gz0 * TILE,
+        CITY_Z1 = (ISLE.gz1 + 1) * TILE;
+      const LAND_X0 = CITY_X0 - BEACH,
+        LAND_X1 = CITY_X1 + BEACH,
+        LAND_Z0 = CITY_Z0 - BEACH,
+        LAND_Z1 = CITY_Z1 + BEACH;
+      const LAND_CX = (LAND_X0 + LAND_X1) / 2,
+        LAND_CZ = (LAND_Z0 + LAND_Z1) / 2,
+        LAND_HX = (LAND_X1 - LAND_X0) / 2 - ISLE_R,
+        LAND_HZ = (LAND_Z1 - LAND_Z0) / 2 - ISLE_R;
+      function onIsland(gx, gz) {
+        return gx >= ISLE.gx0 && gx <= ISLE.gx1 && gz >= ISLE.gz0 && gz <= ISLE.gz1;
+      }
+      // signed distance to the waterline (m): < 0 on land, > 0 out at sea
+      function coastDist(x, z) {
+        const dx = Math.abs(x - LAND_CX) - LAND_HX,
+          dz = Math.abs(z - LAND_CZ) - LAND_HZ;
+        return Math.hypot(Math.max(dx, 0), Math.max(dz, 0)) + Math.min(Math.max(dx, dz), 0) - ISLE_R;
+      }
+      // 🏘️ the districts — each with its own skyline, colours and paving stone
+      function districtLot(gx, gz) {
+        if (inPark(gx, gz)) return "park";
+        if (inAirport(gx, gz)) return "air";
+        if (gx >= -2 && gx <= 4 && gz >= -4 && gz <= 4) return "downtown";
+        if (gz >= 5) return gx >= 5 ? "sky" : "rose";
+        if (gz <= -5) return "marina";
+        if (gx <= -3) return "garden";
+        return "sky";
+      }
+      // heights: H = h0 + h1·r1 + h2·r2^pw (m); pal = indices into NEON below
+      const DISTRICT_STYLE = {
+        downtown: { h0: 34, h1: 74, h2: 190, pw: 2.1, empty: 0.06, pal: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] },
+        rose: { h0: 22, h1: 40, h2: 46, pw: 2, empty: 0.08, pal: [0, 1, 2, 3, 10, 11] },
+        sky: { h0: 30, h1: 46, h2: 90, pw: 2, empty: 0.08, pal: [4, 5, 6, 9, 9, 11] },
+        marina: { h0: 12, h1: 20, h2: 30, pw: 3, empty: 0.12, pal: [4, 6, 6, 7, 8, 11] },
+        garden: { h0: 9, h1: 13, h2: 14, pw: 3, empty: 0.22, pal: [7, 8, 9, 10, 11, 2] },
+      };
 
       // Pastel-neon palette straight from the dream-city reference. Weighted like
       // the image: PINK and BLUE towers dominate the skyline, with mint, lavender,
@@ -2236,14 +2385,16 @@
         return s;
       }
       function computeTowerSpec(gx, gz) {
+        if (!onIsland(gx, gz)) return null; // 🌊 the sea
         if (inAirport(gx, gz)) return null; // ✈️ Rose Airfield — a clearing in the towers
         if (inPark(gx, gz)) return null; // 🌳 Rose Park — a WIDE green clearing with the playgrounds
         if (clearedLot(gx, gz)) return null; // 🌹 a rose plaza or a street café lives here
-        if (hash(gx, gz, 1) < 0.08) return null; // the odd empty lot — open sky
+        const ds = DISTRICT_STYLE[districtLot(gx, gz)];
+        if (hash(gx, gz, 1) < ds.empty) return null; // the odd empty lot — open sky
         const h1 = hash(gx, gz, 2);
         const h2 = hash(gx, gz, 3);
-        // a dense forest of super-talls with some mid-rise between
-        let H = 34 + h1 * 74 + Math.pow(h2, 2.1) * 190;
+        // each district its own skyline: super-talls downtown, low villas by the sea…
+        let H = ds.h0 + h1 * ds.h1 + Math.pow(h2, ds.pw) * ds.h2;
         H = Math.round(H / 3.1) * 3.1;
         const fw = BUILD * (0.5 + hash(gx, gz, 4) * 0.34);
         const fd = BUILD * (0.5 + hash(gx, gz, 5) * 0.34);
@@ -2252,7 +2403,7 @@
         const jz = (hash(gx, gz, 7) - 0.5) * (TILE - BUILD) * 0.3;
         const x = gx * TILE + TILE / 2 + jx;
         const z = gz * TILE + TILE / 2 + jz;
-        const neon = NEON[(hash(gx, gz, 20) * NEON.length) | 0];
+        const neon = NEON[ds.pal[(hash(gx, gz, 20) * ds.pal.length) | 0]];
 
         const tiers = [];
         let topW = fw,
@@ -2438,6 +2589,9 @@
       function lampBroken(gx, gz) {
         return hash(gx, gz, 11) < 0.12;
       }
+      function noLamp(gx, gz) {
+        return lampBroken(gx, gz) || inAirport(gx, gz) || !onIsland(gx, gz);
+      }
 
       // ---- Sky bridges --------------------------------------------------------
       // Elevated rail/walkways ride the road grid high above the streets, exactly
@@ -2449,6 +2603,12 @@
         const h = hash(n, 501 + dir * 37);
         if (h < 0.18) return 0; // a few gaps in the network
         return 38 + ((h * 3) | 0) * 21; // decks at 38 / 59 / 80 m
+      }
+      // only the island's inner streets carry sky bridges (dir 0 = E-W line at
+      // z = n·TILE, dir 1 = N-S line at x = n·TILE)
+      function bridgeAt(n, dir) {
+        const ok = dir ? n > ISLE.gx0 && n <= ISLE.gx1 : n > ISLE.gz0 && n <= ISLE.gz1;
+        return ok ? bridgeLine(n, dir) : 0;
       }
       function makeTrussTexture() {
         const w = 512,
@@ -2481,13 +2641,14 @@
         g.stroke();
         const t = new THREE.CanvasTexture(cv);
         t.wrapS = THREE.RepeatWrapping;
-        t.repeat.set(CHUNK_SIZE / 26, 1);
+        t.repeat.set(1, 1); // one truss run per lot-long segment
         return t;
       }
       const trussTex = makeTrussTexture();
-      const deckGeo = new THREE.BoxGeometry(CHUNK_SIZE, 0.9, 4.6);
-      const railGeo = new THREE.BoxGeometry(CHUNK_SIZE, 0.16, 0.24);
-      const trussGeo = new THREE.PlaneGeometry(CHUNK_SIZE, 3.2);
+      // one segment per lot, so the decks can end at the Corniche
+      const deckGeo = new THREE.BoxGeometry(TILE, 0.9, 4.6);
+      const railGeo = new THREE.BoxGeometry(TILE, 0.16, 0.24);
+      const trussGeo = new THREE.PlaneGeometry(TILE, 3.2);
       const deckMat = new THREE.MeshStandardMaterial({
         color: 0x6a6f8a,
         roughness: 0.7,
@@ -2506,7 +2667,7 @@
         alphaTest: 0.3,
         side: THREE.DoubleSide,
       });
-      const MAX_DECK = CHUNK * 2,
+      const MAX_DECK = CHUNK * CHUNK * 2,
         MAX_RAIL = MAX_DECK * 2,
         MAX_TRUSS = MAX_DECK * 2;
 
@@ -2701,6 +2862,11 @@
       const T_FRONT = new THREE.Color(3.0, 2.9, 2.6),
         T_REAR = new THREE.Color(2.8, 0.1, 0.16);
       const trains = [];
+      // where a train may run along its line (its whole length stays over the island)
+      function trainSpan(dir) {
+        const half = (CARS * (CAR_LEN + CAR_GAP)) / 2 + 2;
+        return dir ? [CITY_Z0 + half, CITY_Z1 - half] : [CITY_X0 + half, CITY_X1 - half];
+      }
       function respawnTrain(tr) {
         for (let tries = 0; tries < 24; tries++) {
           const dir = Math.random() < 0.5 ? 0 : 1;
@@ -2708,14 +2874,13 @@
             (dir ? camera.position.x : camera.position.z) / TILE,
           );
           const n = base + ((Math.random() * 16) | 0) - 8;
-          const y = bridgeLine(n, dir);
+          const y = bridgeAt(n, dir);
           if (!y) continue;
           tr.dir = dir;
           tr.line = n * TILE;
           tr.y = y + 0.45 + 1.35; // deck top + half car height
-          tr.s =
-            (dir ? camera.position.z : camera.position.x) +
-            (Math.random() - 0.5) * 800;
+          const [lo, hi] = trainSpan(dir);
+          tr.s = lo + Math.random() * (hi - lo);
           tr.v = (24 + Math.random() * 24) * (Math.random() < 0.5 ? -1 : 1);
           return;
         }
@@ -2743,7 +2908,18 @@
         for (const tr of trains) {
           const camAlong = tr.dir ? camera.position.z : camera.position.x;
           tr.s += tr.v * dt;
-          if (tr.y < -100 || Math.abs(tr.s - camAlong) > 520) respawnTrain(tr);
+          // the line ends at the Corniche — the train turns back there
+          if (tr.y > -100) {
+            const [lo, hi] = trainSpan(tr.dir);
+            if (tr.s < lo) {
+              tr.s = lo;
+              tr.v = Math.abs(tr.v);
+            } else if (tr.s > hi) {
+              tr.s = hi;
+              tr.v = -Math.abs(tr.v);
+            }
+          }
+          if (tr.y < -100 || Math.abs(tr.s - camAlong) > 760) respawnTrain(tr);
           // local +X runs along the track toward the last car
           const base = tr.dir === 0 ? 0 : -Math.PI / 2;
           for (let c = 0; c < CARS; c++) {
@@ -2892,7 +3068,7 @@
           for (let lz = 0; lz < CHUNK; lz++) {
             const gx = cx * CHUNK + lx;
             const gz = cz * CHUNK + lz;
-            if (lampBroken(gx, gz) || inAirport(gx, gz)) continue;
+            if (noLamp(gx, gz)) continue;
             dummy.position.set(gx * TILE + LAMP_OFF, 0, gz * TILE + LAMP_OFF);
             dummy.scale.set(1, 1, 1);
             dummy.rotation.set(0, 0, 0);
@@ -2938,21 +3114,17 @@
             trusses.setMatrixAt(bT++, dummy.matrix);
           }
         };
-        for (let i = 0; i < CHUNK; i++) {
-          const gzL = cz * CHUNK + i; // E-W line (runs along X) at z = gzL*TILE
-          const yA = bridgeLine(gzL, 0);
-          if (yA)
-            putBridge(cx * CHUNK_SIZE + CHUNK_SIZE / 2, yA, gzL * TILE, 0);
-          const gxL = cx * CHUNK + i; // N-S line (runs along Z) at x = gxL*TILE
-          const yB = bridgeLine(gxL, 1);
-          if (yB)
-            putBridge(
-              gxL * TILE,
-              yB,
-              cz * CHUNK_SIZE + CHUNK_SIZE / 2,
-              Math.PI / 2,
-            );
-        }
+        for (let i = 0; i < CHUNK; i++)
+          for (let j = 0; j < CHUNK; j++) {
+            const gzL = cz * CHUNK + i, // E-W line (runs along X) at z = gzL*TILE
+              gxA = cx * CHUNK + j;
+            const yA = gxA >= ISLE.gx0 && gxA <= ISLE.gx1 ? bridgeAt(gzL, 0) : 0;
+            if (yA) putBridge((gxA + 0.5) * TILE, yA, gzL * TILE, 0);
+            const gxL = cx * CHUNK + i, // N-S line (runs along Z) at x = gxL*TILE
+              gzA = cz * CHUNK + j;
+            const yB = gzA >= ISLE.gz0 && gzA <= ISLE.gz1 ? bridgeAt(gxL, 1) : 0;
+            if (yB) putBridge(gxL * TILE, yB, (gzA + 0.5) * TILE, Math.PI / 2);
+          }
         decks.count = bD;
         rails.count = bR;
         trusses.count = bT;
@@ -2967,36 +3139,12 @@
         return { group, bodies, geo, poles, heads, decks, rails, trusses };
       }
 
+      // 🏝️ the island is small enough to keep every block of it loaded, always
       function updateChunks() {
-        const ccx = Math.floor(camera.position.x / CHUNK_SIZE);
-        const ccz = Math.floor(camera.position.z / CHUNK_SIZE);
-        const needed = new Set();
-
-        for (let dx = -VIEW_CHUNKS; dx <= VIEW_CHUNKS; dx++) {
-          for (let dz = -VIEW_CHUNKS; dz <= VIEW_CHUNKS; dz++) {
-            if (dx * dx + dz * dz > (VIEW_CHUNKS + 0.5) * (VIEW_CHUNKS + 0.5))
-              continue;
-            const cx = ccx + dx,
-              cz = ccz + dz;
-            const key = cx + "," + cz;
-            needed.add(key);
-            if (!chunks.has(key)) chunks.set(key, buildChunk(cx, cz));
-          }
-        }
-        // remove far chunks
-        for (const [key, ch] of chunks) {
-          if (!needed.has(key)) {
-            scene.remove(ch.group);
-            ch.geo.dispose(); // per-chunk geometry (shared material is kept)
-            ch.bodies.dispose();
-            ch.poles.dispose();
-            ch.heads.dispose();
-            ch.decks.dispose();
-            ch.rails.dispose();
-            ch.trusses.dispose();
-            chunks.delete(key);
-          }
-        }
+        if (chunks.size) return;
+        for (let cx = Math.floor(ISLE.gx0 / CHUNK); cx <= Math.floor(ISLE.gx1 / CHUNK); cx++)
+          for (let cz = Math.floor(ISLE.gz0 / CHUNK); cz <= Math.floor(ISLE.gz1 / CHUNK); cz++)
+            chunks.set(cx + "," + cz, buildChunk(cx, cz));
       }
 
       // ----------------------------------------------------------------------------
@@ -3182,10 +3330,7 @@
             const gx = baseX + ox,
               gz = baseZ + oz;
             L.position.set(gx * TILE + LAMP_OFF, 6.4, gz * TILE + LAMP_OFF);
-            L.intensity =
-              lampBroken(gx, gz) || inAirport(gx, gz)
-                ? 0
-                : 6 * reach * uNight.value;
+            L.intensity = noLamp(gx, gz) ? 0 : 6 * reach * uNight.value;
           }
         }
       }
@@ -3408,6 +3553,7 @@
         updateRadio();
         updateStreetProps();
         updateTrafficLights(starTime);
+        updateIsland(dt, starTime);
         radarT += dt;
         if (radarT >= 0.1) {
           radarT = 0;
@@ -3488,24 +3634,25 @@
           music.loop = true;
           music.volume = 0.45;
         }
-        music
-          .play()
-          .then(() => musicBtn.classList.remove("off"))
-          .catch(() => {});
+        music.play().catch(() => {});
+      }
+      // ♪ — the piano's « Rose » song, heard all over the island (the hall's grand
+      // piano plays it, see updateHall). Tap again and it stops.
+      let roseOn = false;
+      function setRose(on) {
+        roseOn = on;
+        musicBtn.classList.toggle("off", !on);
+        if (!on) return;
+        initHallAudio();
+        if (!hallCtx) return;
+        if (hallCtx.state !== "running") hallCtx.resume();
+        if (music && !music.paused) music.pause(); // the vinyl gives way
+        if (!songOn || song !== SONGS.rose) startSong("rose");
       }
       musicBtn.addEventListener("click", (e) => {
         e.stopPropagation();
-        if (!music) {
-          startMusic();
-          return;
-        }
-        if (music.paused) {
-          music.play();
-          musicBtn.classList.remove("off");
-        } else {
-          music.pause();
-          musicBtn.classList.add("off");
-        }
+        setRose(!roseOn);
+        track(roseOn ? "♪ Rose song on" : "♪ Rose song off");
       });
       function enterCity() {
         if (started) return;
@@ -6587,10 +6734,7 @@
           if (hallCtx.state !== "running") hallCtx.resume();
           if (songOn && song === SONGS[name]) return stopSong();
           // the record stops so the piano has the room to itself
-          if (music && !music.paused) {
-            music.pause();
-            musicBtn.classList.add("off");
-          }
+          if (music && !music.paused) music.pause();
           startSong(name);
           track(`🎹 Piano song: ${name}`);
         });
@@ -6609,9 +6753,9 @@
       function toggleVinyl() {
         if (music && !music.paused) {
           music.pause();
-          musicBtn.classList.add("off");
           track("💿 Stopped the vinyl");
         } else {
+          setRose(false);
           startMusic();
           stopSong();
           screenBurst(["💿", "🎶", "💗"], 10);
@@ -6650,6 +6794,7 @@
           const dd = Math.hypot(fp.x - HALL.cx, fp.z - HALL.z1);
           if (dd < 30) vol = 0.4 * (1 - dd / 30);
         }
+        if (roseOn) vol = Math.max(vol, 0.85); // ♪ the Rose song, all over the island
         if (hallCtx) {
           const want = vinylPlaying && !pianoOpen ? 0 : vol;
           hallBus.gain.setTargetAtTime(want, hallCtx.currentTime, 0.4);
@@ -7911,10 +8056,13 @@
       if (kissGoalEl) kissGoalEl.textContent = KISS_GOAL;
       function seedKiss(k) {
         const cam = camera.position;
-        const ang = Math.random() * Math.PI * 2;
-        const dist = 16 + Math.random() * (KISS_RANGE - 16);
-        k.bx = cam.x + Math.cos(ang) * dist;
-        k.bz = cam.z + Math.sin(ang) * dist;
+        for (let tries = 0; tries < 10; tries++) {
+          const ang = Math.random() * Math.PI * 2;
+          const dist = 16 + Math.random() * (KISS_RANGE - 16);
+          k.bx = cam.x + Math.cos(ang) * dist;
+          k.bz = cam.z + Math.sin(ang) * dist;
+          if (coastDist(k.bx, k.bz) < -6) break; // over the island, not out at sea
+        }
         // spread from the streets all the way up into the open sky — the high
         // ones are for rooftop climbs and for catching with the Rose plane ✈️
         if (vehMode === "plane" && !plane.grounded) {
@@ -7986,7 +8134,7 @@
       // far out (≥5 lots) so they land on DIFFERENT buildings than the gifts/keys/etc.
       // (none of these lots fall inside Rose Airfield or Rose Park — both are clearings)
       const POSTER_LOTS = [
-        [5, 0], [0, 5], [-9, 0], [0, -5], [5, 5], [-5, 5], [-5, -5],
+        [5, 0], [0, 5], [-6, -7], [0, -5], [5, 5], [-5, 5], [-5, -5],
         [3, -5], [5, -3], [-3, 5], [3, 5], [-7, -4], [7, -3], [-3, -7],
       ];
       function buildingInfo(gx, gz) {
@@ -8858,6 +9006,7 @@
         fxT: 0,
         mixRun: false, // she's listening through the mix, clip after clip
         needTap: false, // the browser held the song back until her next tap
+        startAt: 0, // where the current song came in (s)
       };
       try {
         const saved = JSON.parse(localStorage.getItem("roseFM") || "{}");
@@ -9070,8 +9219,11 @@
         rfSong.pause();
         const url = RADIO_DIR + s.id + ".mp3";
         if (!rfSong.src.endsWith(encodeURI(url))) rfSong.src = url;
+        // like a real station, a song comes in already playing — somewhere
+        // 0:30–1:30 in (the short mix clips play whole)
+        radio.startAt = isMix(i) ? 0 : Math.min(30 + Math.random() * 60, Math.max(0, (s.dur || 0) - 60));
         try {
-          rfSong.currentTime = 0;
+          rfSong.currentTime = radio.startAt;
         } catch (e) {}
         rfAM = rfAMto = flow ? 0 : 1;
         try {
@@ -9120,9 +9272,9 @@
       }
       function radioBack() {
         // a little way in, ⏮ starts the song again; right at the start it goes back
-        if (radio.phase === "song" && rfSong.currentTime > 6) {
+        if (radio.phase === "song" && rfSong.currentTime > radio.startAt + 6) {
           radioHiss(500, 0);
-          rfSong.currentTime = 0;
+          rfSong.currentTime = radio.startAt;
           return;
         }
         const prev = radio.hist.pop();
@@ -9162,11 +9314,9 @@
         radioEl.dataset.kind = kind;
         radioEl.classList.add("on");
         // the city's song steps aside while the radio plays
-        radio.cityWasOn = !!music && !music.paused;
-        if (radio.cityWasOn) {
-          music.pause();
-          musicBtn.classList.add("off");
-        }
+        radio.cityWasOn = roseOn;
+        if (roseOn) setRose(false);
+        if (music && !music.paused) music.pause(); // (the hall's vinyl too)
         if (!quick) radio.paused = false;
         if (radio.paused) return radioRender();
         if (quick && radio.idx >= 0 && radio.phase === "song" && rfSong.src) {
@@ -9200,12 +9350,13 @@
         for (const n in rfCh) rfCh[n].to = 0;
         radioEl.classList.remove("on");
         radio.needTap = false;
-        if (radio.cityWasOn && music) {
-          music.play().catch(() => {});
-          musicBtn.classList.remove("off");
-        }
+        if (radio.cityWasOn) setRose(true);
         radio.cityWasOn = false;
       }
+      // a fresh file can't seek before it knows its length — seek once it does
+      rfSong.addEventListener("loadedmetadata", () => {
+        if (radio.startAt > 0 && rfSong.currentTime < radio.startAt - 1) rfSong.currentTime = radio.startAt;
+      });
       rfSong.addEventListener("ended", () => {
         if (!radio.on || radio.paused) return;
         if (radio.mixRun && isMix(radio.idx)) tuneTo(nextInMix(), "flow");
@@ -9281,7 +9432,6 @@
       const rfDial = document.getElementById("rf-dial");
       const rfDialG = rfDial.getContext("2d");
       const rfFreqEl = document.getElementById("rf-freq");
-      const rfBarEl = document.getElementById("rf-bar");
       const rfPlayEl = document.getElementById("rf-play");
       function radioRender() {
         const news = radio.phase === "news";
@@ -9406,7 +9556,7 @@
         radioMix(dt);
         if (!radio.on) return;
         // she put the city's ♪ song on herself → the radio steps aside
-        if (music && !music.paused && !radio.paused) {
+        if ((roseOn || (music && !music.paused)) && !radio.paused) {
           radio.cityWasOn = false;
           radioToggle();
         }
@@ -9426,10 +9576,6 @@
         if (rfDraw > 1 / 30) {
           rfDraw = 0;
           drawDial(now / 1000);
-          const d = rfSong.duration;
-          if (radio.phase === "song" && isFinite(d) && d > 0)
-            rfBarEl.style.width = ((rfSong.currentTime / d) * 100).toFixed(2) + "%";
-          else if (radio.phase !== "song") rfBarEl.style.width = "0%";
         }
       }
 
@@ -9604,6 +9750,7 @@
         drv.pos.x += Math.sin(drv.yaw) * drv.speed * dt;
         drv.pos.z += Math.cos(drv.yaw) * drv.speed * dt;
         carCollide();
+        if (keepOnLand(drv.pos, 2.4)) drv.speed *= 0.6; // 🌊 the beach ends at the water
         // parked & passing cars: shove apart, and bounce if she drove into one
         if (hallPush(drv.pos, 1.05, true)) drv.speed *= 0.4; // the music hall
         const bump = pushOffCars(drv.pos, 1.05);
@@ -10027,7 +10174,7 @@
         if (dir === 1) return ph < 7 ? 0 : ph < 9 ? 1 : 2;
         return ph < 9 ? 2 : ph < 16 ? 0 : 1;
       }
-      const inClearing = (gx, gz) => inPark(gx, gz) || inAirport(gx, gz);
+      const inClearing = (gx, gz) => inPark(gx, gz) || inAirport(gx, gz) || !onIsland(gx, gz);
       function isLightNode(gx, gz) {
         return !(
           inClearing(gx - 1, gz - 1) ||
@@ -10644,6 +10791,462 @@
       }
 
       // ============================================================================
+      // 🏝️  ROSE ISLAND — the beach & the sea: palms, umbrellas and lamps along the
+      // Corniche, a pier she can walk out on, a lighthouse, sailboats circling the
+      // island — and a name for every district and street (corner signs + a little
+      // "where am I" pill at the top, with a pop-up whenever she enters a new area).
+      // ============================================================================
+      const DISTRICTS = {
+        downtown: { icon: "🏙️", ar: "وسط المدينة", en: "Downtown" },
+        rose: { icon: "🌹", ar: "حي الورد", en: "Rose Quarter" },
+        sky: { icon: "✨", ar: "حي النجوم", en: "Star Heights" },
+        marina: { icon: "⛵", ar: "المرسى", en: "The Marina" },
+        garden: { icon: "🌼", ar: "حي الياسمين", en: "Jasmine Village" },
+        park: { icon: "🌳", ar: "حديقة روز", en: "Rose Park" },
+        air: { icon: "✈️", ar: "مطار روز", en: "Rose Airfield" },
+        beach: { icon: "🏖️", ar: "شاطئ روز", en: "Rose Beach" },
+        sea: { icon: "🌊", ar: "البحر", en: "The Sea" },
+      };
+      // ---- every street has a name (the coastal ring road is the Corniche) --------
+      const CORNICHE = { ar: "الكورنيش", en: "The Corniche", sea: true };
+      const NS_STREETS = [
+        ["الورد", "Rose"], ["القمر", "Moon"], ["الياسمين", "Jasmine"], ["النجوم", "Stars"],
+        ["الفراشات", "Butterfly"], ["القلوب", "Hearts"], ["اللؤلؤ", "Pearl"], ["العسل", "Honey"],
+        ["الكرز", "Cherry"], ["الغيم", "Cloud"], ["الفجر", "Dawn"], ["النسيم", "Breeze"],
+        ["الحرير", "Silk"], ["البنفسج", "Violet"], ["التوليب", "Tulip"], ["الأحلام", "Dreams"],
+        ["الضحكة", "Smile"], ["الأمنيات", "Wishes"], ["الشوكولا", "Chocolate"],
+      ].map(([a, e]) => ({ ar: "شارع " + a, en: e + " St" }));
+      const EW_STREETS = [
+        ["الحب", "Love"], ["الشمس", "Sun"], ["الربيع", "Spring"], ["الموسيقى", "Music"],
+        ["القهوة", "Coffee"], ["الهدايا", "Gifts"], ["الأمل", "Hope"], ["السعادة", "Joy"],
+        ["الفانيليا", "Vanilla"], ["الكناري", "Canary"], ["المرجان", "Coral"], ["الغروب", "Sunset"],
+        ["الندى", "Dew"], ["الزنبق", "Lily"], ["الفيروز", "Turquoise"], ["البالونات", "Balloon"],
+        ["الشموع", "Candle"],
+      ].map(([a, e]) => ({ ar: "جادة " + a, en: e + " Ave" }));
+      // dir 1 = the N-S street at x = n·TILE, dir 0 = the E-W street at z = n·TILE
+      function streetOf(dir, n) {
+        if (dir) return n <= ISLE.gx0 || n > ISLE.gx1 ? CORNICHE : NS_STREETS[n - ISLE.gx0 - 1];
+        return n <= ISLE.gz0 || n > ISLE.gz1 ? CORNICHE : EW_STREETS[n - ISLE.gz0 - 1];
+      }
+      function rrPath(g, x, y, w, h, r) {
+        g.beginPath();
+        g.moveTo(x + r, y);
+        g.arcTo(x + w, y, x + w, y + h, r);
+        g.arcTo(x + w, y + h, x, y + h, r);
+        g.arcTo(x, y + h, x, y, r);
+        g.arcTo(x, y, x + w, y, r);
+        g.closePath();
+      }
+      const islandRoot = new THREE.Group();
+      scene.add(islandRoot);
+      const isleIM = (geo, mat, list, shadow = false) => {
+        const im = new THREE.InstancedMesh(geo, mat, Math.max(1, list.length));
+        list.forEach((m, i) => im.setMatrixAt(i, m));
+        im.count = list.length;
+        im.castShadow = shadow;
+        islandRoot.add(im);
+        return im;
+      };
+      const matAt = (x, y, z, ry = 0, s = 1, rx = 0) => {
+        dummy.position.set(x, y, z);
+        dummy.rotation.set(rx, ry, 0);
+        dummy.scale.setScalar(s);
+        dummy.updateMatrix();
+        return dummy.matrix.clone();
+      };
+
+      // ---- 🪧 street-name signs on every corner -----------------------------------
+      function signTex(st) {
+        const cv = document.createElement("canvas");
+        cv.width = 512;
+        cv.height = 136;
+        const g = cv.getContext("2d");
+        const gr = g.createLinearGradient(0, 0, 512, 136);
+        gr.addColorStop(0, st.sea ? "#2a8fc4" : "#c2347a");
+        gr.addColorStop(1, st.sea ? "#2b4fae" : "#7a2fa0");
+        rrPath(g, 6, 6, 500, 124, 24);
+        g.fillStyle = gr;
+        g.fill();
+        g.lineWidth = 7;
+        g.strokeStyle = "#ffe4f0";
+        g.stroke();
+        g.textAlign = "center";
+        g.textBaseline = "middle";
+        g.fillStyle = "#ffffff";
+        g.font = 'bold 54px "Segoe UI", Tahoma, Arial, sans-serif';
+        g.fillText(st.ar, 256, 52);
+        g.fillStyle = "#ffe4a8";
+        g.font = '600 27px "Segoe UI", Tahoma, Arial, sans-serif';
+        g.fillText(st.en.toUpperCase(), 256, 104);
+        const t = new THREE.CanvasTexture(cv);
+        t.colorSpace = THREE.SRGBColorSpace;
+        t.anisotropy = 4;
+        return t;
+      }
+      {
+        const plateGeo = new THREE.PlaneGeometry(3.4, 0.9);
+        const plates = new Map(); // street → matrices
+        const poles = [];
+        const addPlate = (st, x, y, z, ry) => {
+          if (!plates.has(st)) plates.set(st, []);
+          plates.get(st).push(matAt(x, y, z, ry));
+        };
+        for (let nx = ISLE.gx0; nx <= ISLE.gx1 + 1; nx++)
+          for (let nz = ISLE.gz0; nz <= ISLE.gz1 + 1; nz++) {
+            const around = [
+              [nx - 1, nz - 1],
+              [nx, nz - 1],
+              [nx - 1, nz],
+              [nx, nz],
+            ];
+            if (around.some(([a, b]) => inAirport(a, b))) continue; // the runway
+            if (around.every(([a, b]) => inPark(a, b))) continue; // inside the park
+            const x = nx * TILE + LAMP_OFF,
+              z = nz * TILE - LAMP_OFF;
+            poles.push(matAt(x, 0, z));
+            // the N-S street's plate runs along it (lower), the E-W one above it
+            const ns = streetOf(1, nx),
+              ew = streetOf(0, nz);
+            // (each plate hangs off the pole away from the road it doesn't name)
+            addPlate(ns, x + 0.04, 3.75, z - 1.75, Math.PI / 2);
+            addPlate(ns, x - 0.04, 3.75, z - 1.75, -Math.PI / 2);
+            addPlate(ew, x + 1.75, 4.8, z + 0.04, 0);
+            addPlate(ew, x + 1.75, 4.8, z - 0.04, Math.PI);
+          }
+        const poleGeo2 = new THREE.CylinderGeometry(0.07, 0.09, 5.3, 6);
+        poleGeo2.translate(0, 2.65, 0);
+        isleIM(poleGeo2, new THREE.MeshStandardMaterial({ color: 0x9aa4c8, roughness: 0.5, metalness: 0.5 }), poles);
+        for (const [st, list] of plates)
+          isleIM(plateGeo, new THREE.MeshBasicMaterial({ map: signTex(st), color: 0xe2e2e2 }), list);
+      }
+
+      // ---- 🌴 the Corniche: palms, beach umbrellas & promenade lamps ---------------
+      const PIER = { x: 2 * TILE, z0: LAND_Z0 + 8, len: 78, hw: 2.6 }; // out to −z
+      const LIGHTHOUSE = { x: CITY_X1 + 14, z: CITY_Z0 - 14 };
+      {
+        const palms = [],
+          fronds = [],
+          umbrellas = [],
+          uCols = [],
+          lamps = [];
+        const UMB = [0xff6fa5, 0xffd166, 0x7fd8ff, 0xc58bff, 0xff8f6b, 0xfff2f6];
+        // walk the four sides of the Corniche; o = metres beyond the road's centre
+        const alongSides = (step, o, fn) => {
+          for (let x = CITY_X0 + step / 2; x < CITY_X1; x += step) {
+            fn(x, CITY_Z0 - o, 0);
+            fn(x, CITY_Z1 + o, Math.PI);
+          }
+          for (let z = CITY_Z0 + step / 2; z < CITY_Z1; z += step) {
+            fn(CITY_X0 - o, z, Math.PI / 2);
+            fn(CITY_X1 + o, z, -Math.PI / 2);
+          }
+        };
+        const clear = (x, z) =>
+          Math.hypot(x - LIGHTHOUSE.x, z - LIGHTHOUSE.z) > 9 && !(Math.abs(x - PIER.x) < 7 && z < CITY_Z0);
+        let k = 0;
+        alongSides(22, 15, (x, z) => {
+          if (!clear(x, z)) return;
+          const h = hash(Math.round(x), Math.round(z), 301);
+          const m = matAt(x, 0, z, h * 6.28, 0.85 + h * 0.4);
+          palms.push(m);
+          fronds.push(m);
+        });
+        alongSides(TILE, ROAD_HW + 1.8, (x, z, ry) => lamps.push(matAt(x, 0, z, ry)));
+        alongSides(19, 25, (x, z, ry) => {
+          if (!clear(x, z) || hash(Math.round(x), Math.round(z), 302) < 0.35) return;
+          umbrellas.push(matAt(x, 0, z, ry));
+          uCols.push(UMB[k++ % UMB.length]);
+        });
+        // a gently curved trunk, and a crown of drooping fronds
+        const trunk = new THREE.CylinderGeometry(0.17, 0.3, 7.6, 7, 8);
+        trunk.translate(0, 3.8, 0);
+        const tp = trunk.attributes.position;
+        for (let i = 0; i < tp.count; i++) {
+          const y = tp.getY(i) / 7.6;
+          tp.setX(i, tp.getX(i) + y * y * 1.1);
+        }
+        trunk.computeVertexNormals();
+        const crown = mergeNI(
+          Array.from({ length: 8 }, (_, i) =>
+            placed(new THREE.BoxGeometry(0.75, 0.05, 3.4), 0, 0, 1.7, 0, 0, 0)
+              .rotateX(0.5 + (i % 2) * 0.18)
+              .rotateY((i / 8) * Math.PI * 2)
+              .translate(1.1, 7.6, 0),
+          ),
+        );
+        isleIM(trunk, new THREE.MeshStandardMaterial({ color: 0xb08a66, roughness: 0.9 }), palms, true);
+        isleIM(crown, new THREE.MeshStandardMaterial({ color: 0x4fae5c, roughness: 0.7, emissive: 0x0c2a12 }), fronds, true);
+        // beach umbrellas: a pole and a candy-coloured canopy
+        const umbPole = new THREE.CylinderGeometry(0.05, 0.05, 2.6, 6);
+        umbPole.translate(0, 1.3, 0);
+        isleIM(umbPole, new THREE.MeshStandardMaterial({ color: 0xf4efe8 }), umbrellas);
+        const canopy = new THREE.ConeGeometry(1.9, 0.7, 12, 1, true);
+        canopy.translate(0, 2.65, 0);
+        const umb = isleIM(
+          canopy,
+          new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6, side: THREE.DoubleSide }),
+          umbrellas,
+        );
+        uCols.forEach((c, i) => umb.setColorAt(i, tmpColor.setHex(c)));
+        // the promenade's lamps — the same posts as the streets'
+        isleIM(poleGeo, lampPoleMat, lamps);
+        isleIM(headGeo, lampHeadMat, lamps);
+      }
+
+      // ---- 🌉 the pier: wooden boards out over the water, rails & little lamps ------
+      {
+        const wood = new THREE.MeshStandardMaterial({ color: 0xc89466, roughness: 0.85 });
+        const deck = new THREE.Mesh(new THREE.BoxGeometry(PIER.hw * 2, 0.3, PIER.len + 4), wood);
+        deck.position.set(PIER.x, -0.12, PIER.z0 - PIER.len / 2 + 2);
+        deck.receiveShadow = true;
+        islandRoot.add(deck);
+        const posts = [],
+          heads = [];
+        for (let z = PIER.z0 - 2; z > PIER.z0 - PIER.len; z -= 4)
+          for (const sx of [-1, 1]) posts.push(matAt(PIER.x + sx * (PIER.hw - 0.12), 0, z));
+        for (let z = PIER.z0 - 8; z > PIER.z0 - PIER.len; z -= 14)
+          for (const sx of [-1, 1]) heads.push(matAt(PIER.x + sx * (PIER.hw - 0.12), 0, z));
+        const post = new THREE.CylinderGeometry(0.09, 0.11, 1.1, 6);
+        post.translate(0, 0.55, 0);
+        isleIM(post, wood, posts);
+        for (const sx of [-1, 1]) {
+          const rail = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, PIER.len), wood);
+          rail.position.set(PIER.x + sx * (PIER.hw - 0.12), 1.08, PIER.z0 - PIER.len / 2);
+          islandRoot.add(rail);
+        }
+        const lampPost = new THREE.CylinderGeometry(0.05, 0.06, 2.6, 6);
+        lampPost.translate(0, 1.3, 0);
+        isleIM(lampPost, lampPoleMat, heads);
+        const bulb = new THREE.SphereGeometry(0.2, 10, 8);
+        bulb.translate(0, 2.7, 0);
+        isleIM(bulb, new THREE.MeshStandardMaterial({ color: 0xfff2d8, emissive: 0xffc27a, emissiveIntensity: 2.4 }), heads);
+      }
+      // walkable: the island, plus the pier's boards
+      function landDist(x, z) {
+        const d = coastDist(x, z);
+        if (d > 0 && Math.abs(x - PIER.x) < PIER.hw && z < PIER.z0 && z > PIER.z0 - PIER.len) return -1;
+        return d;
+      }
+      // keep her (or a car) out of the sea — returns true if it had to push
+      function keepOnLand(p, margin) {
+        let pushed = false;
+        // the lighthouse is solid
+        const lx = p.x - LIGHTHOUSE.x,
+          lz = p.z - LIGHTHOUSE.z,
+          ld = Math.hypot(lx, lz),
+          LR = 3.7 + margin * 0.5;
+        if (ld < LR && ld > 1e-4 && p.y < 24) {
+          p.x = LIGHTHOUSE.x + (lx / ld) * LR;
+          p.z = LIGHTHOUSE.z + (lz / ld) * LR;
+          pushed = true;
+        }
+        // out on the pier: the railings keep her on the boards
+        if (p.z < PIER.z0 && p.z > PIER.z0 - PIER.len - 2 && Math.abs(p.x - PIER.x) < PIER.hw + 1.5 && coastDist(p.x, p.z) > -margin) {
+          const lim = Math.max(0.3, PIER.hw - margin * 0.5);
+          if (Math.abs(p.x - PIER.x) > lim) {
+            p.x = PIER.x + Math.sign(p.x - PIER.x) * lim;
+            pushed = true;
+          }
+          if (p.z < PIER.z0 - PIER.len + 1) {
+            p.z = PIER.z0 - PIER.len + 1;
+            pushed = true;
+          }
+          return pushed;
+        }
+        const d = coastDist(p.x, p.z) + margin;
+        if (d <= 0) return pushed;
+        const e = 0.5;
+        const gx = coastDist(p.x + e, p.z) - coastDist(p.x - e, p.z),
+          gz = coastDist(p.x, p.z + e) - coastDist(p.x, p.z - e);
+        const gl = Math.hypot(gx, gz) || 1;
+        p.x -= (gx / gl) * d;
+        p.z -= (gz / gl) * d;
+        return true;
+      }
+
+      // ---- 🗼 the lighthouse: red & white bands, a glowing lantern, a turning beam --
+      const lhBeam = new THREE.Group();
+      {
+        const g = new THREE.Group();
+        g.position.set(LIGHTHOUSE.x, 0, LIGHTHOUSE.z);
+        islandRoot.add(g);
+        const WHITE = new THREE.MeshStandardMaterial({ color: 0xfff6f4, roughness: 0.6 });
+        const RED = new THREE.MeshStandardMaterial({ color: 0xe2334f, roughness: 0.55 });
+        const add = (geo, mat, y) => {
+          const m = new THREE.Mesh(geo, mat);
+          m.position.y = y;
+          m.castShadow = true;
+          g.add(m);
+          return m;
+        };
+        add(new THREE.CylinderGeometry(3.3, 3.7, 1.2, 20), new THREE.MeshStandardMaterial({ color: 0xb9a49a }), 0.6);
+        const BANDS = 6,
+          BH = 3.3;
+        for (let i = 0; i < BANDS; i++) {
+          const r0 = 2.7 - (i / BANDS) * 0.9,
+            r1 = 2.7 - ((i + 1) / BANDS) * 0.9;
+          add(new THREE.CylinderGeometry(r1, r0, BH, 20), i % 2 ? RED : WHITE, 1.2 + BH * (i + 0.5));
+        }
+        const topY = 1.2 + BH * BANDS;
+        add(new THREE.CylinderGeometry(2.4, 2.4, 0.3, 20), RED, topY + 0.15);
+        add(
+          new THREE.CylinderGeometry(1.3, 1.3, 2.2, 16),
+          new THREE.MeshStandardMaterial({ color: 0xfff4d8, emissive: 0xffd88a, emissiveIntensity: 2.2 }),
+          topY + 1.4,
+        );
+        add(new THREE.ConeGeometry(1.75, 1.8, 16), RED, topY + 3.4);
+        // the beam: two soft cones sweeping round over the sea
+        lhBeam.position.y = topY + 1.4;
+        g.add(lhBeam);
+        const beamMat = new THREE.MeshBasicMaterial({
+          color: 0xfff1c8,
+          transparent: true,
+          opacity: 0.16,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+          fog: false,
+        });
+        for (const sx of [-1, 1]) {
+          const cone = new THREE.Mesh(new THREE.ConeGeometry(7, 90, 20, 1, true), beamMat);
+          cone.rotation.z = (sx * Math.PI) / 2;
+          cone.position.x = sx * 45;
+          lhBeam.add(cone);
+        }
+      }
+
+      // ---- ⛵ sailboats sailing slowly round the island ------------------------------
+      // a point on the coastline pushed `off` metres out to sea, `s` metres along it
+      function ringPoint(s, off) {
+        const r = ISLE_R + off,
+          q = (Math.PI / 2) * r,
+          W = 2 * LAND_HX,
+          H = 2 * LAND_HZ;
+        const L = 2 * (W + H) + 4 * q;
+        s = ((s % L) + L) % L;
+        const arc = (cx, cz, ang) => [cx + Math.cos(ang) * r, cz + Math.sin(ang) * r, -Math.sin(ang), Math.cos(ang)];
+        const X0 = LAND_CX - LAND_HX,
+          X1 = LAND_CX + LAND_HX,
+          Z0 = LAND_CZ - LAND_HZ,
+          Z1 = LAND_CZ + LAND_HZ;
+        if (s < W) return [X0 + s, Z0 - r, 1, 0];
+        if ((s -= W) < q) return arc(X1, Z0, -Math.PI / 2 + s / r);
+        if ((s -= q) < H) return [X1 + r, Z0 + s, 0, 1];
+        if ((s -= H) < q) return arc(X1, Z1, s / r);
+        if ((s -= q) < W) return [X1 - s, Z1 + r, -1, 0];
+        if ((s -= W) < q) return arc(X0, Z1, Math.PI / 2 + s / r);
+        if ((s -= q) < H) return [X0 - r, Z1 - s, 0, -1];
+        s -= H;
+        return arc(X0, Z0, Math.PI + s / r);
+      }
+      const boats = [];
+      {
+        const hullMat = new THREE.MeshStandardMaterial({ color: 0xfdf6f0, roughness: 0.4 });
+        const trimMat = new THREE.MeshStandardMaterial({ color: 0xff5d8f, roughness: 0.5 });
+        const sailMat = new THREE.MeshStandardMaterial({
+          color: 0xfffaf6,
+          roughness: 0.8,
+          side: THREE.DoubleSide,
+          emissive: 0x3a2a30,
+        });
+        const jibMat = sailMat.clone();
+        jibMat.color.setHex(0xffc2d6);
+        const tri = (pts) => {
+          const geo = new THREE.BufferGeometry();
+          geo.setAttribute("position", new THREE.Float32BufferAttribute(pts.flat(), 3));
+          geo.computeVertexNormals();
+          return geo;
+        };
+        const hullGeo = new THREE.BoxGeometry(1.7, 0.75, 4.2);
+        const bowGeo = new THREE.ConeGeometry(0.85, 1.6, 4, 1);
+        bowGeo.rotateY(Math.PI / 4);
+        bowGeo.rotateX(Math.PI / 2);
+        bowGeo.scale(1, 0.62, 1);
+        const mainGeo = tri([[0, 1.0, -1.7], [0, 7.6, 0.12], [0, 1.0, 0.12]]);
+        const jibGeo = tri([[0, 1.0, 0.42], [0, 6.8, 0.36], [0, 1.0, 2.3]]);
+        for (let i = 0; i < 7; i++) {
+          const g = new THREE.Group();
+          const hull = new THREE.Mesh(hullGeo, hullMat);
+          hull.position.y = 0.2;
+          const bow = new THREE.Mesh(bowGeo, hullMat);
+          bow.position.set(0, 0.2, 2.9);
+          const stripe = new THREE.Mesh(new THREE.BoxGeometry(1.74, 0.12, 4.24), trimMat);
+          stripe.position.y = 0.45;
+          const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 7.4, 6), hullMat);
+          mast.position.set(0, 4.3, 0.2);
+          g.add(hull, bow, stripe, mast, new THREE.Mesh(mainGeo, sailMat), new THREE.Mesh(jibGeo, jibMat));
+          islandRoot.add(g);
+          boats.push({
+            g,
+            s: Math.random() * 3000,
+            off: 40 + i * 13 + Math.random() * 10,
+            v: (2.4 + Math.random() * 2.4) * (i % 2 ? 1 : -1),
+            ph: Math.random() * 6.28,
+          });
+        }
+      }
+
+      // ---- 📍 where she is ----------------------------------------------------------
+      const whereEl = document.getElementById("where");
+      const areaPop = document.getElementById("area-pop");
+      let whereT = 0,
+        whereTxt = "",
+        areaCand = "",
+        areaCandT = 0,
+        areaShown = "",
+        areaPopT = 0;
+      function whereAt(x, z) {
+        if (landDist(x, z) > 0) return ["sea", null];
+        const m = ROAD_HW + 0.5;
+        if (x < CITY_X0 - m || x > CITY_X1 + m || z < CITY_Z0 - m || z > CITY_Z1 + m) return ["beach", CORNICHE];
+        const gx = clamp(Math.floor(x / TILE), ISLE.gx0, ISLE.gx1),
+          gz = clamp(Math.floor(z / TILE), ISLE.gz0, ISLE.gz1);
+        const nx = Math.round(x / TILE),
+          nz = Math.round(z / TILE);
+        const street = Math.abs(x - nx * TILE) < Math.abs(z - nz * TILE) ? streetOf(1, nx) : streetOf(0, nz);
+        return [districtLot(gx, gz), street];
+      }
+      function updateIsland(dt, t) {
+        lhBeam.rotation.y = t * 0.8;
+        for (const b of boats) {
+          b.s += b.v * dt;
+          const [x, z, tx, tz] = ringPoint(b.s, b.off);
+          const dir = Math.sign(b.v);
+          b.g.position.set(x, 0.12 + Math.sin(t * 1.3 + b.ph) * 0.14, z);
+          b.g.rotation.set(Math.sin(t * 0.9 + b.ph) * 0.04, Math.atan2(tx * dir, tz * dir), Math.sin(t * 1.1 + b.ph) * 0.07);
+        }
+        whereT += dt;
+        if (whereT < 0.25 || !started) return;
+        const step = whereT;
+        whereT = 0;
+        const fp = focusPos();
+        const [area, street] = whereAt(fp.x, fp.z);
+        const D = DISTRICTS[area];
+        const txt = `${D.icon} ${D.ar}` + (street && area !== "beach" ? ` · ${street.ar}` : "");
+        if (txt !== whereTxt) {
+          whereTxt = txt;
+          whereEl.textContent = "📍 " + txt;
+          whereEl.classList.add("on");
+        }
+        // a big name card when she arrives somewhere new (once it's settled —
+        // walking along a border street shouldn't flicker it)
+        if (area !== areaCand) {
+          areaCand = area;
+          areaCandT = 0;
+        } else areaCandT += step;
+        if (areaCandT >= 0.8 && area !== areaShown) {
+          areaShown = area;
+          areaPop.innerHTML = `<span class="ap-i"></span><b></b><i></i>`;
+          areaPop.querySelector(".ap-i").textContent = D.icon;
+          areaPop.querySelector("b").textContent = D.ar;
+          areaPop.querySelector("i").textContent = D.en;
+          areaPop.classList.add("show");
+          clearTimeout(areaPopT);
+          areaPopT = setTimeout(() => areaPop.classList.remove("show"), 2800);
+        }
+      }
+
+      // ============================================================================
       // 🧗‍♀️  THE GIRL — a little rose-heroine on foot. She runs, JUMPS, and climbs
       // any tower like a spider: push into a wall and she sticks; W climbs,
       // A/D shimmies sideways, Space leaps off. The rooftops are all hers.
@@ -11165,8 +11768,10 @@
         for (let dir = 0; dir < 2; dir++) {
           const lat = dir ? p.x : p.z;
           const n = Math.round(lat / TILE);
-          const y = bridgeLine(n, dir);
+          const y = bridgeAt(n, dir);
           if (!y) continue;
+          const along = dir ? p.z : p.x; // the decks end at the Corniche
+          if (along < (dir ? CITY_Z0 : CITY_X0) || along > (dir ? CITY_Z1 : CITY_X1)) continue;
           if (Math.abs(lat - n * TILE) > 2.5) continue;
           const top = y + 0.45;
           if (p.y >= top - 0.35 && top > best) best = top;
@@ -11295,6 +11900,7 @@
           vel.z += (wishZ * spd - vel.z) * Math.min(1, dt * 6);
           const vyT = fwd * Math.sin(pitch) * spd * 0.8 + upIn * (sprint ? 18 : 13);
           vel.y += (vyT - vel.y) * Math.min(1, dt * 6);
+          const landBefore = landDist(p.x, p.z) < 0;
           p.x += vel.x * dt;
           p.y += vel.y * dt;
           p.z += vel.z * dt;
@@ -11305,6 +11911,9 @@
           }
           pushOffCars(p, 0.35); // parked & passing cars are solid
           hallPush(p, 0.35); // Rosmantic Music's walls & furniture
+          // 🌊 from the land she can't walk into the sea (out at sea — dropped there
+          // by the plane — she can walk the water back to the shore)
+          if (landBefore && p.y < 3) keepOnLand(p, 0.6);
           if (inHall(p) && p.y > HALL.h - 2.1) {
             p.y = HALL.h - 2.1; // mind the ceiling
             vel.y = Math.min(0, vel.y);
@@ -11338,6 +11947,7 @@
           if (vel.y < -46) vel.y = -46;
           if (girl.grounded && jumpPressed) vel.y = 12;
           const fallV = vel.y;
+          const landBefore = landDist(p.x, p.z) < 0;
           p.x += vel.x * dt;
           p.y += vel.y * dt;
           p.z += vel.z * dt;
@@ -11357,6 +11967,9 @@
           }
           pushOffCars(p, 0.35); // parked & passing cars are solid
           hallPush(p, 0.35); // Rosmantic Music's walls & furniture
+          // 🌊 from the land she can't walk into the sea (out at sea — dropped there
+          // by the plane — she can walk the water back to the shore)
+          if (landBefore && p.y < 3) keepOnLand(p, 0.6);
           if (inHall(p) && p.y > HALL.h - 2.1) {
             p.y = HALL.h - 2.1; // mind the ceiling
             vel.y = Math.min(0, vel.y);
@@ -11914,6 +12527,42 @@
         const sc = R / RANGE;
         const cosY = Math.cos(yaw),
           sinY = Math.sin(yaw);
+        // 🏝️ the island under her: sea, sand, the city blocks, the park, the airfield
+        radarG.save();
+        radarG.beginPath();
+        radarG.arc(cx, cyc, R - 1, 0, 7);
+        radarG.clip();
+        radarG.fillStyle = "rgba(40, 140, 190, 0.32)";
+        radarG.fillRect(0, 0, S, S);
+        {
+          const a = cosY * sc,
+            b = sinY * sc,
+            c = -sinY * sc,
+            d = cosY * sc;
+          radarG.setTransform(a, b, c, d, cx - (a * fp.x + c * fp.z), cyc - (b * fp.x + d * fp.z));
+          radarG.fillStyle = "rgba(245, 205, 150, 0.5)";
+          rrPath(radarG, LAND_X0, LAND_Z0, LAND_X1 - LAND_X0, LAND_Z1 - LAND_Z0, ISLE_R);
+          radarG.fill();
+          radarG.fillStyle = "rgba(70, 26, 56, 0.85)";
+          radarG.fillRect(CITY_X0, CITY_Z0, CITY_X1 - CITY_X0, CITY_Z1 - CITY_Z0);
+          radarG.fillStyle = "rgba(120, 210, 150, 0.45)";
+          radarG.fillRect(PARK.x - PARK.w / 2, PARK.z - PARK.d / 2, PARK.w, PARK.d);
+          radarG.fillStyle = "rgba(160, 170, 200, 0.4)";
+          radarG.fillRect(5 * TILE, -TILE, 7 * TILE, 3 * TILE);
+          radarG.strokeStyle = "rgba(255, 190, 220, 0.28)";
+          radarG.lineWidth = ROAD_HW * 1.6;
+          radarG.beginPath();
+          for (let n = ISLE.gx0; n <= ISLE.gx1 + 1; n++) {
+            radarG.moveTo(n * TILE, CITY_Z0);
+            radarG.lineTo(n * TILE, CITY_Z1);
+          }
+          for (let n = ISLE.gz0; n <= ISLE.gz1 + 1; n++) {
+            radarG.moveTo(CITY_X0, n * TILE);
+            radarG.lineTo(CITY_X1, n * TILE);
+          }
+          radarG.stroke();
+        }
+        radarG.restore();
         const put = (wx, wz, color, size) => {
           const dx = wx - fp.x,
             dz = wz - fp.z;
