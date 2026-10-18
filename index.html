@@ -9417,6 +9417,10 @@
       const NEWS_FREQ = 87.7;
       const RF_VOL = 0.85;
       const RADIO_MUSIC = RADIO_SONGS.filter((s) => s.lang !== "mix");
+      // 💗 the first song she hears each visit is « العام الجديد » — Fadl Shaker &
+      // Sherine — and it always comes in at 0:27; every other song starts where it may
+      const RF_OPENER = "fadl-sherine-al-am-al-jadid";
+      const RF_START = { [RF_OPENER]: 27 };
       // the 100-songs DJ mix, cut at every song change into short clips
       const RADIO_MIX = RADIO_SONGS.filter((s) => s.lang === "mix");
       const isMix = (i) => i >= 0 && RADIO_SONGS[i].lang === "mix";
@@ -9457,6 +9461,7 @@
         mixRun: false, // she's listening through the mix, clip after clip
         needTap: false, // the browser held the song back until her next tap
         startAt: 0, // where the current song came in (s)
+        everOn: false, // has the radio played yet this visit?
       };
       try {
         const saved = JSON.parse(localStorage.getItem("roseFM") || "{}");
@@ -9671,7 +9676,11 @@
         if (!rfSong.src.endsWith(encodeURI(url))) rfSong.src = url;
         // like a real station, a song comes in already playing — somewhere
         // 0:30–1:30 in (the short mix clips play whole)
-        radio.startAt = isMix(i) ? 0 : Math.min(30 + Math.random() * 60, Math.max(0, (s.dur || 0) - 60));
+        radio.startAt = isMix(i)
+          ? 0
+          : RF_START[s.id] !== undefined
+            ? RF_START[s.id]
+            : Math.min(30 + Math.random() * 60, Math.max(0, (s.dur || 0) - 60));
         try {
           rfSong.currentTime = radio.startAt;
         } catch (e) {}
@@ -9784,7 +9793,10 @@
         } else {
           // a brand-new random song for a brand-new ride (start the player inside
           // this tap so phones allow it)
-          const i = pickNext();
+          // her very first ride opens with the opener; after that, the shuffle
+          const first = RADIO_SONGS.findIndex((s) => s.id === RF_OPENER);
+          const i = !radio.everOn && first >= 0 ? first : pickNext();
+          radio.everOn = true;
           rfSong.src = RADIO_DIR + RADIO_SONGS[i].id + ".mp3";
           rfSong.play()
             .then(() => radio.phase !== "song" && rfSong.pause())
