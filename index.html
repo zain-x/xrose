@@ -2206,6 +2206,9 @@
         vec2 cq = abs(g - vec2(${LAND_CX.toFixed(1)}, ${LAND_CZ.toFixed(1)}))
                 - vec2(${LAND_HX.toFixed(1)}, ${LAND_HZ.toFixed(1)});
         float sd = length(max(cq, 0.0)) + min(max(cq.x, cq.y), 0.0) - ${ISLE_R.toFixed(1)}; // <0 land
+        vec2 pq = abs(g - vec2(${PEN_CX.toFixed(1)}, ${PEN_CZ.toFixed(1)}))
+                - vec2(${PEN_HX.toFixed(1)}, ${PEN_HZ.toFixed(1)});
+        sd = min(sd, length(max(pq, 0.0)) + min(max(pq.x, pq.y), 0.0) - ${RES_PEN.r.toFixed(1)}); // Rose Resort's beach
         float t = uTime;
         float prom = 1.0 - step(6.5, cityOut);                  // paved promenade by the road
         vec3 sand = vec3(0.95, 0.80, 0.62) * (0.86 + 0.22 * rcNoise(g * 0.7));
@@ -2216,7 +2219,7 @@
         float w2 = rcNoise(g * 0.19 - vec2(t * 0.16, -t * 0.11));
         float wv = 0.6 * w1 + 0.4 * w2;
         float deep = smoothstep(0.0, 70.0, sd);
-        vec3 seaCol = mix(vec3(0.30, 0.86, 0.88), vec3(0.10, 0.38, 0.68), deep) * (0.82 + 0.32 * wv);
+        vec3 seaCol = mix(vec3(0.16, 0.58, 0.92), vec3(0.04, 0.22, 0.60), deep) * (0.82 + 0.32 * wv);
         float isSea = step(0.0, sd);
         // foam where the waves lap the sand (the line breathes in and out)
         float lap = 1.8 + 1.4 * sin(t * 0.9 + g.x * 0.045 + g.y * 0.037);
@@ -2228,7 +2231,7 @@
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.97, 0.98, 1.0), foam);
         roughnessFactor = mix(mix(0.92, 0.75, prom), 0.08, isSea);
         // the sea glows softly with the sky, so it never turns black at night
-        vec3 skyTint = mix(vec3(0.05, 0.24, 0.32), vec3(0.17, 0.15, 0.42), uNight);
+        vec3 skyTint = mix(vec3(0.04, 0.16, 0.36), vec3(0.17, 0.15, 0.42), uNight);
         totalEmissiveRadiance += isSea * skyTint * (0.6 + 0.5 * wv) * (1.0 - 0.45 * deep);
         float glint = pow(rcNoise(g * 0.9 + vec2(t * 0.7, -t * 0.5)), 14.0) * isSea;
         totalEmissiveRadiance += glint * mix(vec3(1.0, 0.86, 0.6), vec3(0.85, 0.85, 1.0), uNight) * 2.4;
@@ -2292,7 +2295,12 @@
       function coastDist(x, z) {
         const dx = Math.abs(x - LAND_CX) - LAND_HX,
           dz = Math.abs(z - LAND_CZ) - LAND_HZ;
-        return Math.hypot(Math.max(dx, 0), Math.max(dz, 0)) + Math.min(Math.max(dx, dz), 0) - ISLE_R;
+        const d = Math.hypot(Math.max(dx, 0), Math.max(dz, 0)) + Math.min(Math.max(dx, dz), 0) - ISLE_R;
+        // the resort's peninsula is land too
+        const px = Math.abs(x - PEN_CX) - PEN_HX,
+          pz = Math.abs(z - PEN_CZ) - PEN_HZ;
+        const pd = Math.hypot(Math.max(px, 0), Math.max(pz, 0)) + Math.min(Math.max(px, pz), 0) - RES_PEN.r;
+        return Math.min(d, pd);
       }
       // 🏘️ the districts — each with its own skyline, colours and paving stone
       function districtLot(gx, gz) {
@@ -2315,6 +2323,12 @@
       // 🏝️ Rose Resort lives on the north beach (behind the Rose Quarter), its
       // villas out over the sea
       const RESORT = { x: -96 };
+      // …with a wide sandy peninsula of its own pushed 36 m out into the sea
+      const RES_PEN = { x0: RESORT.x - 185, x1: RESORT.x + 165, z0: CITY_Z1 - 40, z1: CITY_Z1 + BEACH + 36, r: 40 };
+      const PEN_CX = (RES_PEN.x0 + RES_PEN.x1) / 2,
+        PEN_CZ = (RES_PEN.z0 + RES_PEN.z1) / 2,
+        PEN_HX = (RES_PEN.x1 - RES_PEN.x0) / 2 - RES_PEN.r,
+        PEN_HZ = (RES_PEN.z1 - RES_PEN.z0) / 2 - RES_PEN.r;
 
       // Pastel-neon palette straight from the dream-city reference. Weighted like
       // the image: PINK and BLUE towers dominate the skyline, with mint, lavender,
@@ -10580,7 +10594,7 @@
           promptEl.classList.add("show");
         } else if (vehMode === "walk" && (girl.rest || nearResort)) {
           // 🏝️ Rose Resort's spots
-          const [ic, tx] = girl.rest ? ["🌸", "Get up"] : [nearResort.icon, nearResort.label()];
+          const [ic, tx] = girl.rest ? ["🌸", girl.rest.up || "Get up"] : [nearResort.icon, nearResort.label()];
           const txt = isTouch ? `${ic} ${tx}` : `${ic} F — ${tx}`;
           if (promptEl.textContent !== txt) promptEl.textContent = txt;
           promptEl.classList.add("show");
@@ -11303,6 +11317,74 @@
         return hit;
       }
 
+      // ---- 🌴 palm fronds: a painted leaf (rib + leaflets, yellow-green tips) on
+      // nine drooping planes — no more flat green boxes. One geometry for every palm.
+      const PALM_LEAF_MAT = (() => {
+        const cv = document.createElement("canvas");
+        cv.width = 128;
+        cv.height = 256;
+        const g = cv.getContext("2d");
+        let seed = 3;
+        const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+        g.strokeStyle = "#6b5a2e";
+        g.lineWidth = 3;
+        g.beginPath();
+        g.moveTo(64, 254);
+        g.lineTo(64, 8);
+        g.stroke();
+        for (let t = 0.04; t < 0.97; t += 0.038) {
+          const y = 254 - t * 246,
+            len = 24 + 38 * Math.sin(Math.min(1, t * 1.6) * Math.PI * 0.5) * (1 - t * 0.55),
+            hue = 92 + r() * 24,
+            lit = 26 + r() * 16 + t * 14;
+          for (const sx of [-1, 1]) {
+            const gr = g.createLinearGradient(64, y, 64 + sx * len, y - len * 0.9);
+            gr.addColorStop(0, `hsl(${hue},48%,${lit - 6}%)`);
+            gr.addColorStop(1, `hsl(${hue - 14},58%,${lit + 14}%)`);
+            g.fillStyle = gr;
+            g.beginPath();
+            g.moveTo(64, y + 2);
+            g.lineTo(64 + sx * len, y - len * 0.85);
+            g.lineTo(64 + sx * 1, y - 4.5);
+            g.closePath();
+            g.fill();
+          }
+        }
+        const t = new THREE.CanvasTexture(cv);
+        t.colorSpace = THREE.SRGBColorSpace;
+        t.anisotropy = 4;
+        return new THREE.MeshStandardMaterial({
+          map: t,
+          alphaTest: 0.5,
+          side: THREE.DoubleSide,
+          roughness: 0.8,
+          emissive: 0x08240e,
+          emissiveIntensity: 0.3,
+        });
+      })();
+      const PALM_CROWN_GEO = mergeGeometries(
+        Array.from({ length: 9 }, (_, i) =>
+          new THREE.PlaneGeometry(1.15, 3.7)
+            .translate(0, 1.85, 0)
+            .rotateX(Math.PI / 2 + 0.42 + (i % 2) * 0.22)
+            .rotateY((i / 9) * Math.PI * 2 + 0.3)
+            .translate(1.1, 7.6, 0)
+            .toNonIndexed(),
+        ),
+      );
+      function palmTrunkGeo() {
+        const trunk = new THREE.CylinderGeometry(0.17, 0.3, 7.6, 7, 8);
+        trunk.translate(0, 3.8, 0);
+        const tp = trunk.attributes.position;
+        for (let i = 0; i < tp.count; i++) {
+          const y = tp.getY(i) / 7.6;
+          tp.setX(i, tp.getX(i) + y * y * 1.1);
+        }
+        trunk.computeVertexNormals();
+        return trunk;
+      }
+      const PALM_TRUNK_MAT = new THREE.MeshStandardMaterial({ color: 0xb08a66, roughness: 0.9 });
+
       // ============================================================================
       // 🏝️  ROSE ISLAND — the beach & the sea: palms, umbrellas and lamps along the
       // Corniche, a pier she can walk out on, a lighthouse, sailboats circling the
@@ -11461,7 +11543,7 @@
         const clear = (x, z) =>
           Math.hypot(x - LIGHTHOUSE.x, z - LIGHTHOUSE.z) > 9 &&
           !(Math.abs(x - PIER.x) < 7 && z < CITY_Z0) &&
-          !(z > CITY_Z1 && x > RESORT.x - 100 && x < RESORT.x + 70); // Rose Resort's own beach
+          !(z > CITY_Z1 && x > RES_PEN.x0 - 10 && x < RES_PEN.x1 + 10); // Rose Resort's own beach
         let k = 0;
         alongSides(22, 15, (x, z) => {
           if (!clear(x, z)) return;
@@ -11485,16 +11567,8 @@
           tp.setX(i, tp.getX(i) + y * y * 1.1);
         }
         trunk.computeVertexNormals();
-        const crown = mergeNI(
-          Array.from({ length: 8 }, (_, i) =>
-            placed(new THREE.BoxGeometry(0.75, 0.05, 3.4), 0, 0, 1.7, 0, 0, 0)
-              .rotateX(0.5 + (i % 2) * 0.18)
-              .rotateY((i / 8) * Math.PI * 2)
-              .translate(1.1, 7.6, 0),
-          ),
-        );
-        isleIM(trunk, new THREE.MeshStandardMaterial({ color: 0xb08a66, roughness: 0.9 }), palms, true);
-        isleIM(crown, new THREE.MeshStandardMaterial({ color: 0x4fae5c, roughness: 0.7, emissive: 0x0c2a12 }), fronds, true);
+        isleIM(trunk, PALM_TRUNK_MAT, palms, true);
+        isleIM(PALM_CROWN_GEO, PALM_LEAF_MAT, fronds, true);
         // beach umbrellas: a pole and a candy-coloured canopy
         const umbPole = new THREE.CylinderGeometry(0.05, 0.05, 2.6, 6);
         umbPole.translate(0, 1.3, 0);
@@ -11755,7 +11829,7 @@
           boats.push({
             g,
             s: Math.random() * 3000,
-            off: 40 + i * 13 + Math.random() * 10,
+            off: 100 + i * 12 + Math.random() * 8,
             v: (2.4 + Math.random() * 2.4) * (i % 2 ? 1 : -1),
             ph: Math.random() * 6.28,
           });
@@ -11814,15 +11888,20 @@
       }
 
       // ============================================================================
-      // 🏝️  ROSE RESORT — منتجع روز, on the north beach: a heart-shaped pool she
-      // swims in, sun loungers to lie on, a hammock for the sunset, the Rose Bar and
-      // its mocktails, a bonfire to light, villas out over the sea (one is hers),
-      // and a swan boat to pedal round the island. F (or the action button) uses
-      // whatever is near her.
+      // 🏝️  ROSE RESORT — منتجع روز: a whole beach of its own on the north coast,
+      // 350 m of sand on a peninsula. A palm boulevard with fairy lights leads in
+      // from the Corniche to the heart pool, the long lagoon with its palm island,
+      // swim-up bar and water slide, the jacuzzi, rows of loungers, the Rose Bar,
+      // a spa, a beach-party deck with lights, volleyball, a bonfire, two hammocks,
+      // an over-water restaurant, six villas on stilts (one is hers) and the swan
+      // boat. F (or the action button) uses whatever is near her.
       // ============================================================================
       const RX = RESORT.x,
-        SHORE_Z = LAND_Z1;
-      const DECK_Y = 0.5; // the boardwalk & villa decks stand a step above the water
+        SHORE_Z = LAND_Z1, // the island's own waterline
+        PEN_Z1 = RES_PEN.z1, // the resort beach's waterline
+        SAND0 = CITY_Z1 + ROAD_HW + 2; // where the sand starts, past the promenade
+      const DECK_Y = 0.5; // boardwalks & decks stand a step above the water
+      const VILLA_Z = PEN_Z1 + 34; // the villa decks' front edge
       const resortRoot = new THREE.Group();
       scene.add(resortRoot);
       const RM = (color, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.7, ...extra });
@@ -11837,15 +11916,26 @@
       const rbox = (w, h, d, x, y, z, mat, parent) => rmesh(new THREE.BoxGeometry(w, h, d), mat, x, y, z, parent);
       const rcyl = (r0, r1, h, x, y, z, mat, seg = 10, parent) =>
         rmesh(new THREE.CylinderGeometry(r0, r1, h, seg), mat, x, y, z, parent);
+      const resortIM = (geo, mat, list, shadow = false) => {
+        const im = new THREE.InstancedMesh(geo, mat, Math.max(1, list.length));
+        list.forEach((m, i) => im.setMatrixAt(i, m));
+        im.count = list.length;
+        im.castShadow = shadow;
+        resortRoot.add(im);
+        return im;
+      };
       const WOOD = RM(0xc8945f, { roughness: 0.85, emissive: 0x2a1608, emissiveIntensity: 0.35 });
       const WOOD_D = RM(0x9a6a44, { roughness: 0.85, emissive: 0x1a0c04, emissiveIntensity: 0.3 });
       const PEARL_R = RM(0xfbeef2, { emissive: 0x3a2430, emissiveIntensity: 0.35 });
       const PINK_R = RM(0xff7aa8, { emissive: 0x5a1030, emissiveIntensity: 0.5 });
       const WHITE_R = RM(0xffffff, { emissive: 0x3a3034, emissiveIntensity: 0.35 });
       const THATCH = RM(0xdcb27e, { roughness: 0.95, emissive: 0x2a1a08, emissiveIntensity: 0.4 });
+      const STONE_R = RM(0xf2e2d6, { roughness: 0.9, emissive: 0x2a2018, emissiveIntensity: 0.4 });
       const GLOW_WARM = RM(0x3a2010, { emissive: 0xffc27a, emissiveIntensity: 1.6 });
       const NEON_R = (c, i = 2.2) => RM(0x200810, { emissive: c, emissiveIntensity: i });
-      const textPlane = (text, w, h, bg, fg, glow) => {
+      // a sign board: the Arabic name on top (drawn right-to-left, on its own), the
+      // English under it — never mixed in one line, so no browser can scramble it
+      const textPlane = (ar, en, w, h, bg, fg, glow) => {
         const cv = document.createElement("canvas");
         cv.width = 1024;
         cv.height = Math.round((1024 * h) / w);
@@ -11860,35 +11950,35 @@
         g.textBaseline = "middle";
         g.shadowColor = glow;
         g.shadowBlur = 22;
-        g.fillStyle = fg;
-        let fs = Math.round(cv.height * 0.55);
-        do g.font = `700 ${fs}px "Segoe UI", Tahoma, Arial, sans-serif`;
-        while (g.measureText(text).width > cv.width * 0.9 && (fs -= 4) > 20);
-        g.fillText(text, cv.width / 2, cv.height * 0.54);
+        const fit = (text, maxFs) => {
+          let fs = maxFs;
+          do g.font = `700 ${fs}px "Segoe UI", Tahoma, Arial, sans-serif`;
+          while (g.measureText(text).width > cv.width * 0.88 && (fs -= 4) > 18);
+        };
+        if (en) {
+          g.direction = "rtl";
+          g.fillStyle = fg;
+          fit(ar, Math.round(cv.height * 0.44));
+          g.fillText(ar, cv.width / 2, cv.height * 0.36);
+          g.direction = "ltr";
+          g.fillStyle = "#ffe4a8";
+          fit(en, Math.round(cv.height * 0.3));
+          g.fillText(en, cv.width / 2, cv.height * 0.74);
+        } else {
+          g.direction = /[؀-ۿ]/.test(ar) ? "rtl" : "ltr";
+          g.fillStyle = fg;
+          fit(ar, Math.round(cv.height * 0.55));
+          g.fillText(ar, cv.width / 2, cv.height * 0.54);
+        }
         const t = new THREE.CanvasTexture(cv);
         t.colorSpace = THREE.SRGBColorSpace;
         return new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: t, transparent: true }));
       };
+      const PALM_TRUNK_GEO = palmTrunkGeo();
       function makePalm(x, z, s = 1, lean = 0) {
         const g = new THREE.Group();
-        const trunk = new THREE.CylinderGeometry(0.17, 0.3, 7.6, 7, 8);
-        trunk.translate(0, 3.8, 0);
-        const tp = trunk.attributes.position;
-        for (let i = 0; i < tp.count; i++) {
-          const y = tp.getY(i) / 7.6;
-          tp.setX(i, tp.getX(i) + y * y * 1.1);
-        }
-        trunk.computeVertexNormals();
-        rmesh(trunk, RM(0xb08a66, { roughness: 0.9 }), 0, 0, 0, g);
-        for (let i = 0; i < 8; i++) {
-          const f = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.05, 3.4).translate(0, 0, 1.7), RM(0x4fae5c, { emissive: 0x0c2a12 }));
-          const pivot = new THREE.Group();
-          pivot.position.set(1.1, 7.6, 0);
-          pivot.rotation.y = (i / 8) * Math.PI * 2;
-          f.rotation.set(0.5 + (i % 2) * 0.18, 0, 0);
-          pivot.add(f);
-          g.add(pivot);
-        }
+        rmesh(PALM_TRUNK_GEO, PALM_TRUNK_MAT, 0, 0, 0, g);
+        rmesh(PALM_CROWN_GEO, PALM_LEAF_MAT, 0, 0, 0, g);
         g.position.set(x, 0, z);
         g.rotation.y = lean;
         g.scale.setScalar(s);
@@ -11910,10 +12000,14 @@
         return best;
       }
       function inResortArea(x, z) {
-        return x > RX - 95 && x < RX + 62 && z > CITY_Z1 + ROAD_HW + 1 && z < SHORE_Z + 66;
+        return x > RES_PEN.x0 - 5 && x < RES_PEN.x1 + 5 && z > CITY_Z1 + ROAD_HW + 1 && z < VILLA_Z + 14;
       }
+      // things that must stay clear of scattered palms & umbrellas
+      const RES_KEEP = [];
+      const keepClear = (x0, x1, z0, z1) => RES_KEEP.push([x0, x1, z0, z1]);
+      const isClear = (x, z, m = 3) => !RES_KEEP.some(([x0, x1, z0, z1]) => x > x0 - m && x < x1 + m && z > z0 - m && z < z1 + m);
 
-      // ---- 🌴 the entrance: a neon heart arch on the promenade ----------------------
+      // ---- 🌴 the entrance: a neon heart arch, then a palm boulevard with fairy lights
       {
         const AZ = CITY_Z1 + 9;
         for (const sx of [-1, 1]) {
@@ -11924,28 +12018,112 @@
         arc.position.set(RX, 5, AZ);
         resortRoot.add(arc);
         for (const ry of [0, Math.PI]) {
-          const sg = textPlane("🌴 منتجع روز · ROSE RESORT 🌴", 7.2, 1.2, "#4a1238", "#fff2f8", "#ff9ec2");
-          sg.position.set(RX, 7.2, AZ + (ry ? 0.04 : -0.04));
+          const sg = textPlane("🌴 منتجع روز 🌴", "ROSE RESORT", 7.6, 2.0, "#4a1238", "#fff2f8", "#ff9ec2");
+          sg.position.set(RX, 7.7, AZ + (ry ? 0.04 : -0.04));
           sg.rotation.y = ry ? 0 : Math.PI;
           resortRoot.add(sg);
         }
+        // a big sign standing on the sand, read from the Corniche
+        const big = textPlane("منتجع روز", "ROSE RESORT · BEACH & SPA", 18, 4.2, "#3a1238", "#fff2f8", "#ffd166");
+        big.position.set(RX - 34, 3.3, SAND0 + 6);
+        big.rotation.y = Math.PI;
+        resortRoot.add(big);
+        for (const sx of [-1, 1]) rcyl(0.14, 0.16, 3.4, RX - 34 + sx * 8.6, 1.7, SAND0 + 6, WOOD_D, 8);
+        keepClear(RX - 44, RX - 24, SAND0 + 3, SAND0 + 9);
+        // the boulevard: four pairs of palms, strings of coloured bulbs between them
+        const pal = [0xff7ab0, 0xffd166, 0x7fd8ff, 0xc58bff, 0xff8f6b, 0xffffff];
+        const bulbs = [],
+          cols = [],
+          strings = [];
+        const tops = [[], []];
+        for (let i = 0; i < 4; i++)
+          for (const sx of [-1, 1]) {
+            const x = RX + sx * 7.5,
+              z = SAND0 + 10 + i * 8;
+            makePalm(x, z, 1.05, sx > 0 ? Math.PI - 0.2 : 0.2);
+            tops[sx > 0 ? 1 : 0].push([x + (sx > 0 ? -1 : 1) * 1.1, 7.3, z]);
+          }
+        keepClear(RX - 10, RX + 10, SAND0 + 6, SAND0 + 36);
+        const string = (a, b, n) => {
+          strings.push(new THREE.Vector3(...a));
+          for (let k = 1; k <= n; k++) {
+            const u = k / (n + 1);
+            const x = a[0] + (b[0] - a[0]) * u,
+              z = a[2] + (b[2] - a[2]) * u,
+              y = a[1] + (b[1] - a[1]) * u - 1.3 * 4 * u * (1 - u);
+            bulbs.push(matAt(x, y, z));
+            cols.push(pal[(bulbs.length * 7) % pal.length]);
+            strings.push(new THREE.Vector3(x, y, z), new THREE.Vector3(x, y, z));
+          }
+          strings.push(new THREE.Vector3(...b));
+        };
+        for (const side of tops) for (let i = 0; i + 1 < side.length; i++) string(side[i], side[i + 1], 9);
+        for (let i = 0; i < 4; i++) string(tops[0][i], tops[1][i], 14);
+        const bIM = resortIM(new THREE.SphereGeometry(0.13, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }), bulbs);
+        cols.forEach((c, i) => bIM.setColorAt(i, tmpColor.setHex(c).multiplyScalar(2.2)));
+        resortRoot.add(
+          new THREE.LineSegments(
+            new THREE.BufferGeometry().setFromPoints(strings),
+            new THREE.LineBasicMaterial({ color: 0x6a5a60, transparent: true, opacity: 0.6 }),
+          ),
+        );
       }
 
-      // ---- 💗 the heart pool ----------------------------------------------------------
-      const POOL = { x: RX - 38, z: CITY_Z1 + 23, s: 17 / 32 };
+      // ---- 💧 water: one azure material for the heart pool, the lagoon & the jacuzzi
+      const WATER_MAT = new THREE.ShaderMaterial({
+        uniforms: { uTime: uCityTime, uNight },
+        vertexShader: `varying vec2 vP;
+          void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vP = w.xz; gl_Position = projectionMatrix * viewMatrix * w; }`,
+        fragmentShader: `uniform float uTime; uniform float uNight; varying vec2 vP;
+          void main(){
+            vec2 p = vP * 0.55; float c = 0.0;
+            for (int i = 0; i < 3; i++) {
+              float fi = float(i);
+              p += vec2(sin(p.y * 1.3 + uTime * 0.8 + fi), cos(p.x * 1.1 - uTime * 0.7 + fi * 1.7)) * 0.45;
+              c += 0.5 + 0.5 * sin(p.x + p.y);
+            }
+            c /= 3.0;
+            float caus = pow(c, 5.0);
+            // deep azure to clear sky-blue, the mosaic floor showing through
+            vec3 col = mix(vec3(0.05, 0.38, 0.80), vec3(0.30, 0.72, 0.97), c);
+            vec2 tl = fract(vP * 1.1);
+            float grout = max(step(0.92, tl.x), step(0.92, tl.y));
+            col *= 1.0 - 0.18 * grout;
+            col += caus * vec3(0.85, 0.95, 1.0) * 0.9;
+            col = mix(col, col * vec3(0.5, 0.7, 1.15) + vec3(0.02, 0.08, 0.24), uNight); // pool lights at night
+            gl_FragColor = vec4(col, 1.0);
+            #include <colorspace_fragment>
+          }`,
+      });
+      const shapeOf = (pts) => new THREE.Shape(pts.map(([x, z]) => new THREE.Vector2(x, -z)));
+      const rimOf = (outer, inner, mat, x, z) => {
+        const sh = shapeOf(outer);
+        sh.holes.push(new THREE.Path(inner.map(([px, pz]) => new THREE.Vector2(px, -pz)).reverse()));
+        const rim = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: 0.28, bevelEnabled: false, curveSegments: 4 }).rotateX(-Math.PI / 2), mat);
+        rim.position.set(x, 0, z);
+        rim.receiveShadow = true;
+        resortRoot.add(rim);
+      };
+      const waterOf = (pts, x, z) => {
+        const w = new THREE.Mesh(new THREE.ShapeGeometry(shapeOf(pts), 48).rotateX(-Math.PI / 2), WATER_MAT);
+        w.position.set(x, 0.08, z);
+        resortRoot.add(w);
+      };
+      // ---- 💗 the heart pool
+      const POOL = { x: RX - 58, z: SAND0 + 25, s: 24 / 32 };
       const heartPts = (k = 1) => {
         const pts = [];
         for (let i = 0; i < 72; i++) {
           const t = (i / 72) * Math.PI * 2;
           const hx = 16 * Math.pow(Math.sin(t), 3);
           const hy = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t) + 2.5;
-          pts.push([hx * POOL.s * k, hy * POOL.s * k]); // (x, z) relative to the centre; lobes toward the sea
+          pts.push([hx * POOL.s * k, hy * POOL.s * k]);
         }
         return pts;
       };
       const POOL_POLY = heartPts(1).map(([x, z]) => [POOL.x + x, POOL.z + z]);
-      function inPool(x, z) {
-        if (Math.abs(x - POOL.x) > 10 || Math.abs(z - POOL.z) > 10) return false;
+      function inHeart(x, z) {
+        if (Math.abs(x - POOL.x) > 14 || Math.abs(z - POOL.z) > 14) return false;
         let inside = false;
         for (let i = 0, j = POOL_POLY.length - 1; i < POOL_POLY.length; j = i++) {
           const [xi, zi] = POOL_POLY[i],
@@ -11954,101 +12132,174 @@
         }
         return inside;
       }
-      {
-        // shapes are drawn with z flipped, so rotateX(−90°) lays them the right way
-        const shapeOf = (pts) => new THREE.Shape(pts.map(([x, z]) => new THREE.Vector2(x, -z)));
-        const water = new THREE.Mesh(
-          new THREE.ShapeGeometry(shapeOf(heartPts(1)), 48).rotateX(-Math.PI / 2),
-          new THREE.ShaderMaterial({
-            uniforms: { uTime: uCityTime, uNight },
-            vertexShader: `varying vec2 vP;
-              void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vP = w.xz; gl_Position = projectionMatrix * viewMatrix * w; }`,
-            fragmentShader: `uniform float uTime; uniform float uNight; varying vec2 vP;
-              void main(){
-                vec2 p = vP * 0.55; float c = 0.0;
-                for (int i = 0; i < 3; i++) {
-                  float fi = float(i);
-                  p += vec2(sin(p.y * 1.3 + uTime * 0.8 + fi), cos(p.x * 1.1 - uTime * 0.7 + fi * 1.7)) * 0.45;
-                  c += 0.5 + 0.5 * sin(p.x + p.y);
-                }
-                c /= 3.0;
-                float caus = pow(c, 5.0);
-                vec3 col = mix(vec3(0.10, 0.62, 0.80), vec3(0.35, 0.90, 0.98), c) + caus * vec3(0.8, 1.0, 1.0) * 0.8;
-                col = mix(col, col * vec3(0.55, 0.75, 1.15) + vec3(0.02, 0.10, 0.22), uNight); // pool lights at night
-                gl_FragColor = vec4(col, 1.0);
-                #include <colorspace_fragment>
-              }`,
-          }),
-        );
-        water.position.set(POOL.x, 0.08, POOL.z);
-        resortRoot.add(water);
-        const rimShape = shapeOf(heartPts(1.14));
-        rimShape.holes.push(new THREE.Path(heartPts(1).map(([x, z]) => new THREE.Vector2(x, -z)).reverse()));
-        const rim = new THREE.Mesh(
-          new THREE.ExtrudeGeometry(rimShape, { depth: 0.28, bevelEnabled: false, curveSegments: 4 }).rotateX(-Math.PI / 2),
-          WHITE_R,
-        );
-        rim.position.set(POOL.x, 0, POOL.z);
-        rim.receiveShadow = true;
-        resortRoot.add(rim);
-        // a pale stone deck around it
-        rbox(26, 0.06, 21, POOL.x, 0.03, POOL.z, RM(0xf2e2d6, { roughness: 0.9, emissive: 0x2a2018, emissiveIntensity: 0.4 }));
-      }
-      // ripples (the pool, and the swan boat's wake)
-      const ripples = [];
-      {
-        const rmat = () =>
-          new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
-        for (let i = 0; i < 10; i++) {
-          const m = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.55, 28).rotateX(-Math.PI / 2), rmat());
-          m.visible = false;
-          resortRoot.add(m);
-          ripples.push({ m, t: 1, s: 1 });
+      waterOf(heartPts(1), POOL.x, POOL.z);
+      rimOf(heartPts(1.12), heartPts(1), WHITE_R, POOL.x, POOL.z);
+      rbox(34, 0.06, 30, POOL.x, 0.03, POOL.z, STONE_R);
+      keepClear(POOL.x - 17, POOL.x + 17, POOL.z - 15, POOL.z + 15);
+      // ---- 🏊 the lagoon: a long rounded pool with a palm island and a swim-up bar
+      const LAGOON = { x: RX + 62, z: SAND0 + 27, w: 64, d: 18, r: 8 };
+      const ISLAND = { x: LAGOON.x + 10, z: LAGOON.z, hw: 3.4 };
+      const rrPts = (w, d, r) => {
+        const pts = [];
+        const hw = w / 2 - r,
+          hd = d / 2 - r;
+        for (let i = 0; i < 64; i++) {
+          const a = (i / 64) * Math.PI * 2;
+          pts.push([Math.sign(Math.cos(a)) * hw + Math.cos(a) * r, Math.sign(Math.sin(a)) * hd + Math.sin(a) * r]);
         }
+        return pts;
+      };
+      function inLagoon(x, z) {
+        const qx = Math.abs(x - LAGOON.x) - (LAGOON.w / 2 - LAGOON.r),
+          qz = Math.abs(z - LAGOON.z) - (LAGOON.d / 2 - LAGOON.r);
+        const d = Math.hypot(Math.max(qx, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qz), 0) - LAGOON.r;
+        return d < 0 && !(Math.abs(x - ISLAND.x) < ISLAND.hw && Math.abs(z - ISLAND.z) < ISLAND.hw);
+      }
+      waterOf(rrPts(LAGOON.w, LAGOON.d, LAGOON.r), LAGOON.x, LAGOON.z);
+      rimOf(rrPts(LAGOON.w + 2.4, LAGOON.d + 2.4, LAGOON.r + 1.2), rrPts(LAGOON.w, LAGOON.d, LAGOON.r), WHITE_R, LAGOON.x, LAGOON.z);
+      rbox(LAGOON.w + 12, 0.06, LAGOON.d + 12, LAGOON.x, 0.03, LAGOON.z, STONE_R);
+      keepClear(LAGOON.x - LAGOON.w / 2 - 6, LAGOON.x + LAGOON.w / 2 + 6, LAGOON.z - LAGOON.d / 2 - 6, LAGOON.z + LAGOON.d / 2 + 6);
+      {
+        // the palm island — a little wooden deck she can climb onto, a palm, a lantern
+        rbox(ISLAND.hw * 2, 0.5, ISLAND.hw * 2, ISLAND.x, 0.25, ISLAND.z, WOOD);
+        WALKWAYS.push({ x0: ISLAND.x - ISLAND.hw, x1: ISLAND.x + ISLAND.hw, z0: ISLAND.z - ISLAND.hw, z1: ISLAND.z + ISLAND.hw, y: 0.5 });
+        const pg = makePalm(ISLAND.x + 1.2, ISLAND.z - 0.8, 0.75, 2.2);
+        pg.position.y = 0.5;
+        rcyl(0.05, 0.06, 1.2, ISLAND.x - 2.2, 1.1, ISLAND.z + 2.2, WOOD_D, 6);
+        rmesh(new THREE.SphereGeometry(0.16, 8, 6), GLOW_WARM, ISLAND.x - 2.2, 1.82, ISLAND.z + 2.2);
+        // the swim-up bar on the north edge: a thatched counter with stools in the water
+        const SB = { x: LAGOON.x - 16, z: LAGOON.z + LAGOON.d / 2 };
+        rbox(7, 1.0, 1.6, SB.x, 0.5, SB.z + 0.6, PINK_R);
+        rbox(7.4, 0.1, 2.0, SB.x, 1.05, SB.z + 0.6, WHITE_R);
+        for (const sx of [-1, 1]) rcyl(0.1, 0.12, 3.4, SB.x + sx * 3.4, 1.7, SB.z + 1.3, WOOD_D, 8);
+        const roof = rmesh(new THREE.ConeGeometry(5.4, 2.0, 4), THATCH, SB.x, 4.2, SB.z + 0.9);
+        roof.rotation.y = Math.PI / 4;
+        roof.scale.set(1, 1, 0.6);
+        for (let i = -2; i <= 2; i++) {
+          rcyl(0.06, 0.07, 0.9, SB.x + i * 1.3, 0.45, SB.z - 1.1, WHITE_R, 8);
+          rcyl(0.3, 0.3, 0.08, SB.x + i * 1.3, 0.92, SB.z - 1.1, PINK_R, 12);
+        }
+        AIR_SOLIDS.push({ x0: SB.x - 3.5, x1: SB.x + 3.5, z0: SB.z - 0.2, z1: SB.z + 1.5, h: 1.3 });
+        RESORT_SPOTS.push({ x: SB.x, z: SB.z - 1.6, r: 3.2, icon: "🍹", label: () => "Swim-up bar", use: () => openBar() });
+        // 🛝 the water slide: a pink tube spiralling down from a tower into the lagoon
+        const TX = LAGOON.x + LAGOON.w / 2 + 7,
+          TZ = LAGOON.z + 5;
+        for (const [dx, dz] of [[-1.2, -1.2], [1.2, -1.2], [-1.2, 1.2], [1.2, 1.2]]) rcyl(0.1, 0.12, 7.4, TX + dx, 3.7, TZ + dz, WHITE_R, 8);
+        rbox(3.4, 0.2, 3.4, TX, 7.4, TZ, WOOD);
+        rbox(3.4, 0.9, 0.08, TX, 7.95, TZ + 1.7, PINK_R);
+        rbox(0.08, 0.9, 3.4, TX + 1.7, 7.95, TZ, PINK_R);
+        const pts = [];
+        for (let i = 0; i <= 40; i++) {
+          const u = i / 40,
+            a = u * Math.PI * 2.4;
+          pts.push(new THREE.Vector3(TX - 1 - Math.sin(a) * (3.2 + u * 1.5), 7.2 - u * 6.1, TZ - Math.cos(a) * (3.2 + u * 1.5) + u * 2));
+        }
+        pts.push(new THREE.Vector3(LAGOON.x + LAGOON.w / 2 - 4, 0.9, LAGOON.z + 2));
+        const slide = new THREE.Mesh(
+          new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 90, 0.6, 10, false),
+          RM(0xff8fb8, { roughness: 0.35, emissive: 0x4a1030, emissiveIntensity: 0.5, side: THREE.DoubleSide }),
+        );
+        slide.castShadow = true;
+        resortRoot.add(slide);
+        AIR_SOLIDS.push({ x0: TX - 1.8, x1: TX + 1.8, z0: TZ - 1.8, z1: TZ + 1.8, h: 8 });
+      }
+      // ---- ♨️ the jacuzzi: a round hot tub, bubbling away
+      const TUB = { x: RX - 14, z: SAND0 + 11, r: 3 };
+      {
+        const STONE_DS = RM(0xf2e2d6, { roughness: 0.9, emissive: 0x2a2018, emissiveIntensity: 0.4, side: THREE.DoubleSide });
+        rmesh(new THREE.CylinderGeometry(TUB.r + 1.1, TUB.r + 1.1, 0.5, 28, 1, true), STONE_DS, TUB.x, 0.25, TUB.z); // outer wall
+        rmesh(new THREE.CylinderGeometry(TUB.r, TUB.r, 0.5, 28, 1, true), STONE_DS, TUB.x, 0.25, TUB.z); // inner wall
+        rmesh(new THREE.RingGeometry(TUB.r, TUB.r + 1.1, 28).rotateX(-Math.PI / 2), WHITE_R, TUB.x, 0.5, TUB.z); // the rim
+        const w = new THREE.Mesh(new THREE.CircleGeometry(TUB.r, 28).rotateX(-Math.PI / 2), WATER_MAT);
+        w.position.set(TUB.x, 0.42, TUB.z);
+        resortRoot.add(w);
+        rbox(1.4, 0.25, 1.0, TUB.x, 0.12, TUB.z - TUB.r - 1.4, STONE_R); // a step
+        keepClear(TUB.x - 5, TUB.x + 5, TUB.z - 6, TUB.z + 5);
+      }
+      function inPool(x, z) {
+        return inHeart(x, z) || inLagoon(x, z) || Math.hypot(x - TUB.x, z - TUB.z) < TUB.r;
+      }
+      // ripples (the pools, the jacuzzi's bubbles, the swan boat's wake)
+      const ripples = [];
+      for (let i = 0; i < 14; i++) {
+        const m = new THREE.Mesh(
+          new THREE.RingGeometry(0.42, 0.55, 28).rotateX(-Math.PI / 2),
+          new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }),
+        );
+        m.visible = false;
+        resortRoot.add(m);
+        ripples.push({ m, t: 1, s: 1 });
       }
       let ripI = 0;
-      function poolRipple(x, z, s = 1) {
+      function poolRipple(x, z, s = 1, y = 0.12) {
         const r = ripples[ripI++ % ripples.length];
         r.t = 0;
         r.s = s;
-        r.m.position.set(x, 0.12, z);
+        r.m.position.set(x, y, z);
         r.m.visible = true;
       }
 
-      // ---- 🏖️ sun loungers & umbrellas -------------------------------------------------
+      // ---- 🏖️ loungers along both pools, umbrellas & palms down the whole beach
       {
-        const LZ = CITY_Z1 + 27.5;
-        for (let i = 0; i < 4; i++) {
-          const lx = RX - 18 + i * 5;
-          rbox(0.82, 0.1, 2.0, lx, 0.36, LZ, WHITE_R);
-          for (const [dx, dz] of [[-0.35, -0.85], [0.35, -0.85], [-0.35, 0.85], [0.35, 0.85]])
-            rbox(0.06, 0.32, 0.06, lx + dx, 0.16, LZ + dz, WHITE_R);
-          rbox(0.74, 0.1, 1.25, lx, 0.46, LZ + 0.32, PINK_R);
-          const back = rbox(0.74, 0.1, 0.8, lx, 0.72, LZ - 0.72, PINK_R);
+        const umbMats = [],
+          umbCols = [];
+        const UMB = [0xff6fa5, 0xffd166, 0x7fd8ff, 0xc58bff, 0xff8f6b, 0xfff2f6];
+        const lounger = (lx, lz, k) => {
+          rbox(0.82, 0.1, 2.0, lx, 0.36, lz, WHITE_R);
+          for (const [dx, dz] of [[-0.35, -0.85], [0.35, -0.85], [-0.35, 0.85], [0.35, 0.85]]) rbox(0.06, 0.32, 0.06, lx + dx, 0.16, lz + dz, WHITE_R);
+          rbox(0.74, 0.1, 1.25, lx, 0.46, lz + 0.32, PINK_R);
+          const back = rbox(0.74, 0.1, 0.8, lx, 0.72, lz - 0.72, PINK_R);
           back.rotation.x = -0.55;
           RESORT_SPOTS.push({
             x: lx,
-            z: LZ,
+            z: lz,
             r: 1.9,
             icon: "🏖️",
             label: () => "Relax",
-            use: () =>
-              rest({ kind: "lounger", x: lx, y: 0.52, z: LZ + 0.95, yaw: 0, back: 0.38, stand: [lx + 1.1, 0, LZ] }),
+            use: () => rest({ kind: "lounger", x: lx, y: 0.52, z: lz + 0.95, yaw: 0, back: 0.38, stand: [lx + 1.1, 0, lz] }),
           });
-          if (i % 2 === 0) {
-            rcyl(0.04, 0.04, 2.7, lx + 2.5, 1.35, LZ - 0.4, WHITE_R, 6);
-            const can = rmesh(new THREE.ConeGeometry(1.9, 0.7, 12, 1, true), RM(i ? 0x7fd8ff : 0xff6fa5, { side: THREE.DoubleSide }), lx + 2.5, 2.75, LZ - 0.4);
-            can.castShadow = true;
+          if (k % 2 === 0) {
+            umbMats.push(matAt(lx + 2.5, 0, lz - 0.4));
+            umbCols.push(UMB[(k / 2) % UMB.length]);
+          }
+        };
+        for (let i = 0; i < 7; i++) lounger(POOL.x - 15 + i * 5, POOL.z - 16, i);
+        for (let i = 0; i < 7; i++) lounger(LAGOON.x - 27 + i * 9, LAGOON.z - LAGOON.d / 2 - 6, i + 1);
+        keepClear(POOL.x - 18, POOL.x + 18, POOL.z - 19, POOL.z - 13);
+        keepClear(LAGOON.x - 30, LAGOON.x + 30, LAGOON.z - 18, LAGOON.z - 12);
+        // more umbrellas and palms scattered down the sand, by the water
+        const palms = [];
+        for (let k = 0; k < 60; k++) {
+          const x = RES_PEN.x0 + 20 + hash(k, 1, 500) * (RES_PEN.x1 - RES_PEN.x0 - 40);
+          const z = PEN_Z1 - 4 - hash(k, 2, 500) * 10;
+          if (!isClear(x, z, 4)) continue;
+          if (hash(k, 3, 500) < 0.45) palms.push(matAt(x, 0, z, hash(k, 4, 500) * 6.28, 0.85 + hash(k, 5, 500) * 0.4));
+          else {
+            umbMats.push(matAt(x, 0, z, hash(k, 4, 500) * 6.28));
+            umbCols.push(UMB[k % UMB.length]);
           }
         }
+        for (let k = 0; k < 20; k++) {
+          const x = RES_PEN.x0 + 20 + hash(k, 6, 500) * (RES_PEN.x1 - RES_PEN.x0 - 40),
+            z = SAND0 + 2 + hash(k, 7, 500) * 4;
+          if (isClear(x, z, 5)) palms.push(matAt(x, 0, z, hash(k, 8, 500) * 6.28, 0.9 + hash(k, 9, 500) * 0.3));
+        }
+        resortIM(PALM_TRUNK_GEO, PALM_TRUNK_MAT, palms, true);
+        resortIM(PALM_CROWN_GEO, PALM_LEAF_MAT, palms, true);
+        const pole = new THREE.CylinderGeometry(0.05, 0.05, 2.6, 6);
+        pole.translate(0, 1.3, 0);
+        resortIM(pole, RM(0xf4efe8), umbMats);
+        const canopy = new THREE.ConeGeometry(1.9, 0.7, 12, 1, true);
+        canopy.translate(0, 2.65, 0);
+        const um = resortIM(canopy, RM(0xffffff, { roughness: 0.6, side: THREE.DoubleSide }), umbMats);
+        umbCols.forEach((c, i) => um.setColorAt(i, tmpColor.setHex(c)));
       }
 
-      // ---- 🌅 the hammock between two palms ----------------------------------------------
-      {
-        const HX = RX - 80,
-          HZ = CITY_Z1 + 26;
+      // ---- 🌅 two hammocks, each slung between two palms
+      function hammock(HX, HZ) {
         makePalm(HX - 6.2, HZ, 1, 0.2);
         makePalm(HX + 6.2, HZ, 1, Math.PI - 0.2);
+        keepClear(HX - 8, HX + 8, HZ - 3, HZ + 3);
         const cv = document.createElement("canvas");
         cv.width = 128;
         cv.height = 32;
@@ -12063,7 +12314,7 @@
         cloth.scale(1, 0.55, 1);
         rmesh(cloth, new THREE.MeshStandardMaterial({ map: tx, side: THREE.DoubleSide, emissive: 0x2a1018, emissiveIntensity: 0.4 }), HX, 1.25, HZ);
         for (const sx of [-1, 1]) {
-          const rope = rbox(4.3, 0.04, 0.04, HX + sx * 4.0, 1.5, HZ, RM(0xf4e6d0)); // up to the palm
+          const rope = rbox(4.3, 0.04, 0.04, HX + sx * 4.0, 1.5, HZ, RM(0xf4e6d0));
           rope.rotation.z = sx * 0.12;
         }
         RESORT_SPOTS.push({
@@ -12080,9 +12331,11 @@
           },
         });
       }
+      hammock(RX - 165, SAND0 + 30);
+      hammock(RX + 150, SAND0 + 18);
 
-      // ---- 🍹 the Rose Bar --------------------------------------------------------------
-      const BAR = { x: RX + 26, z: CITY_Z1 + 18 };
+      // ---- 🍹 the Rose Bar (and the menu it shares with the swim-up bar)
+      const BAR = { x: RX + 118, z: SAND0 + 10 };
       {
         rbox(8, 2.6, 4, BAR.x, 1.3, BAR.z + 2.5, WOOD);
         rbox(8.4, 1.1, 1.0, BAR.x, 0.55, BAR.z - 0.4, PINK_R);
@@ -12095,19 +12348,18 @@
           rcyl(0.06, 0.08, 0.8, BAR.x + i * 2.4, 0.4, BAR.z - 1.6, WHITE_R, 8);
           rcyl(0.32, 0.32, 0.08, BAR.x + i * 2.4, 0.82, BAR.z - 1.6, PINK_R, 14);
         }
-        // a shelf of glowing bottles on the back wall
         const COLS = [0xff5d9e, 0xffd166, 0x7fd8ff, 0xc58bff, 0xff8f6b, 0x9ff0d0];
-        for (let i = 0; i < 12; i++)
-          rcyl(0.09, 0.11, 0.42, BAR.x - 3.3 + i * 0.6, 1.62, BAR.z + 0.42, NEON_R(COLS[i % COLS.length], 1.3), 8);
+        for (let i = 0; i < 12; i++) rcyl(0.09, 0.11, 0.42, BAR.x - 3.3 + i * 0.6, 1.62, BAR.z + 0.42, NEON_R(COLS[i % COLS.length], 1.3), 8);
         rbox(7.6, 0.06, 0.4, BAR.x, 1.38, BAR.z + 0.55, WOOD_D);
-        const sg = textPlane("🍹 Rose Bar · بار روز", 6, 1, "#4a1238", "#fff2f8", "#ffd166");
-        sg.position.set(BAR.x, 2.95, BAR.z - 0.95);
+        const sg = textPlane("بار روز", "🍹 ROSE BAR", 6, 1.6, "#4a1238", "#fff2f8", "#ffd166");
+        sg.position.set(BAR.x, 3.2, BAR.z - 0.95);
         sg.rotation.y = Math.PI;
         resortRoot.add(sg);
         AIR_SOLIDS.push(
           { x0: BAR.x - 4, x1: BAR.x + 4, z0: BAR.z + 0.5, z1: BAR.z + 4.5, h: 4 },
           { x0: BAR.x - 4.2, x1: BAR.x + 4.2, z0: BAR.z - 0.9, z1: BAR.z + 0.1, h: 1.2 },
         );
+        keepClear(BAR.x - 7, BAR.x + 7, BAR.z - 4, BAR.z + 6);
       }
       const DRINKS = [
         ["🍓", "قبلة الفراولة", "Strawberry Kiss"],
@@ -12117,33 +12369,225 @@
         ["🥭", "حلم المانجو", "Mango Dream"],
         ["🍋", "ليموناضة بالنعناع", "Mint Lemonade"],
       ];
+      const DISHES = [
+        ["🍝", "باستا الورد", "Rose Pasta"],
+        ["🍤", "جمبري مشوي", "Grilled Shrimp"],
+        ["🥗", "سلطة البحر", "Seaside Salad"],
+        ["🍕", "بيتزا القلوب", "Heart Pizza"],
+        ["🍰", "تشيز كيك روز", "Rose Cheesecake"],
+        ["🍨", "آيس كريم الفراولة", "Strawberry Ice Cream"],
+      ];
       const drinkSp = emojiSprite("🍹");
       drinkSp.scale.set(1.1, 1.1, 1);
       drinkSp.visible = false;
       scene.add(drinkSp);
       let drinkUntil = 0;
-      function openBar() {
-        openPanel(`<span class="emoji-head">🍹</span><h2>Rose Bar · بار روز</h2>
-    <p>اختاري مشروبك — على حسابي 💗</p>
-    <div class="rb-menu">${DRINKS.map(
-      ([e, ar, en], i) => `<div class="panel-btn" data-drink="${i}">${e} ${ar}<br><small style="opacity:.75">${en}</small></div>`,
-    ).join("")}</div>`);
-        panelBody.querySelectorAll("[data-drink]").forEach((b) =>
+      function openMenu(title, sub, list, onPick) {
+        openPanel(`<span class="emoji-head">${title[0]}</span><h2>${title[1]}</h2>
+    <p>${sub}</p>
+    <div class="rb-menu">${list.map(([e, ar, en], i) => `<div class="panel-btn" data-pick="${i}">${e} ${ar}<br><small style="opacity:.75">${en}</small></div>`).join("")}</div>`);
+        panelBody.querySelectorAll("[data-pick]").forEach((b) =>
           b.addEventListener("click", () => {
-            const [e, ar, en] = DRINKS[+b.dataset.drink];
+            const it = list[+b.dataset.pick];
             closePanel();
-            setEmoji(drinkSp, e);
+            setEmoji(drinkSp, it[0]);
             drinkUntil = nowS() + 45;
-            screenBurst([e, "💗", "✨", "🌴"], 18);
-            track(`🍹 Rose Bar: ${en}`);
+            onPick(it);
           }),
         );
+      }
+      function openBar() {
+        openMenu(["🍹", "Rose Bar · بار روز"], "اختاري مشروبك — على حسابي 💗", DRINKS, ([e, , en]) => {
+          screenBurst([e, "💗", "✨", "🌴"], 18);
+          track(`🍹 Rose Bar: ${en}`);
+        });
         track("🍹 Opened the Rose Bar menu");
       }
       RESORT_SPOTS.push({ x: BAR.x, z: BAR.z - 2.2, r: 3, icon: "🍹", label: () => "Rose Bar", use: openBar });
 
-      // ---- 🔥 the bonfire ---------------------------------------------------------------
-      const FIRE = { x: RX + 50, z: CITY_Z1 + 25, lit: false, flames: [], sparks: [], glow: null };
+      // ---- 🍽️ the restaurant: a candle-lit deck out over the water
+      const REST = { x: RX - 140, z: PEN_Z1 + 18, hw: 10 };
+      {
+        const walk = (x0, x1, z0, z1, y = DECK_Y, join = {}) => {
+          WALKWAYS.push({ x0, x1, z0, z1, y, ...join });
+          rbox(x1 - x0, 0.24, z1 - z0, (x0 + x1) / 2, y - 0.12, (z0 + z1) / 2, WOOD);
+        };
+        walk(REST.x - 1.6, REST.x + 1.6, PEN_Z1 - 8, REST.z - REST.hw + 1, DECK_Y, { z1: REST.z - REST.hw + 2 });
+        walk(REST.x - REST.hw, REST.x + REST.hw, REST.z - REST.hw, REST.z + REST.hw);
+        keepClear(REST.x - 4, REST.x + 4, PEN_Z1 - 10, PEN_Z1);
+        // stilts, a low rail with lanterns, four posts and a wide thatched roof
+        const stilts = [],
+          lamps = [];
+        for (let x = -REST.hw + 1; x <= REST.hw - 1; x += 4) {
+          stilts.push([REST.x + x, REST.z - REST.hw + 0.5], [REST.x + x, REST.z + REST.hw - 0.5]);
+          if ((x + REST.hw - 1) % 8 === 0) lamps.push([REST.x + x, REST.z - REST.hw + 0.3], [REST.x + x, REST.z + REST.hw - 0.3]);
+        }
+        for (let z = -REST.hw + 5; z < REST.hw - 1; z += 4) stilts.push([REST.x - REST.hw + 0.5, REST.z + z], [REST.x + REST.hw - 0.5, REST.z + z]);
+        for (const z of [-5, 0, 5]) lamps.push([REST.x - REST.hw + 0.3, REST.z + z], [REST.x + REST.hw - 0.3, REST.z + z]);
+        resortIM(new THREE.CylinderGeometry(0.13, 0.16, 1.2, 8), WOOD_D, stilts.map(([x, z]) => matAt(x, -0.2, z)));
+        resortIM(new THREE.CylinderGeometry(0.05, 0.06, 1.1, 6).translate(0, 0.55, 0), WOOD_D, lamps.map(([x, z]) => matAt(x, DECK_Y, z)));
+        resortIM(new THREE.SphereGeometry(0.12, 8, 6).translate(0, 1.18, 0), GLOW_WARM, lamps.map(([x, z]) => matAt(x, DECK_Y, z)));
+        for (const [dx, dz] of [[-7, -7], [7, -7], [-7, 7], [7, 7]]) rcyl(0.14, 0.16, 5.2, REST.x + dx, DECK_Y + 2.6, REST.z + dz, WOOD_D, 8);
+        const roof = rmesh(new THREE.ConeGeometry(15, 4.2, 4), THATCH, REST.x, DECK_Y + 5.2 + 2.1, REST.z);
+        roof.rotation.y = Math.PI / 4;
+        // six little tables, two chairs each, a candle on every one
+        const CANDLE = RM(0xfff0c8, { emissive: 0xffb050, emissiveIntensity: 2.2 });
+        REST.candles = [];
+        REST.tables = [];
+        let ti = 0;
+        for (const dx of [-5.5, 0, 5.5])
+          for (const dz of [-3.5, 3.5]) {
+            const tx = REST.x + dx,
+              tz = REST.z + dz;
+            rcyl(0.06, 0.08, 0.7, tx, DECK_Y + 0.35, tz, WOOD_D, 8);
+            rcyl(0.75, 0.75, 0.06, tx, DECK_Y + 0.72, tz, WHITE_R, 18);
+            for (const sz of [-1, 1]) {
+              rbox(0.5, 0.06, 0.5, tx, DECK_Y + 0.45, tz + sz * 1.1, PINK_R);
+              rbox(0.5, 0.55, 0.06, tx, DECK_Y + 0.72, tz + sz * 1.35, PINK_R);
+            }
+            const c = rcyl(0.04, 0.04, 0.16, tx, DECK_Y + 0.83, tz, CANDLE, 8);
+            REST.candles.push(c.material === CANDLE ? (c.material = CANDLE.clone()) : c.material);
+            REST.tables.push([tx, tz]);
+            ti++;
+          }
+        const sg = textPlane("مطعم روز", "🍽️ ROSE RESTAURANT", 7, 1.8, "#3a1238", "#fff2f8", "#ffd166");
+        sg.position.set(REST.x, DECK_Y + 5.4, REST.z - REST.hw + 0.2);
+        sg.rotation.y = Math.PI;
+        resortRoot.add(sg);
+        RESORT_SPOTS.push({
+          x: REST.x,
+          z: REST.z,
+          y: DECK_Y,
+          r: 6,
+          icon: "🍽️",
+          label: () => "Dinner for two",
+          use: () => {
+            openMenu(["🍽️", "Rose Restaurant · مطعم روز"], "طاولتنا جاهزة على البحر… شو بتحبي تاكلي؟ 💗", DISHES, ([e, , en]) => {
+              const [tx, tz] = REST.tables[1];
+              rest({ kind: "dinner", x: tx, y: DECK_Y + 0.45 - 0.93, z: tz - 1.1, yaw: 0, stand: [tx - 1.6, DECK_Y, tz], up: "Leave the table" });
+              screenBurst([e, "🕯️", "💗", "✨"], 18);
+              track(`🍽️ Dinner: ${en}`);
+            });
+            track("🍽️ Opened the restaurant menu");
+          },
+        });
+      }
+
+      // ---- 🧖‍♀️ the spa: two thatched huts with massage beds and candles
+      {
+        for (const [i, hx] of [RX - 118, RX - 100].entries()) {
+          const hz = SAND0 + 42;
+          rbox(6, 0.3, 6, hx, 0.15, hz, WOOD);
+          WALKWAYS.push({ x0: hx - 3, x1: hx + 3, z0: hz - 3, z1: hz + 3, y: 0.3 }); // the hut's floor
+          rbox(6, 3, 0.2, hx, 1.65, hz + 2.9, PEARL_R);
+          for (const sx of [-1, 1]) rbox(0.2, 3, 6, hx + sx * 2.9, 1.65, hz, PEARL_R);
+          const roof = rmesh(new THREE.ConeGeometry(5.4, 2.2, 4), THATCH, hx, 4.25, hz);
+          roof.rotation.y = Math.PI / 4;
+          rbox(0.9, 0.08, 2.0, hx, 0.72, hz, WHITE_R);
+          rbox(0.9, 0.1, 1.9, hx, 0.8, hz, PINK_R);
+          for (const [dx, dz] of [[-0.35, -0.9], [0.35, -0.9], [-0.35, 0.9], [0.35, 0.9]]) rbox(0.06, 0.4, 0.06, hx + dx, 0.5, hz + dz, WHITE_R);
+          for (let k = 0; k < 3; k++) rcyl(0.05, 0.05, 0.2, hx - 2.2 + k * 0.5, 0.4, hz + 2.3, RM(0xfff0c8, { emissive: 0xffb050, emissiveIntensity: 1.8 }), 8);
+          AIR_SOLIDS.push({ x0: hx - 3, x1: hx + 3, z0: hz + 2.7, z1: hz + 3.1, h: 3.5 }, { x0: hx - 3.1, x1: hx - 2.7, z0: hz - 3, z1: hz + 3, h: 3.5 }, { x0: hx + 2.7, x1: hx + 3.1, z0: hz - 3, z1: hz + 3, h: 3.5 });
+          RESORT_SPOTS.push({
+            x: hx,
+            z: hz - 1.2,
+            r: 2.2,
+            icon: "🧖‍♀️",
+            label: () => "Spa massage",
+            use: () => {
+              rest({ kind: "spa", x: hx, y: 0.9, z: hz + 0.9, yaw: 0, back: 0.02, stand: [hx, 0.3, hz - 2.2], up: "Done relaxing" });
+              screenBurst(["🧖‍♀️", "🌸", "🕯️", "✨"], 14);
+              track("🧖‍♀️ Spa massage");
+            },
+          });
+          if (i === 0) {
+            const sg = textPlane("سبا روز", "🌸 ROSE SPA", 5, 1.3, "#3a1238", "#fff2f8", "#c58bff");
+            sg.position.set(hx + 9, 4.6, hz - 2.8);
+            sg.rotation.y = Math.PI;
+            resortRoot.add(sg);
+          }
+        }
+        keepClear(RX - 124, RX - 94, SAND0 + 36, SAND0 + 48);
+      }
+
+      // ---- 🎶 the beach-party deck: lights, a disco ball, a DJ booth — and the Rose song
+      const PARTY = { x: RX + 135, z: PEN_Z1 - 18, on: false, beams: [], ball: null, booth: null };
+      {
+        const deck = rmesh(new THREE.CylinderGeometry(9, 9.4, 0.4, 36), WOOD, PARTY.x, 0.2, PARTY.z);
+        deck.receiveShadow = true;
+        rmesh(new THREE.CylinderGeometry(6, 6, 0.06, 36), RM(0xf6dfe8, { roughness: 0.3, emissive: 0x3a1030, emissiveIntensity: 0.5 }), PARTY.x, 0.43, PARTY.z);
+        for (const a of [0.8, 2.35, 3.95, 5.5]) rcyl(0.1, 0.12, 6.2, PARTY.x + Math.cos(a) * 7.5, 3.5, PARTY.z + Math.sin(a) * 7.5, RM(0x9aa4c8, { metalness: 0.5 }), 8);
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(7.5, 0.1, 8, 40), RM(0x9aa4c8, { metalness: 0.5 }));
+        ring.rotation.x = Math.PI / 2;
+        ring.position.set(PARTY.x, 6.5, PARTY.z);
+        resortRoot.add(ring);
+        PARTY.ball = rmesh(new THREE.SphereGeometry(0.7, 18, 14), RM(0xffffff, { metalness: 1, roughness: 0.15, emissive: 0x8a8aa0, emissiveIntensity: 0.3 }), PARTY.x, 5.4, PARTY.z);
+        rcyl(0.02, 0.02, 1.2, PARTY.x, 6.1, PARTY.z, RM(0xdddddd), 6);
+        const beamMat = new THREE.MeshBasicMaterial({ color: 0xff7ad9, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
+        const BCOL = [0xff5d9e, 0x7fd8ff, 0xffd166, 0xc58bff];
+        for (let i = 0; i < 4; i++) {
+          const a = 0.8 + i * 1.55;
+          const g = new THREE.Group();
+          g.position.set(PARTY.x + Math.cos(a) * 7.5, 6.4, PARTY.z + Math.sin(a) * 7.5);
+          const cone = new THREE.Mesh(new THREE.ConeGeometry(1.6, 12, 14, 1, true), beamMat.clone());
+          cone.material.color.setHex(BCOL[i]);
+          cone.position.y = -6; // apex at the lamp, the beam fanning down
+          g.add(cone);
+          resortRoot.add(g);
+          PARTY.beams.push({ g, cone, ph: i * 1.3 });
+        }
+        PARTY.booth = rbox(3.2, 1.1, 1.2, PARTY.x, 0.95, PARTY.z + 6.5, PINK_R.clone()); // (its own glow)
+        WALKWAYS.push({ x0: PARTY.x - 9, x1: PARTY.x + 9, z0: PARTY.z - 9, z1: PARTY.z + 9, y: 0.4 }); // she steps up onto the deck
+        rbox(2.6, 0.08, 0.9, PARTY.x, 1.55, PARTY.z + 6.5, WHITE_R);
+        for (const sx of [-1, 1]) rbox(1.0, 1.6, 0.8, PARTY.x + sx * 3.8, 1.2, PARTY.z + 6.5, RM(0x2a1a30, { emissive: 0xff5d9e, emissiveIntensity: 0.35 }));
+        AIR_SOLIDS.push({ x0: PARTY.x - 1.6, x1: PARTY.x + 1.6, z0: PARTY.z + 5.9, z1: PARTY.z + 7.1, h: 1.6 });
+        const sg = textPlane("حفلة الشاطئ", "🎶 BEACH PARTY", 6, 1.5, "#3a1238", "#fff2f8", "#ff7ad9");
+        sg.position.set(PARTY.x, 8.0, PARTY.z);
+        resortRoot.add(sg);
+        const sg2 = sg.clone();
+        sg2.rotation.y = Math.PI;
+        sg2.position.z -= 0.04;
+        resortRoot.add(sg2);
+        keepClear(PARTY.x - 11, PARTY.x + 11, PARTY.z - 11, PARTY.z + 9);
+        RESORT_SPOTS.push({
+          x: PARTY.x,
+          z: PARTY.z,
+          y: 0.4,
+          r: 5.5,
+          icon: "🎶",
+          label: () => "Dance!",
+          use: () => {
+            PARTY.on = true;
+            setRose(true); // ♪ the Rose song for the party
+            const p = girl.pos;
+            rest({ kind: "dance", x: p.x, y: 0.4, z: p.z, yaw: girl.yaw, stand: [p.x, 0.4, p.z], up: "Stop dancing" });
+            screenBurst(["🎶", "💃", "✨", "💗", "🪩"], 20);
+            track("🎶 Beach party!");
+          },
+        });
+      }
+
+      // ---- 🏐 beach volleyball
+      {
+        const VX = RX + 24,
+          VZ = PEN_Z1 - 22;
+        const LINE = RM(0xffffff, { emissive: 0x404040, emissiveIntensity: 0.4 });
+        rbox(16, 0.05, 0.12, VX, 0.03, VZ - 4, LINE);
+        rbox(16, 0.05, 0.12, VX, 0.03, VZ + 4, LINE);
+        rbox(0.12, 0.05, 8, VX - 8, 0.03, VZ, LINE);
+        rbox(0.12, 0.05, 8, VX + 8, 0.03, VZ, LINE);
+        for (const sz of [-1, 1]) rcyl(0.07, 0.08, 2.6, VX, 1.3, VZ + sz * 4.6, WHITE_R, 8);
+        const net = new THREE.Mesh(new THREE.PlaneGeometry(9, 0.9), new THREE.MeshBasicMaterial({ color: 0xfff2f6, transparent: true, opacity: 0.35, side: THREE.DoubleSide }));
+        net.rotation.y = Math.PI / 2;
+        net.position.set(VX, 2.0, VZ);
+        resortRoot.add(net);
+        rbox(9.2, 0.06, 0.06, VX, 2.46, VZ, WHITE_R).rotation.y = Math.PI / 2;
+        rmesh(new THREE.SphereGeometry(0.22, 12, 10), RM(0xffd166, { emissive: 0x3a2a00, emissiveIntensity: 0.4 }), VX + 3, 0.22, VZ - 2);
+        keepClear(VX - 10, VX + 10, VZ - 6, VZ + 6);
+      }
+
+      // ---- 🔥 the bonfire
+      const FIRE = { x: RX - 40, z: PEN_Z1 - 14, lit: false, flames: [], sparks: [], glow: null };
       {
         const STONE = RM(0xb9aab4, { roughness: 0.9 });
         for (let i = 0; i < 11; i++) {
@@ -12190,6 +12634,7 @@
         );
         FIRE.glow.position.set(FIRE.x, 0.1, FIRE.z);
         resortRoot.add(FIRE.glow);
+        keepClear(FIRE.x - 5, FIRE.x + 5, FIRE.z - 5, FIRE.z + 5);
       }
       RESORT_SPOTS.push({
         x: FIRE.x,
@@ -12204,46 +12649,30 @@
         },
       });
 
-      // ---- 🌙 the boardwalk & the villas out over the sea ---------------------------------
-      const VILLA_Z = SHORE_Z + 51; // the villa decks' front edge
-      const VILLAS = [RX - 16, RX + 8, RX + 32];
-      const HONEY = RX + 8; // the one at the end of the boardwalk is hers
+      // ---- 🌙 the boardwalk & six villas out over the sea (the middle one is hers)
+      const VILLAS = [RX - 80, RX - 48, RX - 16, RX + 16, RX + 48, RX + 80];
+      const HONEY = RX + 16;
       {
-        // (the walkable rect may reach into its neighbour — `join` — so there is
-        // no gap where two pieces meet)
         const walk = (x0, x1, z0, z1, y = DECK_Y, join = {}) => {
           WALKWAYS.push({ x0, x1, z0, z1, y, ...join });
           rbox(x1 - x0, 0.24, z1 - z0, (x0 + x1) / 2, y - 0.12, (z0 + z1) / 2, WOOD);
         };
-        walk(RX + 6.4, RX + 9.6, SHORE_Z - 8, VILLA_Z); // from the sand out to the villas
-        walk(RX - 22, RX + 38, VILLA_Z - 3.2, VILLA_Z); // along the villas
-        walk(RX + 9.6, RX + 12.2, SHORE_Z + 20, SHORE_Z + 26, DECK_Y - 0.15, { x0: RX + 8.6 }); // the swan's jetty
+        walk(HONEY - 1.6, HONEY + 1.6, PEN_Z1 - 8, VILLA_Z); // from the sand out to the villas
+        walk(RX - 86, RX + 86, VILLA_Z - 3.2, VILLA_Z); // along the villas
         for (const vx of VILLAS) walk(vx - 4.5, vx + 4.5, VILLA_Z, VILLA_Z + 11, DECK_Y, { z0: VILLA_Z - 1.2 });
-        // stilts & little lanterns along the boardwalk
+        keepClear(HONEY - 4, HONEY + 4, PEN_Z1 - 10, PEN_Z1);
         const stilts = [],
           lamps = [];
-        for (let z = SHORE_Z + 1; z < VILLA_Z; z += 4)
+        for (let z = PEN_Z1 + 1; z < VILLA_Z; z += 4)
           for (const sx of [-1, 1]) {
-            stilts.push([RX + 8 + sx * 1.5, z]);
-            if (Math.round(z) % 8 === Math.round(SHORE_Z + 1) % 8) lamps.push([RX + 8 + sx * 1.5, z]);
+            stilts.push([HONEY + sx * 1.5, z]);
+            if (Math.round(z) % 8 === Math.round(PEN_Z1 + 1) % 8) lamps.push([HONEY + sx * 1.5, z]);
           }
-        for (let x = RX - 21; x < RX + 38; x += 4) stilts.push([x, VILLA_Z - 1.6]), lamps.push([x, VILLA_Z - 3.1]);
+        for (let x = RX - 85; x < RX + 86; x += 4) stilts.push([x, VILLA_Z - 1.6]), lamps.push([x, VILLA_Z - 3.1]);
         for (const vx of VILLAS) for (const [dx, dz] of [[-4.2, 0.4], [4.2, 0.4], [-4.2, 10.6], [4.2, 10.6]]) stilts.push([vx + dx, VILLA_Z + dz]);
-        const stiltGeo = new THREE.CylinderGeometry(0.13, 0.16, 1.2, 8);
-        const sIM = new THREE.InstancedMesh(stiltGeo, WOOD_D, stilts.length);
-        stilts.forEach(([x, z], i) => sIM.setMatrixAt(i, matAt(x, -0.2, z)));
-        resortRoot.add(sIM);
-        const postGeo = new THREE.CylinderGeometry(0.05, 0.06, 1.1, 6).translate(0, 0.55, 0);
-        const bulbGeo = new THREE.SphereGeometry(0.12, 8, 6).translate(0, 1.18, 0);
-        const pIM = new THREE.InstancedMesh(postGeo, WOOD_D, lamps.length),
-          bIM = new THREE.InstancedMesh(bulbGeo, GLOW_WARM, lamps.length);
-        lamps.forEach(([x, z], i) => {
-          const m = matAt(x, DECK_Y, z);
-          pIM.setMatrixAt(i, m);
-          bIM.setMatrixAt(i, m);
-        });
-        resortRoot.add(pIM, bIM);
-        // the villas: pearl walls, a thatched roof, warm windows; hers has a pink door
+        resortIM(new THREE.CylinderGeometry(0.13, 0.16, 1.2, 8), WOOD_D, stilts.map(([x, z]) => matAt(x, -0.2, z)));
+        resortIM(new THREE.CylinderGeometry(0.05, 0.06, 1.1, 6).translate(0, 0.55, 0), WOOD_D, lamps.map(([x, z]) => matAt(x, DECK_Y, z)));
+        resortIM(new THREE.SphereGeometry(0.12, 8, 6).translate(0, 1.18, 0), GLOW_WARM, lamps.map(([x, z]) => matAt(x, DECK_Y, z)));
         for (const vx of VILLAS) {
           const hz = VILLA_Z + 6.2;
           rbox(5.6, 2.8, 4.4, vx, DECK_Y + 1.4, hz, PEARL_R);
@@ -12259,8 +12688,8 @@
         heart.scale.set(1.2, 1.2, 1);
         heart.position.set(HONEY, DECK_Y + 2.55, VILLA_Z + 3.7);
         resortRoot.add(heart);
-        const sg = textPlane("🌙 فيلا روز · Rose's Villa", 4.6, 0.8, "#3a1238", "#fff2f8", "#c58bff");
-        sg.position.set(HONEY, DECK_Y + 3.35, VILLA_Z + 3.9);
+        const sg = textPlane("فيلا روز", "🌙 ROSE'S VILLA", 4.6, 1.3, "#3a1238", "#fff2f8", "#c58bff");
+        sg.position.set(HONEY, DECK_Y + 3.55, VILLA_Z + 3.9);
         sg.rotation.y = Math.PI;
         resortRoot.add(sg);
       }
@@ -12287,9 +12716,13 @@
         },
       });
 
-      // ---- 🦢 the swan boat (drives like a car — but on the water) -------------------------
-      const BOAT_HOME = new THREE.Vector3(RX + 14.6, 0, SHORE_Z + 23),
-        BOAT_GIRL = new THREE.Vector3(RX + 11, DECK_Y - 0.15, SHORE_Z + 23);
+      // ---- 🦢 the swan boat at its own little jetty (drives like a car, on the water)
+      const JETTY_X = RX + 56;
+      WALKWAYS.push({ x0: JETTY_X - 1.3, x1: JETTY_X + 1.3, z0: PEN_Z1 - 4, z1: PEN_Z1 + 6, y: DECK_Y - 0.15 });
+      rbox(2.6, 0.24, 10, JETTY_X, DECK_Y - 0.27, PEN_Z1 + 1, WOOD);
+      keepClear(JETTY_X - 4, JETTY_X + 6, PEN_Z1 - 6, PEN_Z1);
+      const BOAT_HOME = new THREE.Vector3(JETTY_X + 3.6, 0, PEN_Z1 + 3),
+        BOAT_GIRL = new THREE.Vector3(JETTY_X, DECK_Y - 0.15, PEN_Z1 + 3);
       const boat = (() => {
         const g = new THREE.Group();
         const WHITE_S = RM(0xfffafa, { roughness: 0.4, emissive: 0x4a3a40, emissiveIntensity: 0.45 });
@@ -12313,7 +12746,7 @@
         }
         const tailC = rmesh(new THREE.ConeGeometry(0.5, 1.1, 10), WHITE_S, 0, 0.95, -1.75, g);
         tailC.rotation.x = -2.1;
-        rbox(1.3, 0.14, 0.9, 0, 0.75, -0.3, PINK_R, g); // the seat
+        rbox(1.3, 0.14, 0.9, 0, 0.75, -0.3, PINK_R, g);
         rbox(1.3, 0.6, 0.12, 0, 1.05, -0.72, PINK_R, g);
         const tailMat = RM(0x400818, { emissive: 0xff5d9e, emissiveIntensity: 0.9 });
         const tail = rbox(0.5, 0.12, 0.06, 0, 0.7, -2.15, tailMat, g);
@@ -12334,45 +12767,86 @@
         screenBurst(["🦢", "💗"], 8);
       }
 
-      // ---- resting (lounger / hammock) ---------------------------------------------------
+      // ---- resting: loungers, hammocks, the spa bed, a dinner table, the dance floor
       function rest(r) {
         girl.rest = r;
         vel.set(0, 0, 0);
         girl.climbing = false;
-        screenBurst(r.kind === "hammock" ? ["🌅", "💗"] : ["🏖️", "☀️", "💗"], 8);
+        if (r.kind === "lounger") screenBurst(["🏖️", "☀️", "💗"], 8);
+        else if (r.kind === "hammock") screenBurst(["🌅", "💗"], 8);
       }
       function standUp() {
         const r = girl.rest;
         girl.rest = null;
         if (!r) return;
+        if (r.kind === "dance") PARTY.on = false;
         girl.pos.set(r.stand[0], r.stand[1], r.stand[2]);
+        girl.g.position.copy(girl.pos);
         girl.g.rotation.set(0, girl.yaw, 0);
         girl.body.rotation.set(0, 0, 0);
         girl.body.position.y = 0;
         girl.grounded = true;
       }
       function restPose() {
-        const r = girl.rest;
-        const sw = r.kind === "hammock" ? Math.sin(starTime * 1.1) : 0;
+        const r = girl.rest,
+          t = starTime;
+        const L = girl.legL,
+          R = girl.legR,
+          KL = girl.kneeL,
+          KR = girl.kneeR,
+          AL = girl.armL,
+          AR = girl.armR,
+          EL = girl.elbowL,
+          ER = girl.elbowR;
         girl.pos.set(r.x, r.y, r.z);
-        girl.g.position.set(r.x, r.y, r.z + sw * 0.16);
+        girl.g.position.set(r.x, r.y, r.z);
         girl.g.rotation.set(0, r.yaw, 0);
-        girl.body.rotation.set(-(Math.PI / 2 - r.back), 0, sw * 0.08);
-        girl.body.position.y = 0.12;
-        girl.legL.rotation.x = 0;
-        girl.legR.rotation.x = 0;
-        girl.kneeL.rotation.x = 0.05;
-        girl.kneeR.rotation.x = 0.05;
-        girl.armL.rotation.x = -0.25 + Math.sin(starTime * 0.5) * 0.04;
-        girl.armR.rotation.x = -0.25;
-        girl.elbowL.rotation.x = -0.4;
-        girl.elbowR.rotation.x = -0.4;
+        if (r.kind === "dance") {
+          // 💃 bouncing on the spot, arms up, hips swaying, turning slowly
+          girl.g.rotation.y = r.yaw + Math.sin(t * 0.7) * 0.6;
+          girl.g.position.y = r.y + Math.abs(Math.sin(t * 7.5)) * 0.14;
+          girl.body.rotation.set(0.05, 0, Math.sin(t * 3.75) * 0.12);
+          girl.body.position.y = 0;
+          AL.rotation.x = -2.4 + Math.sin(t * 3.75) * 0.5;
+          AR.rotation.x = -2.4 - Math.sin(t * 3.75) * 0.5;
+          EL.rotation.x = -0.7;
+          ER.rotation.x = -0.7;
+          L.rotation.x = Math.sin(t * 7.5) * 0.3;
+          R.rotation.x = -Math.sin(t * 7.5) * 0.3;
+          KL.rotation.x = 0.35 + Math.max(0, Math.sin(t * 7.5)) * 0.5;
+          KR.rotation.x = 0.35 + Math.max(0, -Math.sin(t * 7.5)) * 0.5;
+        } else if (r.kind === "dinner") {
+          // sitting at the table, hands on it
+          girl.body.rotation.set(0.08, 0, 0);
+          girl.body.position.y = 0;
+          L.rotation.x = -1.45;
+          R.rotation.x = -1.45;
+          KL.rotation.x = 1.45;
+          KR.rotation.x = 1.45;
+          AL.rotation.x = -0.95;
+          AR.rotation.x = -0.95;
+          EL.rotation.x = -0.9 + Math.sin(t * 0.8) * 0.05;
+          ER.rotation.x = -0.9;
+        } else {
+          // lying back (lounger / hammock / the spa bed)
+          const sw = r.kind === "hammock" ? Math.sin(t * 1.1) : 0;
+          girl.g.position.z = r.z + sw * 0.16;
+          girl.body.rotation.set(-(Math.PI / 2 - r.back), 0, sw * 0.08);
+          girl.body.position.y = 0.12;
+          L.rotation.x = 0;
+          R.rotation.x = 0;
+          KL.rotation.x = 0.05;
+          KR.rotation.x = 0.05;
+          AL.rotation.x = -0.25 + Math.sin(t * 0.5) * 0.04;
+          AR.rotation.x = -0.25;
+          EL.rotation.x = -0.4;
+          ER.rotation.x = -0.4;
+        }
         girl.yaw = r.yaw;
       }
 
-      // ---- per frame -----------------------------------------------------------------------
+      // ---- per frame
       function updateResort(dt, t) {
-        // ripples spread & fade
         for (const r of ripples) {
           if (r.t >= 1) continue;
           r.t = Math.min(1, r.t + dt * 0.8);
@@ -12381,9 +12855,25 @@
           r.m.material.opacity = (1 - r.t) * 0.55;
           if (r.t >= 1) r.m.visible = false;
         }
-        // the drink she carries floats over her head for a while
+        // the jacuzzi bubbles away
+        if (Math.random() < dt * 5) {
+          const a = Math.random() * 6.28,
+            d = Math.random() * (TUB.r - 0.6);
+          poolRipple(TUB.x + Math.cos(a) * d, TUB.z + Math.sin(a) * d, 0.35, 0.5);
+        }
+        // the dish or drink she picked floats over her for a while
         drinkSp.visible = nowS() < drinkUntil && girl.g.visible;
         if (drinkSp.visible) drinkSp.position.set(girl.g.position.x, girl.g.position.y + 2.75 + Math.sin(t * 2.2) * 0.05, girl.g.position.z);
+        // candles flicker on the restaurant's tables
+        for (let i = 0; i < REST.candles.length; i++) REST.candles[i].emissiveIntensity = 1.8 + Math.sin(t * 9 + i * 1.7) * 0.5 + Math.sin(t * 23 + i) * 0.2;
+        // the party: beams sweep and brighten, the mirror ball turns
+        const pOn = PARTY.on ? 1 : 0;
+        PARTY.ball.rotation.y += dt * (0.3 + pOn * 1.6);
+        PARTY.booth.material.emissiveIntensity = 0.5 + pOn * (0.6 + 0.5 * Math.sin(t * 7.5));
+        for (const b of PARTY.beams) {
+          b.cone.material.opacity += ((pOn ? 0.16 + 0.05 * Math.sin(t * 7.5 + b.ph) : 0) - b.cone.material.opacity) * Math.min(1, dt * 3);
+          b.g.rotation.set(Math.sin(t * 1.3 + b.ph) * 0.5, t * 0.9 + b.ph, Math.cos(t * 1.1 + b.ph) * 0.5);
+        }
         // the bonfire
         const lit = FIRE.lit;
         FIRE.glow.material.opacity += ((lit ? 0.55 + 0.1 * Math.sin(t * 9) : 0) - FIRE.glow.material.opacity) * Math.min(1, dt * 4);
@@ -12394,17 +12884,17 @@
           f.sp.scale.set(1.3 * fl, 2.1 * fl, 1);
           f.sp.position.set(FIRE.x + f.ox, 0.95 + 0.25 * fl, FIRE.z + f.oz);
         }
-        for (const s of FIRE.sparks) {
-          s.sp.visible = lit;
+        for (const sp of FIRE.sparks) {
+          sp.sp.visible = lit;
           if (!lit) continue;
-          s.t += dt * 0.6;
-          if (s.t > 1) {
-            s.t = 0;
-            s.vx = (Math.random() - 0.5) * 0.8;
-            s.vz = (Math.random() - 0.5) * 0.8;
+          sp.t += dt * 0.6;
+          if (sp.t > 1) {
+            sp.t = 0;
+            sp.vx = (Math.random() - 0.5) * 0.8;
+            sp.vz = (Math.random() - 0.5) * 0.8;
           }
-          s.sp.position.set(FIRE.x + s.vx * s.t * 2, 1 + s.t * 4.5, FIRE.z + s.vz * s.t * 2);
-          s.sp.material.opacity = 1 - s.t;
+          sp.sp.position.set(FIRE.x + sp.vx * sp.t * 2, 1 + sp.t * 4.5, FIRE.z + sp.vz * sp.t * 2);
+          sp.sp.material.opacity = 1 - sp.t;
         }
       }
 
@@ -13751,6 +14241,8 @@
           radarG.setTransform(a, b, c, d, cx - (a * fp.x + c * fp.z), cyc - (b * fp.x + d * fp.z));
           radarG.fillStyle = "rgba(245, 205, 150, 0.5)";
           rrPath(radarG, LAND_X0, LAND_Z0, LAND_X1 - LAND_X0, LAND_Z1 - LAND_Z0, ISLE_R);
+          radarG.fill();
+          rrPath(radarG, RES_PEN.x0, RES_PEN.z0, RES_PEN.x1 - RES_PEN.x0, RES_PEN.z1 - RES_PEN.z0, RES_PEN.r);
           radarG.fill();
           radarG.fillStyle = "rgba(70, 26, 56, 0.85)";
           radarG.fillRect(CITY_X0, CITY_Z0, CITY_X1 - CITY_X0, CITY_Z1 - CITY_Z0);
