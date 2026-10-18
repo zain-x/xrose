@@ -25,7 +25,7 @@
       }
       #hud {
         position: fixed;
-        top: 44px;
+        top: 82px; /* under the 💗 counter and the 📍 where-pill */
         left: 14px;
         color: #ffd9e6;
         font-size: 12px;
@@ -336,72 +336,57 @@
         font-size: 0.92em;
       }
 
-      /* ─────────── 🏝️ where she is: district · street, and a pop-up per new area ─────────── */
+      /* ─────────── 🏝️ where she is — a little pill under the 💗 counter ─────────── */
       #where {
         position: fixed;
         top: 50px;
-        left: 50%;
-        transform: translateX(-50%);
+        left: 14px;
         z-index: 12;
         display: none;
-        color: #ffe0ec;
-        font-size: 12.5px;
-        font-weight: 600;
-        background: rgba(40, 10, 28, 0.45);
-        border: 1px solid rgba(255, 120, 150, 0.35);
-        border-radius: 16px;
-        padding: 4px 13px;
-        text-shadow: 0 1px 3px #000;
+        align-items: center;
+        gap: 6px;
+        max-width: calc(100vw - 28px);
+        padding: 4px 12px 4px 9px;
+        border-radius: 14px;
+        font-size: 12px;
+        color: #ffe9f2;
+        background: linear-gradient(135deg, rgba(130, 30, 85, 0.55), rgba(75, 40, 140, 0.5));
+        border: 1px solid rgba(255, 170, 210, 0.45);
+        box-shadow: 0 4px 14px rgba(255, 80, 150, 0.22);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
         pointer-events: none;
         white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
       #where.on {
-        display: block;
+        display: flex;
       }
-      #area-pop {
-        position: fixed;
-        top: 20%;
-        left: 50%;
-        z-index: 14;
-        transform: translate(-50%, -12px) scale(0.94);
-        opacity: 0;
-        pointer-events: none;
-        text-align: center;
-        color: #fff;
-        text-shadow:
-          0 2px 16px rgba(255, 60, 140, 0.85),
-          0 1px 3px #000;
-        transition:
-          opacity 0.5s,
-          transform 0.6s cubic-bezier(0.2, 1.3, 0.4, 1);
-      }
-      #area-pop.show {
-        opacity: 1;
-        transform: translate(-50%, 0) scale(1);
-      }
-      #area-pop .ap-i {
-        display: block;
-        font-size: 40px;
-      }
-      #area-pop b {
-        display: block;
-        font-size: 34px;
-        letter-spacing: 1px;
-      }
-      #area-pop i {
-        display: block;
-        font-style: normal;
+      #where .w-i {
         font-size: 13px;
-        letter-spacing: 4px;
-        text-transform: uppercase;
-        color: #ffd6e8;
       }
-      body.touch #where {
-        top: 46px;
-        font-size: 11px;
+      #where b {
+        font-weight: 700;
+        color: #fff;
       }
-      body.touch #area-pop b {
-        font-size: 26px;
+      #where .w-s {
+        color: #ffc9e0;
+      }
+      #where .w-s:not(:empty)::before {
+        content: "·";
+        margin: 0 5px 0 1px;
+        color: #ff9ec2;
+      }
+      #where.chg {
+        animation: w-chg 0.5s ease;
+      }
+      @keyframes w-chg {
+        from {
+          opacity: 0.2;
+          transform: translateX(-6px);
+        }
       }
 
       /* ─────────── 📻 Rose FM — a mini radio on the left, in every car / plane ─────────── */
@@ -1253,8 +1238,7 @@
       <span id="disc-count">0</span> / <span id="disc-total">7</span> 💗
     </div>
     <div id="kisses">💋 <span id="kiss-count">0</span> / <span id="kiss-goal">7</span></div>
-    <div id="where" dir="rtl"></div>
-    <div id="area-pop"></div>
+    <div id="where" dir="rtl"><span class="w-i"></span><b></b><span class="w-s"></span></div>
     <div id="prompt"></div>
     <div id="veh-hud"></div>
     <canvas id="radar" width="170" height="170"></canvas>
@@ -3354,11 +3338,14 @@
         d2r = THREE.MathUtils.degToRad;
       const C_FOG_DAY = new THREE.Color(0xa8b6cc),
         C_FOG_NIGHT = new THREE.Color(0x4a5478); // lighter dusk-blue so nights stay readable
+      // daylight is warm: an olive ground bounce (and a cyan sky) used to turn
+      // pale things — her legs, the white plane — a sickly green, most of all on
+      // phones (no pink bloom to hide it). Now the bounce is warm rose.
       const C_KEY_WARM = new THREE.Color(0xffb08f),
-        C_KEY_NOON = new THREE.Color(0xf2ecff);
-      const C_SKY_DAY = new THREE.Color(0xc9d6ee),
+        C_KEY_NOON = new THREE.Color(0xfff4ee);
+      const C_SKY_DAY = new THREE.Color(0xdcd6ee),
         C_SKY_NIGHT = new THREE.Color(0x9a90c8);
-      const C_GND_DAY = new THREE.Color(0x4a4034),
+      const C_GND_DAY = new THREE.Color(0x8a6a78),
         C_GND_NIGHT = new THREE.Color(0x6a4866);
       const _fog = new THREE.Color();
 
@@ -8272,6 +8259,31 @@
       // or tap the prompt / the 🚗 button on phones.
       // ============================================================================
 
+      // the airport's buildings — pushed out of in keepOnLand (her & the cars) and
+      // while the plane taxis
+      const AIR_SOLIDS = [];
+      function airPush(p, r) {
+        let hit = false;
+        for (const b of AIR_SOLIDS) {
+          if (p.y > b.h) continue;
+          const x0 = b.x0 - r,
+            x1 = b.x1 + r,
+            z0 = b.z0 - r,
+            z1 = b.z1 + r;
+          if (p.x <= x0 || p.x >= x1 || p.z <= z0 || p.z >= z1) continue;
+          const dl = p.x - x0,
+            dr = x1 - p.x,
+            dn = p.z - z0,
+            df = z1 - p.z;
+          const m = Math.min(dl, dr, dn, df);
+          if (m === dl) p.x = x0;
+          else if (m === dr) p.x = x1;
+          else if (m === dn) p.z = z0;
+          else p.z = z1;
+          hit = true;
+        }
+        return hit;
+      }
       // Hoisted so the very first towerSpec() call already respects the clearing.
       function inAirport(gx, gz) {
         return gx >= 5 && gx <= 11 && gz >= -1 && gz <= 1;
@@ -8284,13 +8296,33 @@
       {
         const field = new THREE.Mesh(
           new THREE.PlaneGeometry(7 * TILE + 2, 3 * TILE + 2),
-          new THREE.MeshStandardMaterial({
-            color: 0x3a3450, // readable violet-grey apron, glows softly at night
-            roughness: 0.9,
-            metalness: 0.15,
-            emissive: 0x201c30,
-            emissiveIntensity: 0.5,
-          }),
+          (() => {
+            // pale lavender concrete slabs (8 m) with darker expansion joints
+            const cv = document.createElement("canvas");
+            cv.width = cv.height = 128;
+            const g = cv.getContext("2d");
+            g.fillStyle = "#b9aec8";
+            g.fillRect(0, 0, 128, 128);
+            for (let i = 0; i < 160; i++) {
+              g.fillStyle = `rgba(${90 + ((i * 37) % 60)},${80 + ((i * 53) % 50)},${110 + ((i * 29) % 50)},0.08)`;
+              g.fillRect((i * 71) % 128, (i * 113) % 128, 6 + (i % 9), 4 + (i % 7));
+            }
+            g.fillStyle = "rgba(70,55,90,0.55)";
+            g.fillRect(0, 0, 128, 3);
+            g.fillRect(0, 0, 3, 128);
+            const t = new THREE.CanvasTexture(cv);
+            t.colorSpace = THREE.SRGBColorSpace;
+            t.wrapS = t.wrapT = THREE.RepeatWrapping;
+            t.repeat.set((7 * TILE + 2) / 8, (3 * TILE + 2) / 8);
+            t.anisotropy = 8;
+            return new THREE.MeshStandardMaterial({
+              map: t,
+              roughness: 0.85,
+              metalness: 0,
+              emissive: 0x2a2238, // glows softly at night
+              emissiveIntensity: 0.6,
+            });
+          })(),
         );
         field.rotation.x = -Math.PI / 2;
         field.position.set(AIR_X, 0.06, RUNWAY_Z);
@@ -8301,7 +8333,7 @@
         rw.width = 1024;
         rw.height = 128;
         const g = rw.getContext("2d");
-        g.fillStyle = "#32323f"; // lighter tarmac so the runway reads at night
+        g.fillStyle = "#5a5468"; // soft violet tarmac — reads by day and by night
         g.fillRect(0, 0, 1024, 128);
         g.fillStyle = "rgba(235,235,240,0.85)";
         g.fillRect(0, 5, 1024, 4); // edge lines
@@ -8384,6 +8416,163 @@
         sign.scale.set(30, 15, 1);
         sign.position.set(AIR_X - RW_LEN / 2 + 15, 13, 2 * TILE - 5);
         scene.add(sign);
+
+        // ✈️ the airport itself, north of the runway: a taxiway, a terminal,
+        // a control tower, a hangar, a windsock and landing-guide lights
+        const air = new THREE.Group();
+        scene.add(air);
+        const AM = (color, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.6, ...extra });
+        const abox = (w, h, d, x, y, z, mat, parent = air) => {
+          const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+          m.position.set(x, y, z);
+          m.castShadow = true;
+          m.receiveShadow = true;
+          parent.add(m);
+          return m;
+        };
+        const flat = (w, d, x, z, mat, y = 0.1) => {
+          const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), mat);
+          m.rotation.x = -Math.PI / 2;
+          m.position.set(x, y, z);
+          m.receiveShadow = true;
+          air.add(m);
+          return m;
+        };
+        const TARMAC = AM(0x6a6478, { roughness: 0.9, emissive: 0x1e1828, emissiveIntensity: 0.6 });
+        const YELLOW = AM(0x8a6a1a, { emissive: 0xffc94a, emissiveIntensity: 0.9 });
+        // taxiway parallel to the runway + two links onto it
+        const TWY_Z = RUNWAY_Z + 15;
+        flat(180, 7, AIR_X, TWY_Z, TARMAC, 0.1);
+        flat(176, 0.25, AIR_X, TWY_Z, YELLOW, 0.12);
+        for (const dx of [-70, 62]) {
+          flat(7, 6.5, AIR_X + dx, RUNWAY_Z + 11.5, TARMAC, 0.11);
+          flat(0.25, 6.5, AIR_X + dx, RUNWAY_Z + 11.5, YELLOW, 0.13);
+        }
+        // the apron in front of the terminal
+        flat(70, 9, AIR_X - 8, TWY_Z + 8, AM(0x9e94b2, { roughness: 0.85, emissive: 0x241c30, emissiveIntensity: 0.5 }), 0.09);
+
+        // 🏢 the terminal: pearl-pink walls, a long glass front, a wave canopy
+        const T_X = AIR_X - 8,
+          T_Z = RUNWAY_Z + 34,
+          T_W = 44,
+          T_D = 12,
+          T_H = 8;
+        const PEARL = AM(0xf6e4ee, { emissive: 0x3a2430, emissiveIntensity: 0.4 });
+        abox(T_W, T_H, T_D, T_X, T_H / 2, T_Z, PEARL);
+        const glass = AM(0x8fb4e8, { roughness: 0.15, metalness: 0.2, emissive: 0x6a86d8, emissiveIntensity: 0.55 });
+        const front = T_Z - T_D / 2 - 0.03;
+        const gl = new THREE.Mesh(new THREE.PlaneGeometry(T_W - 3, 4.4), glass);
+        gl.position.set(T_X, 3.3, front);
+        gl.rotation.y = Math.PI;
+        air.add(gl);
+        const MULL = AM(0xd8c6dc, { metalness: 0.4 });
+        for (let x = -T_W / 2 + 1.5; x <= T_W / 2 - 1.5; x += 3.4) abox(0.18, 4.4, 0.12, T_X + x, 3.3, front - 0.05, MULL);
+        abox(T_W + 4, 0.4, T_D + 6, T_X, T_H + 0.2, T_Z - 2, AM(0xffffff, { emissive: 0x3a2a34, emissiveIntensity: 0.4 }));
+        abox(T_W + 4.2, 0.12, 0.12, T_X, T_H, T_Z - T_D / 2 - 5, AM(0x5a1030, { emissive: 0xff5d9e, emissiveIntensity: 2.2 }));
+        for (const dx of [-8, 8]) abox(3.2, 3, 0.1, T_X + dx, 1.5, front - 0.08, AM(0xfff2f6, { emissive: 0xffd6e6, emissiveIntensity: 0.8 }));
+        {
+          const cv = document.createElement("canvas");
+          cv.width = 1024;
+          cv.height = 150;
+          const g = cv.getContext("2d");
+          rrPath(g, 6, 6, 1012, 138, 40);
+          g.fillStyle = "#4a1238";
+          g.fill();
+          g.lineWidth = 6;
+          g.strokeStyle = "#ff9ec2";
+          g.stroke();
+          g.textAlign = "center";
+          g.textBaseline = "middle";
+          g.shadowColor = "rgba(255,93,158,0.95)";
+          g.shadowBlur = 24;
+          g.fillStyle = "#fff2f8";
+          let fs = 76;
+          do g.font = `700 ${fs}px "Segoe UI", Tahoma, Arial, sans-serif`;
+          while (g.measureText("✈  ROSE AIRPORT  ·  مطار روز").width > 960 && (fs -= 4) > 30);
+          g.fillText("✈  ROSE AIRPORT  ·  مطار روز", 512, 78);
+          const tex = new THREE.CanvasTexture(cv);
+          tex.colorSpace = THREE.SRGBColorSpace;
+          const sg = new THREE.Mesh(new THREE.PlaneGeometry(26, 3.8), new THREE.MeshBasicMaterial({ map: tex, transparent: true }));
+          sg.position.set(T_X, T_H + 2.4, T_Z - T_D / 2 - 1);
+          sg.rotation.y = Math.PI;
+          air.add(sg);
+        }
+
+        // 🗼 the control tower: a slim shaft, a glowing glass cab, a red beacon
+        const TW_X = T_X + T_W / 2 + 12,
+          TW_Z = T_Z;
+        const shaft = new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.9, 21, 16), PEARL);
+        shaft.position.set(TW_X, 10.5, TW_Z);
+        shaft.castShadow = true;
+        air.add(shaft);
+        const deck = new THREE.Mesh(new THREE.CylinderGeometry(3.6, 2.2, 1.2, 20), AM(0xffffff, { emissive: 0x3a2a34, emissiveIntensity: 0.4 }));
+        deck.position.set(TW_X, 21.4, TW_Z);
+        air.add(deck);
+        const cab = new THREE.Mesh(
+          new THREE.CylinderGeometry(3.4, 3.0, 3.2, 20, 1, true),
+          AM(0x9fc8ff, { roughness: 0.1, metalness: 0.2, emissive: 0x8fb4ff, emissiveIntensity: 0.9, side: THREE.DoubleSide }),
+        );
+        cab.position.set(TW_X, 23.6, TW_Z);
+        air.add(cab);
+        const roof = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 3.8, 1, 20), AM(0xe2334f));
+        roof.position.set(TW_X, 25.7, TW_Z);
+        air.add(roof);
+        abox(0.12, 4, 0.12, TW_X, 28.2, TW_Z, MULL);
+        const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.28, 10, 8), AM(0x400000, { emissive: 0xff2030, emissiveIntensity: 3 }));
+        beacon.position.set(TW_X, 30.3, TW_Z);
+        air.add(beacon);
+
+        // 🛖 the hangar: a lilac arched roof over a big door
+        const H_X = T_X - T_W / 2 - 22,
+          H_Z = T_Z - 1;
+        const LILAC = AM(0xc4b0e2, { roughness: 0.5, metalness: 0.3, emissive: 0x2a2040, emissiveIntensity: 0.5, side: THREE.DoubleSide });
+        const arch = new THREE.Mesh(new THREE.CylinderGeometry(10, 10, 18, 24, 1, true, -Math.PI / 2, Math.PI), LILAC);
+        arch.rotation.x = -Math.PI / 2; // the half-cylinder arches up over the floor
+        arch.position.set(H_X, 0, H_Z);
+        arch.castShadow = true;
+        air.add(arch);
+        const back = new THREE.Mesh(new THREE.CircleGeometry(10, 24, 0, Math.PI), LILAC);
+        back.position.set(H_X, 0, H_Z + 9);
+        air.add(back);
+        const door = new THREE.Mesh(new THREE.CircleGeometry(10, 24, 0, Math.PI), AM(0x6a5a86, { emissive: 0x241a38, emissiveIntensity: 0.6, side: THREE.DoubleSide }));
+        door.position.set(H_X, 0, H_Z - 9);
+        air.add(door);
+        for (let x = -8; x <= 8; x += 2) abox(0.08, Math.sqrt(100 - x * x) - 0.3, 0.06, H_X + x, (Math.sqrt(100 - x * x) - 0.3) / 2, H_Z - 9.06, MULL);
+
+        // 🎐 a striped windsock by the far end, and landing-guide lights
+        const WS_X = AIR_X + RW_LEN / 2 - 25,
+          WS_Z = RUNWAY_Z - 14; // south of the runway, clear of the taxiway
+        abox(0.12, 6, 0.12, WS_X, 3, WS_Z, MULL);
+        {
+          const cv = document.createElement("canvas");
+          cv.width = 128;
+          cv.height = 32;
+          const g = cv.getContext("2d");
+          for (let i = 0; i < 5; i++) {
+            g.fillStyle = i % 2 ? "#ffffff" : "#ff6a3d";
+            g.fillRect(i * 26, 0, 26, 32);
+          }
+          const sockTex = new THREE.CanvasTexture(cv);
+          sockTex.colorSpace = THREE.SRGBColorSpace;
+          const sock = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.22, 0.5, 3, 12, 1, true),
+            new THREE.MeshStandardMaterial({ map: sockTex, side: THREE.DoubleSide, emissive: 0x3a1a10, emissiveIntensity: 0.5 }),
+          );
+          sock.rotation.z = Math.PI / 2 - 0.15;
+          sock.position.set(WS_X + 1.5, 5.6, WS_Z);
+          air.add(sock);
+        }
+        for (const end of [-1, 1])
+          for (let i = 0; i < 4; i++)
+            abox(0.5, 0.35, 0.5, AIR_X + end * (RW_LEN / 2 - 30), 0.3, RUNWAY_Z - 12 - i * 1.2,
+              AM(0x200808, { emissive: i < 2 ? 0xffffff : 0xff2a3a, emissiveIntensity: 2 }));
+
+        // the buildings are solid (she, cars and a taxiing plane stop at them)
+        AIR_SOLIDS.push(
+          { x0: T_X - T_W / 2, x1: T_X + T_W / 2, z0: T_Z - T_D / 2, z1: T_Z + T_D / 2, h: T_H + 0.6 },
+          { x0: TW_X - 2, x1: TW_X + 2, z0: TW_Z - 2, z1: TW_Z + 2, h: 26 },
+          { x0: H_X - 10, x1: H_X + 10, z0: H_Z - 9, z1: H_Z + 9, h: 10 },
+        );
       }
 
       // ---- shared vehicle materials ----------------------------------------------
@@ -8425,9 +8614,11 @@
         metalness: 0,
       });
       const FUSELAGE_WHITE = new THREE.MeshStandardMaterial({
-        color: 0xf2efe9,
+        color: 0xfbf4f2,
         roughness: 0.4,
-        metalness: 0.3,
+        metalness: 0.12, // (metal with nothing to reflect only goes grey-green)
+        emissive: 0x4a3036, // pearly warm white in any light
+        emissiveIntensity: 0.45,
       });
       function mkBox(parent, w, h, d, x, y, z, mat, rx = 0) {
         const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
@@ -8499,6 +8690,61 @@
         [0.86, -1.45],
         [-0.86, -1.45],
       ];
+      // ✨ the little things that make a car read as a car: door seams & handles,
+      // a chrome grille, licence plates, amber indicators, exhaust tips (shared by
+      // her VIP car, the street car and every parked car). Car-local, nose = +Z.
+      const PLATE_MAT = (() => {
+        const cv = document.createElement("canvas");
+        cv.width = 256;
+        cv.height = 64;
+        const g = cv.getContext("2d");
+        g.fillStyle = "#fffaf6";
+        g.fillRect(0, 0, 256, 64);
+        g.lineWidth = 6;
+        g.strokeStyle = "#c2347a";
+        g.strokeRect(3, 3, 250, 58);
+        g.fillStyle = "#5a1a40";
+        g.textAlign = "center";
+        g.textBaseline = "middle";
+        g.font = 'bold 40px "Segoe UI", Arial, sans-serif';
+        g.fillText("ROSE ♥ 2026", 128, 34);
+        const t = new THREE.CanvasTexture(cv);
+        t.colorSpace = THREE.SRGBColorSpace;
+        return new THREE.MeshStandardMaterial({ map: t, emissiveMap: t, emissive: 0xffffff, emissiveIntensity: 0.25, roughness: 0.5 });
+      })();
+      const AMBER_MAT = new THREE.MeshStandardMaterial({ color: 0x3a2000, emissive: 0xffa22a, emissiveIntensity: 1.4 });
+      function carDetailGeos(halfW) {
+        const at = (geo, x, y, z, rx = 0, ry = 0) => {
+          geo.rotateX(rx);
+          geo.rotateY(ry);
+          geo.translate(x, y, z);
+          return geo.index ? geo.toNonIndexed() : geo;
+        };
+        const B = (w, h, d, x, y, z) => at(new THREE.BoxGeometry(w, h, d), x, y, z);
+        const seams = [],
+          chrome = [],
+          amber = [];
+        for (const sx of [-1, 1]) {
+          const x = sx * (halfW - 0.005);
+          seams.push(B(0.03, 0.46, 0.025, x, 0.66, 0.62), B(0.03, 0.46, 0.025, x, 0.66, -0.66)); // door gaps
+          seams.push(B(0.03, 0.025, 2.0, x, 0.42, -0.1)); // rocker line
+          chrome.push(B(0.035, 0.04, 0.2, x + sx * 0.01, 0.86, 0.3), B(0.035, 0.04, 0.2, x + sx * 0.01, 0.86, -0.95)); // handles
+          amber.push(B(0.14, 0.05, 0.07, sx * 0.86, 0.72, 2.2), B(0.16, 0.05, 0.05, sx * 0.72, 0.76, -2.31));
+          chrome.push(at(new THREE.CylinderGeometry(0.055, 0.055, 0.14, 10), sx * 0.5, 0.33, -2.3, Math.PI / 2)); // exhaust
+        }
+        seams.push(B(1.0, 0.2, 0.05, 0, 0.5, 2.31)); // grille
+        for (const y of [0.44, 0.5, 0.56]) chrome.push(B(0.96, 0.022, 0.03, 0, y, 2.345)); // grille bars
+        const plates = [
+          at(new THREE.PlaneGeometry(0.52, 0.13), 0, 0.42, 2.35),
+          at(new THREE.PlaneGeometry(0.52, 0.13), 0, 0.56, -2.37, 0, Math.PI),
+        ];
+        return {
+          seams: mergeGeometries(seams),
+          chrome: mergeGeometries(chrome),
+          amber: mergeGeometries(amber),
+          plates: mergeGeometries(plates),
+        };
+      }
       function makeCarWheel(front, vip) {
         const pivot = new THREE.Group(); // steering pivot (front wheels)
         const spin = new THREE.Group(); // rolling pivot
@@ -8580,6 +8826,13 @@
         // camera-stalk mirrors
         mkBox(c, 0.2, 0.07, 0.13, 1.03, 1.02, 0.72, paint);
         mkBox(c, 0.2, 0.07, 0.13, -1.03, 1.02, 0.72, paint);
+        {
+          const d = carDetailGeos(0.97);
+          add(d.seams, TRIM_DARK);
+          add(d.chrome, CHROME);
+          add(d.amber, AMBER_MAT);
+          add(d.plates, PLATE_MAT);
+        }
         // ✨ LED signature: slim headlights joined by a full-width light bar,
         // and a full-width tail bar
         mkBox(c, 0.5, 0.05, 0.1, 0.58, 0.74, 2.24, rig.headMat);
@@ -9908,6 +10161,7 @@
           plane.pos.x += Math.sin(plane.yaw) * plane.speed * dt;
           plane.pos.z += Math.cos(plane.yaw) * plane.speed * dt;
           planeCollide(); // walls stop the taxi roll too — no phasing through towers
+          if (airPush(plane.pos, 4.6)) plane.speed = 0; // the terminal, tower & hangar
           plane.vy = 0;
           if (plane.speed > 23 && plane.pitch > 0.08) {
             plane.grounded = false; // 🛫 rotate!
@@ -10222,7 +10476,13 @@
       }
 
       // ---- shared low-poly car parts (same sculpted shape as her VIP car) --------
-      const fleetBodyGeo = extrudeSide(carBodyShape(), 1.9, 0.08, 6);
+      // the body carries its two mirrors (so they take the car's paint)
+      const fleetBodyGeo = mergeNI([
+        extrudeSide(carBodyShape(), 1.9, 0.08, 6),
+        placed(new THREE.BoxGeometry(0.2, 0.07, 0.13), 1.01, 1.02, 0.72),
+        placed(new THREE.BoxGeometry(0.2, 0.07, 0.13), -1.01, 1.02, 0.72),
+      ]);
+      const fleetDetail = carDetailGeos(0.95);
       const fleetGlassGeo = extrudeSide(carGlassShape(), 1.54, 0.06, 6);
       const fleetDarkGeo = mergeNI([
         ...WHEEL_XZ.map(([x, z]) =>
@@ -10230,6 +10490,14 @@
         ),
         placed(new THREE.BoxGeometry(1.96, 0.12, 2.3), 0, 0.3, 0),
         placed(new THREE.BoxGeometry(1.6, 0.1, 0.3), 0, 0.27, 2.12),
+        fleetDetail.seams,
+      ]);
+      // chrome: grille bars, handles, exhausts + a hubcap on every wheel
+      const fleetChromeGeo = mergeNI([
+        fleetDetail.chrome,
+        ...WHEEL_XZ.map(([x, z]) =>
+          placed(new THREE.CylinderGeometry(0.2, 0.2, 0.3, 12), x, 0.36, z, 0, 0, Math.PI / 2),
+        ),
       ]);
       const fleetHeadGeo = mergeNI([
         placed(new THREE.BoxGeometry(0.5, 0.06, 0.1), 0.58, 0.74, 2.24),
@@ -10267,6 +10535,9 @@
         dark: makePool(fleetDarkGeo, TIRE, FLEET_CAP, false),
         head: makePool(fleetHeadGeo, LIGHT_MAT, FLEET_CAP, true),
         tail: makePool(fleetTailGeo, LIGHT_MAT, FLEET_CAP, true),
+        chrome: makePool(fleetChromeGeo, CHROME, FLEET_CAP, false),
+        amber: makePool(fleetDetail.amber, AMBER_MAT, FLEET_CAP, false),
+        plate: makePool(fleetDetail.plates, PLATE_MAT, FLEET_CAP, false),
       };
       let parkedCount = 0;
 
@@ -10560,7 +10831,7 @@
         roofPads.count = pour(roofPads, list, "pad");
         // the street's parked cars, then the cars she drove & left behind
         parkedCount = Math.min(pour(fleet.body, list, "cars"), FLEET_CAP - EXTRA_MAX);
-        for (const part of ["glass", "dark", "head", "tail"])
+        for (const part of ["glass", "dark", "head", "tail", "chrome", "amber", "plate"])
           pour(fleet[part], list, "cars");
         let n = parkedCount;
         for (const e of extraCars) {
@@ -11045,7 +11316,7 @@
       }
       // keep her (or a car) out of the sea — returns true if it had to push
       function keepOnLand(p, margin) {
-        let pushed = false;
+        let pushed = airPush(p, margin * 0.5 + 0.2); // the airport's buildings
         // the lighthouse is solid
         const lx = p.x - LIGHTHOUSE.x,
           lz = p.z - LIGHTHOUSE.z,
@@ -11204,13 +11475,11 @@
 
       // ---- 📍 where she is ----------------------------------------------------------
       const whereEl = document.getElementById("where");
-      const areaPop = document.getElementById("area-pop");
+      const whereIcon = whereEl.querySelector(".w-i"),
+        whereName = whereEl.querySelector("b"),
+        whereStreet = whereEl.querySelector(".w-s");
       let whereT = 0,
-        whereTxt = "",
-        areaCand = "",
-        areaCandT = 0,
-        areaShown = "",
-        areaPopT = 0;
+        whereTxt = "";
       function whereAt(x, z) {
         if (landDist(x, z) > 0) return ["sea", null];
         const m = ROAD_HW + 0.5;
@@ -11233,32 +11502,24 @@
         }
         whereT += dt;
         if (whereT < 0.25 || !started) return;
-        const step = whereT;
         whereT = 0;
         const fp = focusPos();
         const [area, street] = whereAt(fp.x, fp.z);
         const D = DISTRICTS[area];
-        const txt = `${D.icon} ${D.ar}` + (street && area !== "beach" ? ` · ${street.ar}` : "");
-        if (txt !== whereTxt) {
-          whereTxt = txt;
-          whereEl.textContent = "📍 " + txt;
-          whereEl.classList.add("on");
-        }
-        // a big name card when she arrives somewhere new (once it's settled —
-        // walking along a border street shouldn't flicker it)
-        if (area !== areaCand) {
-          areaCand = area;
-          areaCandT = 0;
-        } else areaCandT += step;
-        if (areaCandT >= 0.8 && area !== areaShown) {
-          areaShown = area;
-          areaPop.innerHTML = `<span class="ap-i"></span><b></b><i></i>`;
-          areaPop.querySelector(".ap-i").textContent = D.icon;
-          areaPop.querySelector("b").textContent = D.ar;
-          areaPop.querySelector("i").textContent = D.en;
-          areaPop.classList.add("show");
-          clearTimeout(areaPopT);
-          areaPopT = setTimeout(() => areaPop.classList.remove("show"), 2800);
+        const st = street && area !== "beach" ? street.ar : "";
+        const txt = area + "|" + st;
+        if (txt === whereTxt) return;
+        const newArea = !whereTxt.startsWith(area + "|");
+        whereTxt = txt;
+        whereIcon.textContent = D.icon;
+        whereName.textContent = D.ar;
+        whereStreet.textContent = st;
+        whereEl.classList.add("on");
+        if (newArea) {
+          // a soft little slide-in when she reaches a new area — no pop-up
+          whereEl.classList.remove("chg");
+          void whereEl.offsetWidth;
+          whereEl.classList.add("chg");
         }
       }
 
@@ -11298,6 +11559,8 @@
         color: 0xffc2d6, // soft blush tights
         roughness: 0.8,
         metalness: 0,
+        emissive: 0x6a2a40, // a warm inner glow keeps them blush in any light
+        emissiveIntensity: 0.4,
       });
 
       // 🦸‍♀️ her super-suit fabric — swapped onto the top when she transforms
