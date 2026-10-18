@@ -336,6 +336,20 @@
         font-size: 0.92em;
       }
 
+      /* ─────────── 🍹 Rose Bar's menu ─────────── */
+      .rb-menu {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        justify-content: center;
+        margin-top: 6px;
+      }
+      .rb-menu .panel-btn {
+        margin-top: 4px;
+        font-size: 14px;
+        padding: 9px 16px;
+      }
+
       /* ─────────── 🏝️ where she is — a little pill under the 💗 counter ─────────── */
       #where {
         position: fixed;
@@ -1199,6 +1213,11 @@
         <span class="key">W</span> throttle, <span class="key">↑</span
         ><span class="key">↓</span> pitch, <span class="key">A</span
         ><span class="key">D</span> bank
+      </div>
+      <div>
+        🏝️ <b>Rose Resort</b> on the north beach — swim in the heart pool,
+        <span class="key">F</span> to relax, sip at the bar, light the bonfire,
+        watch the sunset, visit your villa &amp; ride the swan boat 🦢
       </div>
       <div>
         🎹 <b>Rosmantic Music</b> — walk inside the music hall by the start:
@@ -2282,6 +2301,9 @@
         marina: { h0: 12, h1: 20, h2: 30, pw: 3, empty: 0.12, pal: [4, 6, 6, 7, 8, 11] },
         garden: { h0: 9, h1: 13, h2: 14, pw: 3, empty: 0.22, pal: [7, 8, 9, 10, 11, 2] },
       };
+      // 🏝️ Rose Resort lives on the north beach (behind the Rose Quarter), its
+      // villas out over the sea
+      const RESORT = { x: -96 };
 
       // Pastel-neon palette straight from the dream-city reference. Weighted like
       // the image: PINK and BLUE towers dominate the skyline, with mint, lavender,
@@ -3323,6 +3345,11 @@
       // Day / night cycle + weather mood
       // ----------------------------------------------------------------------------
       let timeOfDay = 0.74; // start at a romantic rose-gold dusk
+      let skyHold = null, // { t: time of day to show, until: nowS() }
+        skyMix = 0;
+      function holdSky(t, secs) {
+        skyHold = { t, until: nowS() + secs };
+      }
       let autoTime = true; // auto-advance the clock
       const DAY_LEN = 200; // seconds for one full day/night cycle (slow & dreamy)
       let storm = 0.28,
@@ -3369,6 +3396,12 @@
             _now.getMinutes() * 60 +
             _now.getSeconds()) /
           86400;
+        // 🌅/🌙 Rose Resort can hold the sky at a sunset or a starry night a while
+        skyMix += ((skyHold && nowS() < skyHold.until ? 1 : 0) - skyMix) * clamp(dt * 0.4, 0, 1);
+        if (skyHold && skyMix > 0.001) {
+          const dd = ((skyHold.t - timeOfDay + 1.5) % 1) - 0.5; // the short way round
+          timeOfDay = (timeOfDay + dd * skyMix + 1) % 1;
+        }
         storm += (stormTarget - storm) * clamp(dt * 0.5, 0, 1); // ease mood changes
 
         const ang = timeOfDay * Math.PI * 2;
@@ -3541,6 +3574,7 @@
         updateStreetProps();
         updateTrafficLights(starTime);
         updateIsland(dt, starTime);
+        updateResort(dt, starTime);
         radarT += dt;
         if (radarT >= 0.1) {
           radarT = 0;
@@ -3597,6 +3631,7 @@
       let nearVehicle = null; // which vehicle is within reach on foot
       let nearParked = null; // the parked street car within reach (if any)
       let nearMusic = null; // 'piano' | 'vinyl' inside Rosmantic Music
+      let nearResort = null; // a Rose Resort spot within reach (lounger, bar, …)
       let started = false; // has she entered the city?
       let uiPaused = false; // a panel / breathing / celebration is open
       let joyX = 0,
@@ -3807,9 +3842,12 @@
         if (nearVehicle === "car") return enterCar(car);
         if (nearVehicle === "street") return enterCar(streetCar);
         if (nearVehicle === "parked") return takeParked(nearParked);
+        if (girl.rest) return standUp();
         if (nearVehicle === "plane") return enterPlane();
+        if (nearVehicle === "boat") return enterCar(boat);
         if (nearMusic === "piano") return openPianoPanel();
         if (nearMusic === "vinyl") return toggleVinyl();
+        if (nearResort) return nearResort.use();
         if (nearest) activateSurprise(nearest);
       }
       // the glowing ♥ button stays reserved for the love-surprises
@@ -9863,9 +9901,9 @@
         pitch = -0.16;
         vehHud.style.display = "block";
         promptEl.classList.remove("show");
-        startEngine();
+        if (!rig.boat) startEngine(); // (the swan is pedalled — no engine)
         radioOn("car"); // 📻
-        track(rig.vip ? "🚗 Riding the VIP car" : "🚗 Borrowed a car from the street");
+        track(rig.boat ? "🦢 Took the swan boat" : rig.vip ? "🚗 Riding the VIP car" : "🚗 Borrowed a car from the street");
       }
       function exitCar() {
         vehMode = "walk";
@@ -9889,6 +9927,7 @@
         stopEngine();
         radioOff();
         track("🚗 Parked the car");
+        if (drv.boat) dockBoat(); // 🦢 the swan glides back to its jetty, she steps onto the boards
       }
       function enterPlane() {
         vehMode = "plane";
@@ -9985,7 +10024,7 @@
           handbrake = !!keys["Space"];
           boost = keys["ShiftLeft"] || keys["ShiftRight"] || touchBoost;
         }
-        const top = boost ? 52 : 38;
+        const top = (boost ? 52 : 38) * (drv.boat ? 0.45 : 1); // a pedal boat is gentler
         if (thr)
           drv.speed +=
             16 *
@@ -10012,7 +10051,8 @@
         drv.pos.x += Math.sin(drv.yaw) * drv.speed * dt;
         drv.pos.z += Math.cos(drv.yaw) * drv.speed * dt;
         carCollide();
-        if (keepOnLand(drv.pos, 2.4)) drv.speed *= 0.6; // 🌊 the beach ends at the water
+        // 🌊 cars stop at the beach; the swan boat stays on the water
+        if (drv.boat ? keepOnSea(drv.pos, 1.8) : keepOnLand(drv.pos, 2.4, false)) drv.speed *= 0.6;
         // parked & passing cars: shove apart, and bounce if she drove into one
         if (hallPush(drv.pos, 1.05, true)) drv.speed *= 0.4; // the music hall
         const bump = pushOffCars(drv.pos, 1.05);
@@ -10029,6 +10069,13 @@
 
         drv.g.position.copy(drv.pos);
         drv.g.rotation.set(0, drv.yaw, 0);
+        if (drv.boat) {
+          // bobbing on the swell, leaning into the turns
+          drv.g.position.y = Math.sin(nowS() * 1.7) * 0.07;
+          drv.g.rotation.z = -drv.steer * 0.22 + Math.sin(nowS() * 1.3) * 0.03;
+          if (Math.abs(drv.speed) > 1 && Math.random() < 0.25)
+            poolRipple(drv.pos.x - Math.sin(drv.yaw) * 1.8, drv.pos.z - Math.cos(drv.yaw) * 1.8, 1.8);
+        }
         for (const w of drv.wheels) {
           if (w.front) w.pivot.rotation.y = drv.steer;
           w.spin.rotation.x -= (drv.speed / 0.37) * dt;
@@ -10320,6 +10367,7 @@
           else if (streetCar.active && girl.pos.distanceTo(streetCar.pos) < 4.2)
             nearVehicle = "street";
           else if (girl.pos.distanceTo(plane.pos) < 10) nearVehicle = "plane";
+          else if (girl.pos.distanceTo(boat.pos) < 6.5) nearVehicle = "boat";
           else if (girl.pos.y < 1.5) {
             // 🚗 every parked car on the street can be driven
             nearParked = nearestParked(girl.pos, 3.9);
@@ -10329,6 +10377,10 @@
         nearMusic =
           !nearVehicle && vehMode === "walk" && started && !uiPaused
             ? hallNear(girl.pos)
+            : null;
+        nearResort =
+          !nearVehicle && !nearMusic && vehMode === "walk" && started && !uiPaused && !girl.rest && !superWoman
+            ? resortNear(girl.pos)
             : null;
         if (!nearVehicle && nearMusic) {
           const txt =
@@ -10355,9 +10407,19 @@
                 ? isTouch
                   ? "🛩️ Rose VIP Plane"
                   : "🛩️ F — Rose VIP Plane"
-                : isTouch
-                  ? "🚗 Drive"
-                  : "🚗 F — Drive";
+                : nearVehicle === "boat"
+                  ? isTouch
+                    ? "🦢 Swan boat"
+                    : "🦢 F — Swan boat"
+                  : isTouch
+                    ? "🚗 Drive"
+                    : "🚗 F — Drive";
+          if (promptEl.textContent !== txt) promptEl.textContent = txt;
+          promptEl.classList.add("show");
+        } else if (vehMode === "walk" && (girl.rest || nearResort)) {
+          // 🏝️ Rose Resort's spots
+          const [ic, tx] = girl.rest ? ["🌸", "Get up"] : [nearResort.icon, nearResort.label()];
+          const txt = isTouch ? `${ic} ${tx}` : `${ic} F — ${tx}`;
           if (promptEl.textContent !== txt) promptEl.textContent = txt;
           promptEl.classList.add("show");
         } else if (vehMode === "walk" && promptEl.classList.contains("show")) {
@@ -10373,7 +10435,7 @@
           const exitHint = isTouch ? "" : " · F للنزول";
           const txt =
             vehMode === "car"
-              ? `🚗 ${drv.vip ? "Rose VIP · " : ""}${kmh} km/h${exitHint}`
+              ? `${drv.boat ? "🦢 Swan boat · " : "🚗 " + (drv.vip ? "Rose VIP · " : "")}${kmh} km/h${exitHint}`
               : `🛩️ Rose VIP · ${kmh} km/h · ⬆ ${Math.max(0, Math.round(plane.pos.y - PLANE_GEAR))}m${exitHint}`;
           if (txt !== lastVehHud) {
             vehHud.textContent = txt;
@@ -10397,7 +10459,13 @@
                     ? "🎹"
                     : nearMusic === "vinyl"
                       ? "💿"
-                      : "";
+                      : nearVehicle === "boat"
+                        ? "🦢"
+                        : girl.rest
+                          ? "🌸"
+                          : nearResort
+                            ? nearResort.icon
+                            : "";
         if (btnIcon !== lastVehBtn) {
           lastVehBtn = btnIcon;
           vehBtn.style.display = btnIcon ? "flex" : "none";
@@ -11089,6 +11157,7 @@
         park: { icon: "🌳", ar: "حديقة روز", en: "Rose Park" },
         air: { icon: "✈️", ar: "مطار روز", en: "Rose Airfield" },
         beach: { icon: "🏖️", ar: "شاطئ روز", en: "Rose Beach" },
+        resort: { icon: "🏝️", ar: "منتجع روز", en: "Rose Resort" },
         sea: { icon: "🌊", ar: "البحر", en: "The Sea" },
       };
       // ---- every street has a name (the coastal ring road is the Corniche) --------
@@ -11229,7 +11298,9 @@
           }
         };
         const clear = (x, z) =>
-          Math.hypot(x - LIGHTHOUSE.x, z - LIGHTHOUSE.z) > 9 && !(Math.abs(x - PIER.x) < 7 && z < CITY_Z0);
+          Math.hypot(x - LIGHTHOUSE.x, z - LIGHTHOUSE.z) > 9 &&
+          !(Math.abs(x - PIER.x) < 7 && z < CITY_Z0) &&
+          !(z > CITY_Z1 && x > RESORT.x - 100 && x < RESORT.x + 70); // Rose Resort's own beach
         let k = 0;
         alongSides(22, 15, (x, z) => {
           if (!clear(x, z)) return;
@@ -11308,14 +11379,58 @@
         bulb.translate(0, 2.7, 0);
         isleIM(bulb, new THREE.MeshStandardMaterial({ color: 0xfff2d8, emissive: 0xffc27a, emissiveIntensity: 2.4 }), heads);
       }
-      // walkable: the island, plus the pier's boards
+      // boards over the water she can walk on: the pier (+ Rose Resort's decks);
+      // y = the height of their top
+      const WALKWAYS = [{ x0: PIER.x - PIER.hw, x1: PIER.x + PIER.hw, z0: PIER.z0 - PIER.len, z1: PIER.z0, y: 0 }];
+      const onBoards = (x, z, m = 0) =>
+        WALKWAYS.some((w) => x > w.x0 - m && x < w.x1 + m && z > w.z0 - m && z < w.z1 + m);
+      // the board under her feet (if she's on one and not far above it)
+      function boardUnder(p) {
+        let top = -1;
+        for (const w of WALKWAYS)
+          if (p.x > w.x0 && p.x < w.x1 && p.z > w.z0 && p.z < w.z1 && p.y >= w.y - 0.65 && w.y > top) top = w.y;
+        return top;
+      }
+      // walkable: the island, plus the boards
       function landDist(x, z) {
         const d = coastDist(x, z);
-        if (d > 0 && Math.abs(x - PIER.x) < PIER.hw && z < PIER.z0 && z > PIER.z0 - PIER.len) return -1;
-        return d;
+        return d > 0 && onBoards(x, z) ? -1 : d;
       }
-      // keep her (or a car) out of the sea — returns true if it had to push
-      function keepOnLand(p, margin) {
+      // keep a boat on the water: out of the beach and clear of the boards
+      function keepOnSea(p, margin) {
+        let pushed = false;
+        for (const w of WALKWAYS) {
+          const x0 = w.x0 - margin,
+            x1 = w.x1 + margin,
+            z0 = w.z0 - margin,
+            z1 = w.z1 + margin;
+          if (p.x <= x0 || p.x >= x1 || p.z <= z0 || p.z >= z1) continue;
+          const dl = p.x - x0,
+            dr = x1 - p.x,
+            dn = p.z - z0,
+            df = z1 - p.z;
+          const m = Math.min(dl, dr, dn, df);
+          if (m === dl) p.x = x0;
+          else if (m === dr) p.x = x1;
+          else if (m === dn) p.z = z0;
+          else p.z = z1;
+          pushed = true;
+        }
+        const d = margin - coastDist(p.x, p.z);
+        if (d > 0) {
+          const e = 0.5;
+          const gx = coastDist(p.x + e, p.z) - coastDist(p.x - e, p.z),
+            gz = coastDist(p.x, p.z + e) - coastDist(p.x, p.z - e);
+          const gl = Math.hypot(gx, gz) || 1;
+          p.x += (gx / gl) * d;
+          p.z += (gz / gl) * d;
+          pushed = true;
+        }
+        return pushed;
+      }
+      // keep her (or a car) out of the sea — returns true if it had to push.
+      // (cars pass boards = false: the pier and the decks are for walking)
+      function keepOnLand(p, margin, boards = true) {
         let pushed = airPush(p, margin * 0.5 + 0.2); // the airport's buildings
         // the lighthouse is solid
         const lx = p.x - LIGHTHOUSE.x,
@@ -11327,16 +11442,29 @@
           p.z = LIGHTHOUSE.z + (lz / ld) * LR;
           pushed = true;
         }
-        // out on the pier: the railings keep her on the boards
-        if (p.z < PIER.z0 && p.z > PIER.z0 - PIER.len - 2 && Math.abs(p.x - PIER.x) < PIER.hw + 1.5 && coastDist(p.x, p.z) > -margin) {
-          const lim = Math.max(0.3, PIER.hw - margin * 0.5);
-          if (Math.abs(p.x - PIER.x) > lim) {
-            p.x = PIER.x + Math.sign(p.x - PIER.x) * lim;
-            pushed = true;
-          }
-          if (p.z < PIER.z0 - PIER.len + 1) {
-            p.z = PIER.z0 - PIER.len + 1;
-            pushed = true;
+        // out on the boards (pier, resort decks): their edges keep her on them
+        if (boards && coastDist(p.x, p.z) > -margin && onBoards(p.x, p.z, 1.5)) {
+          const m0 = Math.min(margin * 0.5, 1);
+          if (!onBoards(p.x, p.z, -m0)) {
+            let bx = p.x,
+              bz = p.z,
+              bd = 1e9;
+            for (const w of WALKWAYS) {
+              const m = Math.min(m0, (w.x1 - w.x0) / 2 - 0.05, (w.z1 - w.z0) / 2 - 0.05);
+              const cx = Math.max(w.x0 + m, Math.min(w.x1 - m, p.x)),
+                cz = Math.max(w.z0 + m, Math.min(w.z1 - m, p.z));
+              const d = Math.hypot(cx - p.x, cz - p.z);
+              if (d < bd) {
+                bd = d;
+                bx = cx;
+                bz = cz;
+              }
+            }
+            if (bd > 1e-5) {
+              p.x = bx;
+              p.z = bz;
+              pushed = true;
+            }
           }
           return pushed;
         }
@@ -11481,6 +11609,7 @@
       let whereT = 0,
         whereTxt = "";
       function whereAt(x, z) {
+        if (inResortArea(x, z)) return ["resort", null];
         if (landDist(x, z) > 0) return ["sea", null];
         const m = ROAD_HW + 0.5;
         if (x < CITY_X0 - m || x > CITY_X1 + m || z < CITY_Z0 - m || z > CITY_Z1 + m) return ["beach", CORNICHE];
@@ -11520,6 +11649,601 @@
           whereEl.classList.remove("chg");
           void whereEl.offsetWidth;
           whereEl.classList.add("chg");
+        }
+      }
+
+      // ============================================================================
+      // 🏝️  ROSE RESORT — منتجع روز, on the north beach: a heart-shaped pool she
+      // swims in, sun loungers to lie on, a hammock for the sunset, the Rose Bar and
+      // its mocktails, a bonfire to light, villas out over the sea (one is hers),
+      // and a swan boat to pedal round the island. F (or the action button) uses
+      // whatever is near her.
+      // ============================================================================
+      const RX = RESORT.x,
+        SHORE_Z = LAND_Z1;
+      const DECK_Y = 0.5; // the boardwalk & villa decks stand a step above the water
+      const resortRoot = new THREE.Group();
+      scene.add(resortRoot);
+      const RM = (color, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.7, ...extra });
+      const rmesh = (geo, mat, x, y, z, parent = resortRoot) => {
+        const m = new THREE.Mesh(geo, mat);
+        m.position.set(x, y, z);
+        m.castShadow = true;
+        m.receiveShadow = true;
+        parent.add(m);
+        return m;
+      };
+      const rbox = (w, h, d, x, y, z, mat, parent) => rmesh(new THREE.BoxGeometry(w, h, d), mat, x, y, z, parent);
+      const rcyl = (r0, r1, h, x, y, z, mat, seg = 10, parent) =>
+        rmesh(new THREE.CylinderGeometry(r0, r1, h, seg), mat, x, y, z, parent);
+      const WOOD = RM(0xc8945f, { roughness: 0.85, emissive: 0x2a1608, emissiveIntensity: 0.35 });
+      const WOOD_D = RM(0x9a6a44, { roughness: 0.85, emissive: 0x1a0c04, emissiveIntensity: 0.3 });
+      const PEARL_R = RM(0xfbeef2, { emissive: 0x3a2430, emissiveIntensity: 0.35 });
+      const PINK_R = RM(0xff7aa8, { emissive: 0x5a1030, emissiveIntensity: 0.5 });
+      const WHITE_R = RM(0xffffff, { emissive: 0x3a3034, emissiveIntensity: 0.35 });
+      const THATCH = RM(0xdcb27e, { roughness: 0.95, emissive: 0x2a1a08, emissiveIntensity: 0.4 });
+      const GLOW_WARM = RM(0x3a2010, { emissive: 0xffc27a, emissiveIntensity: 1.6 });
+      const NEON_R = (c, i = 2.2) => RM(0x200810, { emissive: c, emissiveIntensity: i });
+      const textPlane = (text, w, h, bg, fg, glow) => {
+        const cv = document.createElement("canvas");
+        cv.width = 1024;
+        cv.height = Math.round((1024 * h) / w);
+        const g = cv.getContext("2d");
+        rrPath(g, 6, 6, cv.width - 12, cv.height - 12, Math.min(40, cv.height / 3));
+        g.fillStyle = bg;
+        g.fill();
+        g.lineWidth = 6;
+        g.strokeStyle = glow;
+        g.stroke();
+        g.textAlign = "center";
+        g.textBaseline = "middle";
+        g.shadowColor = glow;
+        g.shadowBlur = 22;
+        g.fillStyle = fg;
+        let fs = Math.round(cv.height * 0.55);
+        do g.font = `700 ${fs}px "Segoe UI", Tahoma, Arial, sans-serif`;
+        while (g.measureText(text).width > cv.width * 0.9 && (fs -= 4) > 20);
+        g.fillText(text, cv.width / 2, cv.height * 0.54);
+        const t = new THREE.CanvasTexture(cv);
+        t.colorSpace = THREE.SRGBColorSpace;
+        return new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: t, transparent: true }));
+      };
+      function makePalm(x, z, s = 1, lean = 0) {
+        const g = new THREE.Group();
+        const trunk = new THREE.CylinderGeometry(0.17, 0.3, 7.6, 7, 8);
+        trunk.translate(0, 3.8, 0);
+        const tp = trunk.attributes.position;
+        for (let i = 0; i < tp.count; i++) {
+          const y = tp.getY(i) / 7.6;
+          tp.setX(i, tp.getX(i) + y * y * 1.1);
+        }
+        trunk.computeVertexNormals();
+        rmesh(trunk, RM(0xb08a66, { roughness: 0.9 }), 0, 0, 0, g);
+        for (let i = 0; i < 8; i++) {
+          const f = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.05, 3.4).translate(0, 0, 1.7), RM(0x4fae5c, { emissive: 0x0c2a12 }));
+          const pivot = new THREE.Group();
+          pivot.position.set(1.1, 7.6, 0);
+          pivot.rotation.y = (i / 8) * Math.PI * 2;
+          f.rotation.set(0.5 + (i % 2) * 0.18, 0, 0);
+          pivot.add(f);
+          g.add(pivot);
+        }
+        g.position.set(x, 0, z);
+        g.rotation.y = lean;
+        g.scale.setScalar(s);
+        resortRoot.add(g);
+        return g;
+      }
+      // the spots she can use: { x, z, r, icon, label(), use() }
+      const RESORT_SPOTS = [];
+      function resortNear(p) {
+        let best = null,
+          bd = 1e9;
+        for (const sp of RESORT_SPOTS) {
+          const d = Math.hypot(p.x - sp.x, p.z - sp.z);
+          if (d < sp.r && d < bd && Math.abs(p.y - (sp.y || 0)) < 2) {
+            bd = d;
+            best = sp;
+          }
+        }
+        return best;
+      }
+      function inResortArea(x, z) {
+        return x > RX - 95 && x < RX + 62 && z > CITY_Z1 + ROAD_HW + 1 && z < 390;
+      }
+
+      // ---- 🌴 the entrance: a neon heart arch on the promenade ----------------------
+      {
+        const AZ = CITY_Z1 + 9;
+        for (const sx of [-1, 1]) {
+          rcyl(0.25, 0.3, 5, RX + sx * 4.6, 2.5, AZ, PEARL_R, 12);
+          AIR_SOLIDS.push({ x0: RX + sx * 4.6 - 0.35, x1: RX + sx * 4.6 + 0.35, z0: AZ - 0.35, z1: AZ + 0.35, h: 6 });
+        }
+        const arc = new THREE.Mesh(new THREE.TorusGeometry(4.6, 0.2, 10, 40, Math.PI), NEON_R(0xff5d9e, 2.4));
+        arc.position.set(RX, 5, AZ);
+        resortRoot.add(arc);
+        for (const ry of [0, Math.PI]) {
+          const sg = textPlane("🌴 منتجع روز · ROSE RESORT 🌴", 7.2, 1.2, "#4a1238", "#fff2f8", "#ff9ec2");
+          sg.position.set(RX, 7.2, AZ + (ry ? 0.04 : -0.04));
+          sg.rotation.y = ry ? 0 : Math.PI;
+          resortRoot.add(sg);
+        }
+      }
+
+      // ---- 💗 the heart pool ----------------------------------------------------------
+      const POOL = { x: RX - 38, z: CITY_Z1 + 23, s: 17 / 32 };
+      const heartPts = (k = 1) => {
+        const pts = [];
+        for (let i = 0; i < 72; i++) {
+          const t = (i / 72) * Math.PI * 2;
+          const hx = 16 * Math.pow(Math.sin(t), 3);
+          const hy = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t) + 2.5;
+          pts.push([hx * POOL.s * k, hy * POOL.s * k]); // (x, z) relative to the centre; lobes toward the sea
+        }
+        return pts;
+      };
+      const POOL_POLY = heartPts(1).map(([x, z]) => [POOL.x + x, POOL.z + z]);
+      function inPool(x, z) {
+        if (Math.abs(x - POOL.x) > 10 || Math.abs(z - POOL.z) > 10) return false;
+        let inside = false;
+        for (let i = 0, j = POOL_POLY.length - 1; i < POOL_POLY.length; j = i++) {
+          const [xi, zi] = POOL_POLY[i],
+            [xj, zj] = POOL_POLY[j];
+          if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside;
+        }
+        return inside;
+      }
+      {
+        // shapes are drawn with z flipped, so rotateX(−90°) lays them the right way
+        const shapeOf = (pts) => new THREE.Shape(pts.map(([x, z]) => new THREE.Vector2(x, -z)));
+        const water = new THREE.Mesh(
+          new THREE.ShapeGeometry(shapeOf(heartPts(1)), 48).rotateX(-Math.PI / 2),
+          new THREE.ShaderMaterial({
+            uniforms: { uTime: uCityTime, uNight },
+            vertexShader: `varying vec2 vP;
+              void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vP = w.xz; gl_Position = projectionMatrix * viewMatrix * w; }`,
+            fragmentShader: `uniform float uTime; uniform float uNight; varying vec2 vP;
+              void main(){
+                vec2 p = vP * 0.55; float c = 0.0;
+                for (int i = 0; i < 3; i++) {
+                  float fi = float(i);
+                  p += vec2(sin(p.y * 1.3 + uTime * 0.8 + fi), cos(p.x * 1.1 - uTime * 0.7 + fi * 1.7)) * 0.45;
+                  c += 0.5 + 0.5 * sin(p.x + p.y);
+                }
+                c /= 3.0;
+                float caus = pow(c, 5.0);
+                vec3 col = mix(vec3(0.10, 0.62, 0.80), vec3(0.35, 0.90, 0.98), c) + caus * vec3(0.8, 1.0, 1.0) * 0.8;
+                col = mix(col, col * vec3(0.55, 0.75, 1.15) + vec3(0.02, 0.10, 0.22), uNight); // pool lights at night
+                gl_FragColor = vec4(col, 1.0);
+                #include <colorspace_fragment>
+              }`,
+          }),
+        );
+        water.position.set(POOL.x, 0.08, POOL.z);
+        resortRoot.add(water);
+        const rimShape = shapeOf(heartPts(1.14));
+        rimShape.holes.push(new THREE.Path(heartPts(1).map(([x, z]) => new THREE.Vector2(x, -z)).reverse()));
+        const rim = new THREE.Mesh(
+          new THREE.ExtrudeGeometry(rimShape, { depth: 0.28, bevelEnabled: false, curveSegments: 4 }).rotateX(-Math.PI / 2),
+          WHITE_R,
+        );
+        rim.position.set(POOL.x, 0, POOL.z);
+        rim.receiveShadow = true;
+        resortRoot.add(rim);
+        // a pale stone deck around it
+        rbox(26, 0.06, 21, POOL.x, 0.03, POOL.z, RM(0xf2e2d6, { roughness: 0.9, emissive: 0x2a2018, emissiveIntensity: 0.4 }));
+      }
+      // ripples (the pool, and the swan boat's wake)
+      const ripples = [];
+      {
+        const rmat = () =>
+          new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
+        for (let i = 0; i < 10; i++) {
+          const m = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.55, 28).rotateX(-Math.PI / 2), rmat());
+          m.visible = false;
+          resortRoot.add(m);
+          ripples.push({ m, t: 1, s: 1 });
+        }
+      }
+      let ripI = 0;
+      function poolRipple(x, z, s = 1) {
+        const r = ripples[ripI++ % ripples.length];
+        r.t = 0;
+        r.s = s;
+        r.m.position.set(x, 0.12, z);
+        r.m.visible = true;
+      }
+
+      // ---- 🏖️ sun loungers & umbrellas -------------------------------------------------
+      {
+        const LZ = CITY_Z1 + 27.5;
+        for (let i = 0; i < 4; i++) {
+          const lx = RX - 18 + i * 5;
+          rbox(0.82, 0.1, 2.0, lx, 0.36, LZ, WHITE_R);
+          for (const [dx, dz] of [[-0.35, -0.85], [0.35, -0.85], [-0.35, 0.85], [0.35, 0.85]])
+            rbox(0.06, 0.32, 0.06, lx + dx, 0.16, LZ + dz, WHITE_R);
+          rbox(0.74, 0.1, 1.25, lx, 0.46, LZ + 0.32, PINK_R);
+          const back = rbox(0.74, 0.1, 0.8, lx, 0.72, LZ - 0.72, PINK_R);
+          back.rotation.x = -0.55;
+          RESORT_SPOTS.push({
+            x: lx,
+            z: LZ,
+            r: 1.9,
+            icon: "🏖️",
+            label: () => "Relax",
+            use: () =>
+              rest({ kind: "lounger", x: lx, y: 0.52, z: LZ + 0.95, yaw: 0, back: 0.38, stand: [lx + 1.1, 0, LZ] }),
+          });
+          if (i % 2 === 0) {
+            rcyl(0.04, 0.04, 2.7, lx + 2.5, 1.35, LZ - 0.4, WHITE_R, 6);
+            const can = rmesh(new THREE.ConeGeometry(1.9, 0.7, 12, 1, true), RM(i ? 0x7fd8ff : 0xff6fa5, { side: THREE.DoubleSide }), lx + 2.5, 2.75, LZ - 0.4);
+            can.castShadow = true;
+          }
+        }
+      }
+
+      // ---- 🌅 the hammock between two palms ----------------------------------------------
+      {
+        const HX = RX - 80,
+          HZ = CITY_Z1 + 26;
+        makePalm(HX - 6.2, HZ, 1, 0.2);
+        makePalm(HX + 6.2, HZ, 1, Math.PI - 0.2);
+        const cv = document.createElement("canvas");
+        cv.width = 128;
+        cv.height = 32;
+        const g = cv.getContext("2d");
+        ["#ff6fa5", "#ffd166", "#7fd8ff", "#c58bff", "#fff2f6", "#ff8f6b"].forEach((c, i) => {
+          g.fillStyle = c;
+          g.fillRect(0, i * 5.4, 128, 5.4);
+        });
+        const tx = new THREE.CanvasTexture(cv);
+        tx.colorSpace = THREE.SRGBColorSpace;
+        const cloth = new THREE.CylinderGeometry(0.62, 0.62, 3.6, 16, 1, true, Math.PI, Math.PI).rotateZ(Math.PI / 2);
+        cloth.scale(1, 0.55, 1);
+        rmesh(cloth, new THREE.MeshStandardMaterial({ map: tx, side: THREE.DoubleSide, emissive: 0x2a1018, emissiveIntensity: 0.4 }), HX, 1.25, HZ);
+        for (const sx of [-1, 1]) {
+          const rope = rbox(4.3, 0.04, 0.04, HX + sx * 4.0, 1.5, HZ, RM(0xf4e6d0)); // up to the palm
+          rope.rotation.z = sx * 0.12;
+        }
+        RESORT_SPOTS.push({
+          x: HX,
+          z: HZ,
+          r: 2.6,
+          icon: "🌅",
+          label: () => "Watch the sunset",
+          use: () => {
+            rest({ kind: "hammock", x: HX + 0.95, y: 1.0, z: HZ, yaw: Math.PI / 2, back: 0.12, stand: [HX, 0, HZ - 2.2] });
+            holdSky(0.745, 80); // the sky turns to a rose-gold sunset for a while
+            screenBurst(["🌅", "💗", "✨", "🌸"], 14);
+            track("🌅 Sunset in the hammock");
+          },
+        });
+      }
+
+      // ---- 🍹 the Rose Bar --------------------------------------------------------------
+      const BAR = { x: RX + 26, z: CITY_Z1 + 18 };
+      {
+        rbox(8, 2.6, 4, BAR.x, 1.3, BAR.z + 2.5, WOOD);
+        rbox(8.4, 1.1, 1.0, BAR.x, 0.55, BAR.z - 0.4, PINK_R);
+        rbox(8.8, 0.1, 1.3, BAR.x, 1.14, BAR.z - 0.4, WHITE_R);
+        for (const sx of [-1, 1]) rcyl(0.12, 0.14, 3.2, BAR.x + sx * 4.1, 1.6, BAR.z - 0.9, WOOD_D, 8);
+        const roof = rmesh(new THREE.ConeGeometry(6.6, 2.4, 4), THATCH, BAR.x, 4.1, BAR.z + 1.2);
+        roof.rotation.y = Math.PI / 4;
+        roof.scale.set(1, 1, 0.78);
+        for (let i = -1; i <= 1; i++) {
+          rcyl(0.06, 0.08, 0.8, BAR.x + i * 2.4, 0.4, BAR.z - 1.6, WHITE_R, 8);
+          rcyl(0.32, 0.32, 0.08, BAR.x + i * 2.4, 0.82, BAR.z - 1.6, PINK_R, 14);
+        }
+        // a shelf of glowing bottles on the back wall
+        const COLS = [0xff5d9e, 0xffd166, 0x7fd8ff, 0xc58bff, 0xff8f6b, 0x9ff0d0];
+        for (let i = 0; i < 12; i++)
+          rcyl(0.09, 0.11, 0.42, BAR.x - 3.3 + i * 0.6, 1.62, BAR.z + 0.42, NEON_R(COLS[i % COLS.length], 1.3), 8);
+        rbox(7.6, 0.06, 0.4, BAR.x, 1.38, BAR.z + 0.55, WOOD_D);
+        const sg = textPlane("🍹 Rose Bar · بار روز", 6, 1, "#4a1238", "#fff2f8", "#ffd166");
+        sg.position.set(BAR.x, 2.95, BAR.z - 0.95);
+        sg.rotation.y = Math.PI;
+        resortRoot.add(sg);
+        AIR_SOLIDS.push(
+          { x0: BAR.x - 4, x1: BAR.x + 4, z0: BAR.z + 0.5, z1: BAR.z + 4.5, h: 4 },
+          { x0: BAR.x - 4.2, x1: BAR.x + 4.2, z0: BAR.z - 0.9, z1: BAR.z + 0.1, h: 1.2 },
+        );
+      }
+      const DRINKS = [
+        ["🍓", "قبلة الفراولة", "Strawberry Kiss"],
+        ["🥥", "بينا روزا", "Piña Rosa"],
+        ["🍉", "حب البطيخ", "Watermelon Love"],
+        ["🌺", "غروب الكركديه", "Hibiscus Sunset"],
+        ["🥭", "حلم المانجو", "Mango Dream"],
+        ["🍋", "ليموناضة بالنعناع", "Mint Lemonade"],
+      ];
+      const drinkSp = emojiSprite("🍹");
+      drinkSp.scale.set(1.1, 1.1, 1);
+      drinkSp.visible = false;
+      scene.add(drinkSp);
+      let drinkUntil = 0;
+      function openBar() {
+        openPanel(`<span class="emoji-head">🍹</span><h2>Rose Bar · بار روز</h2>
+    <p>اختاري مشروبك — على حسابي 💗</p>
+    <div class="rb-menu">${DRINKS.map(
+      ([e, ar, en], i) => `<div class="panel-btn" data-drink="${i}">${e} ${ar}<br><small style="opacity:.75">${en}</small></div>`,
+    ).join("")}</div>`);
+        panelBody.querySelectorAll("[data-drink]").forEach((b) =>
+          b.addEventListener("click", () => {
+            const [e, ar, en] = DRINKS[+b.dataset.drink];
+            closePanel();
+            setEmoji(drinkSp, e);
+            drinkUntil = nowS() + 45;
+            screenBurst([e, "💗", "✨", "🌴"], 18);
+            track(`🍹 Rose Bar: ${en}`);
+          }),
+        );
+        track("🍹 Opened the Rose Bar menu");
+      }
+      RESORT_SPOTS.push({ x: BAR.x, z: BAR.z - 2.2, r: 3, icon: "🍹", label: () => "Rose Bar", use: openBar });
+
+      // ---- 🔥 the bonfire ---------------------------------------------------------------
+      const FIRE = { x: RX + 50, z: CITY_Z1 + 25, lit: false, flames: [], sparks: [], glow: null };
+      {
+        const STONE = RM(0xb9aab4, { roughness: 0.9 });
+        for (let i = 0; i < 11; i++) {
+          const a = (i / 11) * Math.PI * 2;
+          const st = rmesh(new THREE.SphereGeometry(0.26, 8, 6), STONE, FIRE.x + Math.cos(a) * 1.15, 0.12, FIRE.z + Math.sin(a) * 1.15);
+          st.scale.set(1.2, 0.7, 1);
+        }
+        for (let i = 0; i < 4; i++) {
+          const log = rcyl(0.11, 0.13, 1.6, FIRE.x, 0.42, FIRE.z, WOOD_D, 8);
+          log.rotation.set(0.62, (i / 4) * Math.PI * 2, 0, "YXZ");
+        }
+        for (let i = 0; i < 3; i++) {
+          const a = (i / 3) * Math.PI * 2 + 0.5;
+          const seat = rcyl(0.26, 0.26, 2.2, FIRE.x + Math.cos(a) * 3.1, 0.26, FIRE.z + Math.sin(a) * 3.1, WOOD, 10);
+          seat.rotation.set(0, -a, Math.PI / 2, "YXZ");
+        }
+        const cv = document.createElement("canvas");
+        cv.width = cv.height = 64;
+        const g = cv.getContext("2d");
+        const gr = g.createRadialGradient(32, 40, 2, 32, 36, 30);
+        gr.addColorStop(0, "rgba(255,250,220,1)");
+        gr.addColorStop(0.35, "rgba(255,190,80,0.9)");
+        gr.addColorStop(0.7, "rgba(255,80,40,0.45)");
+        gr.addColorStop(1, "rgba(255,40,40,0)");
+        g.fillStyle = gr;
+        g.fillRect(0, 0, 64, 64);
+        const ft = new THREE.CanvasTexture(cv);
+        for (let i = 0; i < 6; i++) {
+          const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: ft, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+          sp.visible = false;
+          resortRoot.add(sp);
+          FIRE.flames.push({ sp, ph: Math.random() * 6.28, ox: (Math.random() - 0.5) * 0.5, oz: (Math.random() - 0.5) * 0.5 });
+        }
+        for (let i = 0; i < 16; i++) {
+          const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: ft, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+          sp.scale.set(0.12, 0.12, 1);
+          sp.visible = false;
+          resortRoot.add(sp);
+          FIRE.sparks.push({ sp, t: Math.random(), vx: 0, vz: 0 });
+        }
+        FIRE.glow = new THREE.Mesh(
+          new THREE.CircleGeometry(5, 32).rotateX(-Math.PI / 2),
+          new THREE.MeshBasicMaterial({ map: ft, color: 0xffa060, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }),
+        );
+        FIRE.glow.position.set(FIRE.x, 0.1, FIRE.z);
+        resortRoot.add(FIRE.glow);
+      }
+      RESORT_SPOTS.push({
+        x: FIRE.x,
+        z: FIRE.z,
+        r: 3.4,
+        icon: "🔥",
+        label: () => (FIRE.lit ? "Put out the fire" : "Light the bonfire"),
+        use: () => {
+          FIRE.lit = !FIRE.lit;
+          if (FIRE.lit) screenBurst(["🔥", "✨", "💗"], 12);
+          track(FIRE.lit ? "🔥 Lit the bonfire" : "🔥 Put out the bonfire");
+        },
+      });
+
+      // ---- 🌙 the boardwalk & the villas out over the sea ---------------------------------
+      const VILLA_Z = SHORE_Z + 51; // the villa decks' front edge
+      const VILLAS = [RX - 16, RX + 8, RX + 32];
+      const HONEY = RX + 8; // the one at the end of the boardwalk is hers
+      {
+        // (the walkable rect may reach into its neighbour — `join` — so there is
+        // no gap where two pieces meet)
+        const walk = (x0, x1, z0, z1, y = DECK_Y, join = {}) => {
+          WALKWAYS.push({ x0, x1, z0, z1, y, ...join });
+          rbox(x1 - x0, 0.24, z1 - z0, (x0 + x1) / 2, y - 0.12, (z0 + z1) / 2, WOOD);
+        };
+        walk(RX + 6.4, RX + 9.6, SHORE_Z - 8, VILLA_Z); // from the sand out to the villas
+        walk(RX - 22, RX + 38, VILLA_Z - 3.2, VILLA_Z); // along the villas
+        walk(RX + 9.6, RX + 12.2, SHORE_Z + 20, SHORE_Z + 26, DECK_Y - 0.15, { x0: RX + 8.6 }); // the swan's jetty
+        for (const vx of VILLAS) walk(vx - 4.5, vx + 4.5, VILLA_Z, VILLA_Z + 11, DECK_Y, { z0: VILLA_Z - 1.2 });
+        // stilts & little lanterns along the boardwalk
+        const stilts = [],
+          lamps = [];
+        for (let z = SHORE_Z + 1; z < VILLA_Z; z += 4)
+          for (const sx of [-1, 1]) {
+            stilts.push([RX + 8 + sx * 1.5, z]);
+            if (Math.round(z) % 8 === Math.round(SHORE_Z + 1) % 8) lamps.push([RX + 8 + sx * 1.5, z]);
+          }
+        for (let x = RX - 21; x < RX + 38; x += 4) stilts.push([x, VILLA_Z - 1.6]), lamps.push([x, VILLA_Z - 3.1]);
+        for (const vx of VILLAS) for (const [dx, dz] of [[-4.2, 0.4], [4.2, 0.4], [-4.2, 10.6], [4.2, 10.6]]) stilts.push([vx + dx, VILLA_Z + dz]);
+        const stiltGeo = new THREE.CylinderGeometry(0.13, 0.16, 1.2, 8);
+        const sIM = new THREE.InstancedMesh(stiltGeo, WOOD_D, stilts.length);
+        stilts.forEach(([x, z], i) => sIM.setMatrixAt(i, matAt(x, -0.2, z)));
+        resortRoot.add(sIM);
+        const postGeo = new THREE.CylinderGeometry(0.05, 0.06, 1.1, 6).translate(0, 0.55, 0);
+        const bulbGeo = new THREE.SphereGeometry(0.12, 8, 6).translate(0, 1.18, 0);
+        const pIM = new THREE.InstancedMesh(postGeo, WOOD_D, lamps.length),
+          bIM = new THREE.InstancedMesh(bulbGeo, GLOW_WARM, lamps.length);
+        lamps.forEach(([x, z], i) => {
+          const m = matAt(x, DECK_Y, z);
+          pIM.setMatrixAt(i, m);
+          bIM.setMatrixAt(i, m);
+        });
+        resortRoot.add(pIM, bIM);
+        // the villas: pearl walls, a thatched roof, warm windows; hers has a pink door
+        for (const vx of VILLAS) {
+          const hz = VILLA_Z + 6.2;
+          rbox(5.6, 2.8, 4.4, vx, DECK_Y + 1.4, hz, PEARL_R);
+          const roof = rmesh(new THREE.ConeGeometry(4.6, 2.5, 4), THATCH, vx, DECK_Y + 2.8 + 1.2, hz);
+          roof.rotation.y = Math.PI / 4;
+          const front = hz - 2.2 - 0.03;
+          for (const sx of [-1, 1]) rbox(1.2, 1.0, 0.06, vx + sx * 1.8, DECK_Y + 1.6, front, GLOW_WARM);
+          rbox(1.1, 2.0, 0.08, vx, DECK_Y + 1.0, front, vx === HONEY ? PINK_R : WOOD_D);
+          AIR_SOLIDS.push({ x0: vx - 2.8, x1: vx + 2.8, z0: hz - 2.2, z1: hz + 2.2, h: 5 });
+        }
+        const heart = emojiSprite("💗");
+        heart.material.depthTest = true;
+        heart.scale.set(1.2, 1.2, 1);
+        heart.position.set(HONEY, DECK_Y + 2.55, VILLA_Z + 3.7);
+        resortRoot.add(heart);
+        const sg = textPlane("🌙 فيلا روز · Rose's Villa", 4.6, 0.8, "#3a1238", "#fff2f8", "#c58bff");
+        sg.position.set(HONEY, DECK_Y + 3.35, VILLA_Z + 3.9);
+        sg.rotation.y = Math.PI;
+        resortRoot.add(sg);
+      }
+      const VILLA_NOTES = [
+        "هاي الفيلا إلك وحدك… البحر تحتها، والنجوم فوقها، وأنا جنبك دايماً 💗",
+        "كل موجة هون بتقلّك: كل سنة وإنتِ أحلى شي صار بحياتي 🌊",
+        "لو كان في جزيرة أحلى من هاي، كنت بنيتها إلك يا روز 🏝️",
+        "سكّري عيونك واسمعي البحر… هاد صوت قلبي لما بشوفك 🌙",
+      ];
+      RESORT_SPOTS.push({
+        x: HONEY,
+        z: VILLA_Z + 2.6,
+        y: DECK_Y,
+        r: 2.6,
+        icon: "🌙",
+        label: () => "Rose's villa",
+        use: () => {
+          const msg = VILLA_NOTES[(Math.random() * VILLA_NOTES.length) | 0];
+          openPanel(`<span class="emoji-head">🌙</span><h2>فيلا روز</h2><p class="big-msg">${msg}</p>`);
+          holdSky(0.02, 90); // a starry night falls over the sea…
+          for (let i = 0; i < 5; i++) setTimeout(shootingStar, 2500 + i * 2600); // …with shooting stars
+          screenBurst(["🌙", "⭐", "💗", "✨"], 16);
+          track("🌙 Opened Rose's villa");
+        },
+      });
+
+      // ---- 🦢 the swan boat (drives like a car — but on the water) -------------------------
+      const BOAT_HOME = new THREE.Vector3(RX + 14.6, 0, SHORE_Z + 23),
+        BOAT_GIRL = new THREE.Vector3(RX + 11, DECK_Y - 0.15, SHORE_Z + 23);
+      const boat = (() => {
+        const g = new THREE.Group();
+        const WHITE_S = RM(0xfffafa, { roughness: 0.4, emissive: 0x4a3a40, emissiveIntensity: 0.45 });
+        const body = rmesh(new THREE.SphereGeometry(1, 22, 14), WHITE_S, 0, 0.35, 0, g);
+        body.scale.set(1.15, 0.55, 1.9);
+        const curve = new THREE.CatmullRomCurve3([
+          new THREE.Vector3(0, 0.6, 1.2),
+          new THREE.Vector3(0, 1.4, 1.75),
+          new THREE.Vector3(0, 2.2, 1.45),
+          new THREE.Vector3(0, 2.55, 1.85),
+        ]);
+        rmesh(new THREE.TubeGeometry(curve, 20, 0.17, 10), WHITE_S, 0, 0, 0, g);
+        rmesh(new THREE.SphereGeometry(0.28, 14, 10), WHITE_S, 0, 2.6, 1.95, g);
+        const beak = rmesh(new THREE.ConeGeometry(0.11, 0.42, 10), RM(0xff9a3a, { emissive: 0x5a2a00, emissiveIntensity: 0.5 }), 0, 2.55, 2.32, g);
+        beak.rotation.x = Math.PI / 2;
+        for (const sx of [-1, 1]) {
+          rmesh(new THREE.SphereGeometry(0.045, 8, 6), RM(0x3a1a40), sx * 0.2, 2.7, 2.1, g);
+          const wing = rmesh(new THREE.SphereGeometry(1, 16, 10), WHITE_S, sx * 0.95, 0.85, -0.2, g);
+          wing.scale.set(0.3, 0.45, 1.3);
+          wing.rotation.z = sx * -0.35;
+        }
+        const tailC = rmesh(new THREE.ConeGeometry(0.5, 1.1, 10), WHITE_S, 0, 0.95, -1.75, g);
+        tailC.rotation.x = -2.1;
+        rbox(1.3, 0.14, 0.9, 0, 0.75, -0.3, PINK_R, g); // the seat
+        rbox(1.3, 0.6, 0.12, 0, 1.05, -0.72, PINK_R, g);
+        const tailMat = RM(0x400818, { emissive: 0xff5d9e, emissiveIntensity: 0.9 });
+        const tail = rbox(0.5, 0.12, 0.06, 0, 0.7, -2.15, tailMat, g);
+        const headMat = RM(0x3a2a10, { emissive: 0xfff0c8, emissiveIntensity: 0.4 });
+        rmesh(new THREE.SphereGeometry(0.12, 10, 8), headMat, 0, 0.9, 1.6, g);
+        g.position.copy(BOAT_HOME);
+        scene.add(g);
+        return { g, pos: BOAT_HOME.clone(), yaw: 0, speed: 0, steer: 0, wheels: [], lamps: [], tail, tailMat, headMat, paint: WHITE_S, vip: false, boat: true };
+      })();
+      function dockBoat() {
+        boat.pos.copy(BOAT_HOME);
+        boat.yaw = 0;
+        boat.speed = 0;
+        boat.steer = 0;
+        boat.g.position.copy(boat.pos);
+        boat.g.rotation.set(0, 0, 0);
+        girl.pos.copy(BOAT_GIRL);
+        screenBurst(["🦢", "💗"], 8);
+      }
+
+      // ---- resting (lounger / hammock) ---------------------------------------------------
+      function rest(r) {
+        girl.rest = r;
+        vel.set(0, 0, 0);
+        girl.climbing = false;
+        screenBurst(r.kind === "hammock" ? ["🌅", "💗"] : ["🏖️", "☀️", "💗"], 8);
+      }
+      function standUp() {
+        const r = girl.rest;
+        girl.rest = null;
+        if (!r) return;
+        girl.pos.set(r.stand[0], r.stand[1], r.stand[2]);
+        girl.g.rotation.set(0, girl.yaw, 0);
+        girl.body.rotation.set(0, 0, 0);
+        girl.body.position.y = 0;
+        girl.grounded = true;
+      }
+      function restPose() {
+        const r = girl.rest;
+        const sw = r.kind === "hammock" ? Math.sin(starTime * 1.1) : 0;
+        girl.pos.set(r.x, r.y, r.z);
+        girl.g.position.set(r.x, r.y, r.z + sw * 0.16);
+        girl.g.rotation.set(0, r.yaw, 0);
+        girl.body.rotation.set(-(Math.PI / 2 - r.back), 0, sw * 0.08);
+        girl.body.position.y = 0.12;
+        girl.legL.rotation.x = 0;
+        girl.legR.rotation.x = 0;
+        girl.kneeL.rotation.x = 0.05;
+        girl.kneeR.rotation.x = 0.05;
+        girl.armL.rotation.x = -0.25 + Math.sin(starTime * 0.5) * 0.04;
+        girl.armR.rotation.x = -0.25;
+        girl.elbowL.rotation.x = -0.4;
+        girl.elbowR.rotation.x = -0.4;
+        girl.yaw = r.yaw;
+      }
+
+      // ---- per frame -----------------------------------------------------------------------
+      function updateResort(dt, t) {
+        // ripples spread & fade
+        for (const r of ripples) {
+          if (r.t >= 1) continue;
+          r.t = Math.min(1, r.t + dt * 0.8);
+          const k = (0.6 + r.t * 3.2) * r.s;
+          r.m.scale.set(k, 1, k);
+          r.m.material.opacity = (1 - r.t) * 0.55;
+          if (r.t >= 1) r.m.visible = false;
+        }
+        // the drink she carries floats over her head for a while
+        drinkSp.visible = nowS() < drinkUntil && girl.g.visible;
+        if (drinkSp.visible) drinkSp.position.set(girl.g.position.x, girl.g.position.y + 2.75 + Math.sin(t * 2.2) * 0.05, girl.g.position.z);
+        // the bonfire
+        const lit = FIRE.lit;
+        FIRE.glow.material.opacity += ((lit ? 0.55 + 0.1 * Math.sin(t * 9) : 0) - FIRE.glow.material.opacity) * Math.min(1, dt * 4);
+        for (const f of FIRE.flames) {
+          f.sp.visible = lit;
+          if (!lit) continue;
+          const fl = 0.75 + 0.25 * Math.sin(t * 11 + f.ph) * Math.sin(t * 7.3 + f.ph * 2);
+          f.sp.scale.set(1.3 * fl, 2.1 * fl, 1);
+          f.sp.position.set(FIRE.x + f.ox, 0.95 + 0.25 * fl, FIRE.z + f.oz);
+        }
+        for (const s of FIRE.sparks) {
+          s.sp.visible = lit;
+          if (!lit) continue;
+          s.t += dt * 0.6;
+          if (s.t > 1) {
+            s.t = 0;
+            s.vx = (Math.random() - 0.5) * 0.8;
+            s.vz = (Math.random() - 0.5) * 0.8;
+          }
+          s.sp.position.set(FIRE.x + s.vx * s.t * 2, 1 + s.t * 4.5, FIRE.z + s.vz * s.t * 2);
+          s.sp.material.opacity = 1 - s.t;
         }
       }
 
@@ -12119,6 +12843,16 @@
 
         const p = girl.pos;
 
+        // 🏖️ lying on a lounger / in the hammock — any move (or F) gets her up
+        if (girl.rest) {
+          if (Math.abs(fwd) > 0.2 || Math.abs(side) > 0.2 || jumpPressed) standUp();
+          else {
+            restPose();
+            girlCamera(p);
+            return;
+          }
+        }
+
         if (girl.climbing) {
           // --- spider-girl on the wall ---
           const w = findWall(p, 0.9);
@@ -12200,6 +12934,8 @@
           let gy = roofUnder(p.x, p.z, p.y - 2.55);
           const dy2 = deckUnder(p);
           if (dy2 > gy) gy = dy2;
+          const by = boardUnder(p); // the pier & the resort's boardwalk
+          if (by > gy) gy = by;
           if (p.y <= gy + 0.02 && vel.y <= 0) {
             p.y = gy;
             vel.y = 0;
@@ -12218,7 +12954,7 @@
           girl.animT += dt * 5;
         } else if (!girl.climbing) {
           // --- running / jumping / falling ---
-          const speed = sprint ? 12.5 : 7.2;
+          const speed = (sprint ? 12.5 : 7.2) * (girl.swim ? 0.45 : 1); // slower in the pool
           const ease = girl.grounded ? 13 : 3.2;
           vel.x += (wishX * speed - vel.x) * Math.min(1, dt * ease);
           vel.z += (wishZ * speed - vel.z) * Math.min(1, dt * ease);
@@ -12262,6 +12998,8 @@
           );
           const dy2 = deckUnder(p);
           if (dy2 > gy) gy = dy2;
+          const by = boardUnder(p); // the pier & the resort's boardwalk
+          if (by > gy) gy = by;
           if (p.y <= gy + 0.02 && vel.y <= 0) {
             if (fallV < -22) screenBurst(["🌸", "💨"], 5); // superhero landing
             p.y = gy;
@@ -12378,6 +13116,23 @@
           girl.body.rotation.set(0, 0, 0);
           girl.body.position.y = 0;
         }
+        // 🏊‍♀️ Rose Resort's heart pool: she swims, the water up to her shoulders
+        girl.swim = !superWoman && !girl.climbing && p.y < 0.6 && inPool(p.x, p.z);
+        if (girl.swim) {
+          const sw = Math.sin(at * 0.9);
+          girl.g.position.y = p.y - 1.12;
+          girl.body.rotation.set(0.3, 0, 0);
+          girl.body.position.y = 0;
+          AL.rotation.x = -1.6 + sw * 0.7;
+          AR.rotation.x = -1.6 + sw * 0.7;
+          EL.rotation.x = -0.5;
+          ER.rotation.x = -0.5;
+          L.rotation.x = 0.25 + sw * 0.35;
+          R.rotation.x = 0.25 - sw * 0.35;
+          KL.rotation.x = 0.3;
+          KR.rotation.x = 0.3;
+          if (Math.random() < dt * (runAmp > 0.2 ? 4 : 1.2)) poolRipple(p.x, p.z);
+        }
         // straight hair hangs down, swinging back a touch when she runs
         girl.pony.rotation.x =
           0.06 +
@@ -12388,7 +13143,10 @@
           girl.cape.rotation.x = 0.25 + runAmp * 0.5;
         if (girl.cape.visible) waveCape(starTime); // cloth ripple
 
-        // --- third-person camera (mouse / touch orbits freely) ---
+        girlCamera(p);
+      }
+      // --- third-person camera (mouse / touch orbits freely) ---
+      function girlCamera(p) {
         const tx = p.x,
           ty = p.y + 2.0,
           tz = p.z;
@@ -12876,6 +13634,8 @@
         if (!driving(car)) put(car.pos.x, car.pos.z, "#ffb347", 3.2);
         if (vehMode !== "plane") put(plane.pos.x, plane.pos.z, "#59b7ff", 3.2);
         put(HALL.cx, HALL.cz, "#c58bff", 3.4); // 🎹 Rosmantic Music
+        put(RESORT.x, CITY_Z1 + 20, "#ff7ad9", 3.4); // 🏝️ Rose Resort
+        if (!(vehMode === "car" && drv === boat)) put(boat.pos.x, boat.pos.z, "#ffffff", 2.4); // 🦢
 
         // north tick + her arrow (she always points up)
         radarG.fillStyle = "rgba(255, 220, 235, 0.75)";
