@@ -403,6 +403,110 @@
         }
       }
 
+      /* ─────────── 🎂 the birthday finale: captions & the blow-the-candles card ─────────── */
+      #bcap {
+        position: fixed;
+        left: 50%;
+        top: 17%;
+        transform: translate(-50%, -8px);
+        z-index: 14;
+        width: max-content;
+        max-width: calc(100vw - 32px);
+        text-align: center;
+        pointer-events: none;
+        opacity: 0;
+        transition:
+          opacity 0.8s ease,
+          transform 0.8s ease;
+      }
+      #bcap.on {
+        opacity: 1;
+        transform: translate(-50%, 0);
+      }
+      #bcap b {
+        display: block;
+        font: italic 700 clamp(24px, 6.4vw, 42px) / 1.15 Georgia, "Palatino Linotype", serif;
+        background: linear-gradient(90deg, #ffd0e4, #fff4d6, #ffb0d0);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        filter: drop-shadow(0 2px 10px rgba(255, 60, 140, 0.65));
+      }
+      #bcap span {
+        display: block;
+        margin-top: 6px;
+        font-size: clamp(13px, 3.5vw, 16px);
+        color: #ffe9f2;
+        text-shadow: 0 1px 6px rgba(0, 0, 0, 0.75);
+      }
+      #blow {
+        position: fixed;
+        left: 50%;
+        bottom: max(18px, env(safe-area-inset-bottom));
+        transform: translateX(-50%);
+        z-index: 40;
+        display: none;
+        width: min(340px, calc(100vw - 32px));
+        padding: 14px 16px 12px;
+        border-radius: 22px;
+        text-align: center;
+        color: #fff;
+        background: linear-gradient(135deg, rgba(120, 25, 80, 0.8), rgba(70, 35, 130, 0.76));
+        border: 1px solid rgba(255, 180, 215, 0.55);
+        box-shadow: 0 10px 30px rgba(255, 70, 150, 0.3);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+      }
+      #blow.on {
+        display: block;
+      }
+      #blow .b-t {
+        font: italic 700 20px Georgia, "Palatino Linotype", serif;
+      }
+      #blow .b-s {
+        margin-top: 4px;
+        font-size: 13px;
+        color: #ffd6e8;
+      }
+      #blow .b-bar {
+        height: 8px;
+        margin: 11px 4px;
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.15);
+        overflow: hidden;
+      }
+      #blow .b-bar i {
+        display: block;
+        width: 0;
+        height: 100%;
+        border-radius: 6px;
+        background: linear-gradient(90deg, #ffd166, #ff7ab0);
+        transition: width 0.15s linear;
+      }
+      #blow .b-row {
+        display: flex;
+        gap: 8px;
+      }
+      #blow button {
+        font: inherit;
+        font-size: 15px;
+        color: #fff;
+        padding: 10px 16px;
+        border-radius: 18px;
+        border: 1px solid rgba(255, 190, 220, 0.6);
+        background: rgba(255, 110, 165, 0.35);
+        cursor: pointer;
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      #blow button.hold {
+        flex: 1;
+      }
+      #blow button.hold.on {
+        background: rgba(255, 140, 190, 0.75);
+      }
+
       /* ─────────── 📻 Rose FM — a mini radio on the left, in every car / plane ─────────── */
       #radio {
         position: fixed;
@@ -1259,6 +1363,13 @@
     <div id="kisses">💋 <span id="kiss-count">0</span> / <span id="kiss-goal">7</span></div>
     <div id="where" dir="rtl"><span class="w-i"></span><b></b><span class="w-s"></span></div>
     <div id="prompt"></div>
+    <div id="bcap"></div>
+    <div id="blow">
+      <div class="b-t">🎂 Make a wish, Rose…</div>
+      <div class="b-s" id="blow-s">…then blow out the candles!</div>
+      <div class="b-bar"><i id="blow-bar"></i></div>
+      <div class="b-row"><button class="hold" id="blow-hold">💨 Hold to blow</button><button id="blow-x">✕</button></div>
+    </div>
     <div id="veh-hud"></div>
     <canvas id="radar" width="170" height="170"></canvas>
 
@@ -3603,6 +3714,7 @@
         updateTrafficLights(starTime);
         updateIsland(dt, starTime);
         updateResort(dt, starTime);
+        updateBirthday(dt, starTime);
         radarT += dt;
         if (radarT >= 0.1) {
           radarT = 0;
@@ -6857,6 +6969,7 @@
           if (dd < 30) vol = 0.4 * (1 - dd / 30);
         }
         if (roseOn) vol = Math.max(vol, 0.85); // ♪ the Rose song, all over the island
+        if (bdaySong) vol = Math.max(vol, 0.9); // 🎂 « Happy Birthday », after the candles
         if (hallCtx) {
           const want = vinylPlaying && !pianoOpen ? 0 : vol;
           hallBus.gain.setTargetAtTime(want, hallCtx.currentTime, 0.4);
@@ -12711,6 +12824,10 @@
           openPanel(`<span class="emoji-head">🌙</span><h2>فيلا روز</h2><p class="big-msg">${msg}</p>`);
           holdSky(0.02, 90); // a starry night falls over the sea…
           for (let i = 0; i < 5; i++) setTimeout(shootingStar, 2500 + i * 2600); // …with shooting stars
+          // …and her name in them, over the open water along the villas
+          yaw = -Math.PI / 2;
+          pitch = 0.9;
+          nameInStars(5, -Math.PI / 2, 0.5);
           screenBurst(["🌙", "⭐", "💗", "✨"], 16);
           track("🌙 Opened Rose's villa");
         },
@@ -12896,6 +13013,1184 @@
           sp.sp.position.set(FIRE.x + sp.vx * sp.t * 2, 1 + sp.t * 4.5, FIRE.z + sp.vz * sp.t * 2);
           sp.sp.material.opacity = 1 - sp.t;
         }
+      }
+
+      // ============================================================================
+      // 🎂🎆🏮✨  THE BIRTHDAY FINALE
+      //  · a giant cake at the end of the pier — she blows the candles out for
+      //    real, into her phone's microphone (or holds 💨), and the sky over the
+      //    sea answers with fireworks that write ROSE and HAPPY BIRTHDAY
+      //  · sky lanterns from the beach by the pier — hers first, then hundreds
+      //  · « Rose » in the stars: a constellation that joins up, line by line,
+      //    when she looks up at night (from the villa, the lighthouse, anywhere)
+      // ============================================================================
+      const bdayRoot = new THREE.Group();
+      scene.add(bdayRoot);
+      const bdayCapEl = document.getElementById("bcap");
+      let bdayCapTimer = 0;
+      function bdayCaption(title, sub = "", secs = 6) {
+        bdayCapEl.innerHTML = `<b>${title}</b>${sub ? `<span>${sub}</span>` : ""}`;
+        bdayCapEl.classList.add("on");
+        clearTimeout(bdayCapTimer);
+        bdayCapTimer = setTimeout(() => bdayCapEl.classList.remove("on"), secs * 1000);
+      }
+      const _bv = new THREE.Vector3();
+
+      // soft glowing points sized in metres (smaller with distance) — the sparks
+      // of the fireworks, the lanterns' halos and the stars of her name
+      const glowScale = { value: 640 };
+      function glowPoints(n, parent = bdayRoot) {
+        const geo = new THREE.BufferGeometry();
+        const pos = new Float32Array(n * 3),
+          col = new Float32Array(n * 3),
+          size = new Float32Array(n),
+          alpha = new Float32Array(n);
+        const attr = (a, k) => new THREE.BufferAttribute(a, k).setUsage(THREE.DynamicDrawUsage);
+        geo.setAttribute("position", attr(pos, 3));
+        geo.setAttribute("aColor", attr(col, 3));
+        geo.setAttribute("aSize", attr(size, 1));
+        geo.setAttribute("aAlpha", attr(alpha, 1));
+        const mat = new THREE.ShaderMaterial({
+          transparent: true,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+          fog: false,
+          uniforms: { uScale: glowScale },
+          vertexShader: `
+    attribute vec3 aColor;
+    attribute float aSize;
+    attribute float aAlpha;
+    uniform float uScale;
+    varying vec3 vC;
+    varying float vA;
+    void main() {
+      vC = aColor;
+      vA = aAlpha;
+      vec4 mv = modelViewMatrix * vec4(position, 1.0);
+      gl_PointSize = aAlpha > 0.003 ? clamp(aSize * uScale / max(-mv.z, 0.5), 1.5, 96.0) : 0.0;
+      gl_Position = projectionMatrix * mv;
+    }`,
+          fragmentShader: `
+    varying vec3 vC;
+    varying float vA;
+    void main() {
+      // a soft halo with a hot white-ish core
+      float d = length(gl_PointCoord - 0.5);
+      float a = smoothstep(0.5, 0.0, d);
+      float core = smoothstep(0.17, 0.0, d);
+      gl_FragColor = vec4(vC * (a * a) + vec3(core * 1.4), vA);
+    }`,
+        });
+        const pts = new THREE.Points(geo, mat);
+        pts.frustumCulled = false;
+        parent.add(pts);
+        const dirty = () => {
+          for (const k of ["position", "aColor", "aSize", "aAlpha"]) geo.attributes[k].needsUpdate = true;
+        };
+        return { pts, pos, col, size, alpha, n, dirty };
+      }
+      // small canvas textures: a candle flame, a soft glow, a puff of smoke
+      function bdayTex(w, h, draw) {
+        const c = document.createElement("canvas");
+        c.width = w;
+        c.height = h;
+        draw(c.getContext("2d"), w, h);
+        const t = new THREE.CanvasTexture(c);
+        t.colorSpace = THREE.SRGBColorSpace;
+        return t;
+      }
+      const radial = (stops) => (g, w, h) => {
+        const gr = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+        for (const [o, c] of stops) gr.addColorStop(o, c);
+        g.fillStyle = gr;
+        g.fillRect(0, 0, w, h);
+      };
+      const FLAME_TEX = bdayTex(64, 128, (g) => {
+        const gr = g.createRadialGradient(32, 92, 2, 32, 80, 46);
+        gr.addColorStop(0, "rgba(255,255,236,1)");
+        gr.addColorStop(0.28, "rgba(255,226,130,0.95)");
+        gr.addColorStop(0.6, "rgba(255,140,40,0.6)");
+        gr.addColorStop(1, "rgba(255,80,20,0)");
+        g.fillStyle = gr;
+        g.beginPath();
+        g.moveTo(32, 4);
+        g.bezierCurveTo(52, 50, 60, 94, 32, 124);
+        g.bezierCurveTo(4, 94, 12, 50, 32, 4);
+        g.fill();
+      });
+      const HALO_TEX = bdayTex(64, 64, radial([[0, "rgba(255,210,140,1)"], [0.35, "rgba(255,160,80,0.35)"], [1, "rgba(255,120,60,0)"]]));
+      const SMOKE_TEX = bdayTex(64, 64, radial([[0, "rgba(235,228,232,0.9)"], [0.5, "rgba(210,200,210,0.35)"], [1, "rgba(200,190,200,0)"]]));
+
+      // ---- 🎆 fireworks -----------------------------------------------------------------
+      const FW = glowPoints(4400);
+      const fwVel = new Float32Array(FW.n * 3),
+        fwTgt = new Float32Array(FW.n * 3),
+        fwLife = new Float32Array(FW.n),
+        fwMax = new Float32Array(FW.n),
+        fwKind = new Uint8Array(FW.n); // 0 free · 1 spark · 2 letter · 3 ember (rocket trail)
+      let fwNext = 0,
+        fwAlive = 0;
+      const fwRockets = [];
+      const FW_COLS = [
+        [1, 0.32, 0.62], // rose pink
+        [1, 0.8, 0.36], // gold
+        [0.74, 0.48, 1], // lilac
+        [1, 0.22, 0.3], // red
+        [0.5, 0.82, 1], // sky
+        [1, 0.94, 0.88], // white
+      ];
+      const fwCol = () => FW_COLS[(Math.random() * FW_COLS.length) | 0];
+      function fwSpawn(kind, x, y, z, vx, vy, vz, c, size, life) {
+        for (let k = 0; k < FW.n; k++) {
+          const i = (fwNext + k) % FW.n;
+          if (fwKind[i]) continue;
+          fwNext = i + 1;
+          fwKind[i] = kind;
+          FW.pos[i * 3] = x;
+          FW.pos[i * 3 + 1] = y;
+          FW.pos[i * 3 + 2] = z;
+          fwVel[i * 3] = vx;
+          fwVel[i * 3 + 1] = vy;
+          fwVel[i * 3 + 2] = vz;
+          FW.col[i * 3] = c[0];
+          FW.col[i * 3 + 1] = c[1];
+          FW.col[i * 3 + 2] = c[2];
+          FW.size[i] = size;
+          FW.alpha[i] = 1;
+          fwLife[i] = fwMax[i] = life;
+          fwAlive++;
+          return i;
+        }
+        return -1;
+      }
+      // the right-hand direction of the plane a firework draws in: square to her
+      // line of sight, so hearts & words always face her
+      const _fr = new THREE.Vector3();
+      function fwFrame(x, z) {
+        _fr.set(camera.position.z - z, 0, x - camera.position.x);
+        if (_fr.lengthSq() < 1e-6) _fr.set(1, 0, 0);
+        return _fr.normalize();
+      }
+      // a word must fit her screen, even a phone held upright
+      function fwFit(x, y, z, want) {
+        const d = camera.position.distanceTo(_bv.set(x, y, z));
+        const half = Math.atan(Math.tan(d2r(camera.fov / 2)) * camera.aspect);
+        return Math.min(want, 2 * d * Math.tan(half) * 0.84);
+      }
+      function fwPeony(x, y, z, c = fwCol(), n = 190, sp = 26) {
+        const c2 = Math.random() < 0.5 ? fwCol() : c;
+        for (let k = 0; k < n; k++) {
+          const u = Math.random() * 2 - 1,
+            a = Math.random() * 6.283,
+            s = Math.sqrt(1 - u * u);
+          const v = sp * (0.86 + Math.random() * 0.22);
+          fwSpawn(1, x, y, z, s * Math.cos(a) * v, u * v, s * Math.sin(a) * v, k % 3 ? c : c2, 1.3, 1.7 + Math.random() * 0.9);
+        }
+        fwSpawn(1, x, y, z, 0, 0, 0, [1, 0.95, 0.85], 16, 0.3); // the flash
+        fwSound("boom", x, y, z);
+      }
+      function fwHeart(x, y, z, c = FW_COLS[3], sp = 24) {
+        const r = fwFrame(x, z);
+        const n = 170;
+        for (let k = 0; k < n; k++) {
+          const t = (k / n) * 6.283;
+          const hx = Math.pow(Math.sin(t), 3),
+            hy = (13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t)) / 16;
+          const v = sp * (0.97 + Math.random() * 0.06);
+          fwSpawn(1, x, y, z, r.x * hx * v, hy * v + 1.5, r.z * hx * v, c, 1.5, 2.1 + Math.random() * 0.4);
+        }
+        fwSpawn(1, x, y, z, 0, 0, 0, [1, 0.8, 0.85], 18, 0.3);
+        fwSound("boom", x, y, z);
+      }
+      // sparks that fly into the shape of a word, hold it… then rain down
+      const fwWords = {};
+      function wordPoints(word) {
+        if (fwWords[word]) return fwWords[word];
+        const W = 640,
+          H = 200,
+          STEP = 5;
+        const cv = document.createElement("canvas");
+        cv.width = W;
+        cv.height = H;
+        const g = cv.getContext("2d");
+        let px = 168;
+        const font = () => `900 ${Math.round(px)}px Georgia, "Times New Roman", serif`;
+        g.font = font();
+        for (let i = 0; i < 20 && g.measureText(word).width > W - 24; i++) {
+          px *= 0.9;
+          g.font = font();
+        }
+        g.fillStyle = "#fff";
+        g.textAlign = "center";
+        g.textBaseline = "middle";
+        g.fillText(word, W / 2, H / 2 + 6);
+        let pts = [];
+        try {
+          const d = g.getImageData(0, 0, W, H).data;
+          if (d && typeof d.length === "number")
+            for (let yy = 0; yy < H; yy += STEP)
+              for (let xx = 0; xx < W; xx += STEP)
+                if (d[(yy * W + xx) * 4 + 3] > 128) pts.push([(xx - W / 2) / W, (H / 2 - yy) / W]);
+        } catch (e) {}
+        // never more than the sky can hold at once
+        for (let i = pts.length - 1; i > 0; i--) {
+          const j = (Math.random() * (i + 1)) | 0;
+          [pts[i], pts[j]] = [pts[j], pts[i]];
+        }
+        if (pts.length > 1500) pts.length = 1500;
+        return (fwWords[word] = pts);
+      }
+      function fwWord(word, x, y, z, c, width, hold = 3.4) {
+        const pts = wordPoints(word);
+        const r = fwFrame(x, z),
+          w = fwFit(x, y, z, width);
+        for (const [u, v] of pts) {
+          const i = fwSpawn(2, x, y, z, 0, 0, 0, c, 1.6, hold + 1.4 + Math.random() * 0.5);
+          if (i < 0) break;
+          fwTgt[i * 3] = x + r.x * u * w;
+          fwTgt[i * 3 + 1] = y + v * w;
+          fwTgt[i * 3 + 2] = z + r.z * u * w;
+        }
+        fwSpawn(1, x, y, z, 0, 0, 0, [1, 0.95, 0.9], 22, 0.35);
+        fwSound("boom", x, y, z);
+      }
+      // a rocket climbs from the sea, trailing embers, and bursts at the top
+      function fwLaunch(x, z, top, burst, delay = 0) {
+        fwRockets.push({ x, z, top, burst, t: -delay, dur: 1.4 + Math.random() * 0.4, whistled: false, wob: Math.random() * 6.28 });
+      }
+      function updateFireworks(dt, t) {
+        for (let k = fwRockets.length - 1; k >= 0; k--) {
+          const r = fwRockets[k];
+          r.t += dt;
+          if (r.t < 0) continue;
+          if (!r.whistled) {
+            r.whistled = true;
+            fwSound("whistle", r.x, 0, r.z);
+          }
+          const u = Math.min(1, r.t / r.dur);
+          const y = r.top * (1 - (1 - u) * (1 - u));
+          const x = r.x + Math.sin(r.t * 9 + r.wob) * 0.4;
+          fwSpawn(3, x, y, r.z, (Math.random() - 0.5) * 1.2, -1 - Math.random() * 2, (Math.random() - 0.5) * 1.2, [1, 0.78, 0.45], 0.9, 0.45 + Math.random() * 0.4);
+          fwSpawn(3, x, y, r.z, 0, 0, 0, [1, 0.92, 0.75], 1.5, 0.08);
+          if (u >= 1) {
+            fwRockets.splice(k, 1);
+            r.burst(r.x, r.top, r.z);
+          }
+        }
+        if (!fwAlive) {
+          FW.pts.visible = false;
+          return;
+        }
+        FW.pts.visible = true;
+        const P = FW.pos,
+          V = fwVel;
+        const drag = Math.exp(-1.6 * dt),
+          eDrag = Math.exp(-3 * dt),
+          ease = 1 - Math.exp(-5 * dt);
+        for (let i = 0; i < FW.n; i++) {
+          const kind = fwKind[i];
+          if (!kind) continue;
+          const i3 = i * 3;
+          fwLife[i] -= dt;
+          if (fwLife[i] <= 0) {
+            fwKind[i] = 0;
+            FW.alpha[i] = 0;
+            fwAlive--;
+            continue;
+          }
+          if (kind === 2) {
+            // a letter: glide into place, twinkle, then let go and fall as a spark
+            P[i3] += (fwTgt[i3] - P[i3]) * ease;
+            P[i3 + 1] += (fwTgt[i3 + 1] - P[i3 + 1]) * ease;
+            P[i3 + 2] += (fwTgt[i3 + 2] - P[i3 + 2]) * ease;
+            FW.alpha[i] = 0.8 + 0.2 * Math.sin(t * 17 + i);
+            if (fwLife[i] < 1.4) {
+              fwKind[i] = 1;
+              V[i3] = (Math.random() - 0.5) * 1.5;
+              V[i3 + 1] = (Math.random() - 0.5) * 1.5;
+              V[i3 + 2] = (Math.random() - 0.5) * 1.5;
+            }
+            continue;
+          }
+          const dg = kind === 3 ? eDrag : drag;
+          V[i3] *= dg;
+          V[i3 + 1] = V[i3 + 1] * dg - (kind === 3 ? 2 : 5) * dt;
+          V[i3 + 2] *= dg;
+          P[i3] += V[i3] * dt;
+          P[i3 + 1] += V[i3 + 1] * dt;
+          P[i3 + 2] += V[i3 + 2] * dt;
+          const fade = Math.min(1, fwLife[i] / (kind === 3 ? fwMax[i] : 0.7));
+          FW.alpha[i] = fade * (kind === 3 ? 0.7 : 0.78 + 0.22 * Math.sin(t * 23 + i * 1.7));
+        }
+        FW.dirty();
+      }
+      // their sound: a soft whistle up, a deep boom that arrives a beat late
+      let fwNoise = null;
+      function fwSound(kind, x, y, z) {
+        const ctx = hallCtx;
+        if (!ctx || ctx.state !== "running") return;
+        if (!fwNoise) {
+          const n = ctx.sampleRate * 3;
+          fwNoise = ctx.createBuffer(1, n, ctx.sampleRate);
+          const d = fwNoise.getChannelData(0);
+          for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+        }
+        const dist = camera.position.distanceTo(_bv.set(x, y, z));
+        const when = ctx.currentTime + (kind === "boom" ? Math.min(0.9, dist / 343) : 0);
+        const vol = Math.min(1, 130 / Math.max(40, dist));
+        const src = ctx.createBufferSource();
+        src.buffer = fwNoise;
+        const f = ctx.createBiquadFilter(),
+          g = ctx.createGain();
+        if (kind === "boom") {
+          f.type = "lowpass";
+          f.frequency.setValueAtTime(1100, when);
+          f.frequency.exponentialRampToValueAtTime(110, when + 0.9);
+          g.gain.setValueAtTime(0.0001, when);
+          g.gain.exponentialRampToValueAtTime(0.8 * vol, when + 0.012);
+          g.gain.exponentialRampToValueAtTime(0.0001, when + 1.8);
+          src.start(when, Math.random() * 1.0);
+          src.stop(when + 1.9);
+        } else {
+          f.type = "bandpass";
+          f.Q.value = 9;
+          f.frequency.setValueAtTime(700, when);
+          f.frequency.exponentialRampToValueAtTime(2600, when + 1.4);
+          g.gain.setValueAtTime(0.0001, when);
+          g.gain.exponentialRampToValueAtTime(0.1 * vol, when + 0.2);
+          g.gain.exponentialRampToValueAtTime(0.0001, when + 1.5);
+          src.start(when, Math.random() * 1.0);
+          src.stop(when + 1.6);
+        }
+        src.connect(f);
+        f.connect(g);
+        g.connect(ctx.destination);
+      }
+
+      // ---- 🎂 the giant cake on a deck at the end of the pier --------------------------
+      const PIER_END = PIER.z0 - PIER.len;
+      const CAKE = {
+        x: PIER.x,
+        z: PIER_END - 8,
+        flames: [],
+        smoke: [],
+        blowing: false,
+        acc: 0,
+        blow: 0,
+        lean: 0,
+        mic: null,
+        show: false,
+        showT: 0,
+      };
+      // the show plays over the open sea, straight out from the cake
+      const SHOW_X = CAKE.x,
+        SHOW_Z = CAKE.z - 170;
+      WALKWAYS.push({ x0: PIER.x - 9, x1: PIER.x + 9, z0: PIER_END - 17, z1: PIER_END + 1, y: 0 });
+      AIR_SOLIDS.push({ x0: CAKE.x - 2.5, x1: CAKE.x + 2.5, z0: CAKE.z - 2.5, z1: CAKE.z + 2.5, h: 3.2 });
+      {
+        const P = bdayRoot;
+        const CX = CAKE.x,
+          CZ = CAKE.z;
+        // the deck, its rails, and fairy lights all round
+        const deck = rbox(18, 0.3, 18, CX, -0.12, CZ, WOOD, P);
+        deck.castShadow = false;
+        const x0 = CX - 9 + 0.15,
+          x1 = CX + 9 - 0.15,
+          z0 = CZ - 9 + 0.15,
+          z1 = CZ + 9 - 0.15;
+        const gap = PIER.hw + 0.2; // the opening onto the pier
+        const posts = [],
+          bulbs = [],
+          cols = [];
+        const pal = [0xff7ab0, 0xffd166, 0xc58bff, 0xffffff, 0xff8f6b];
+        const rail = (ax, az, bx, bz) => {
+          const len = Math.hypot(bx - ax, bz - az);
+          const r = rbox(Math.abs(bx - ax) + 0.1, 0.1, Math.abs(bz - az) + 0.1, (ax + bx) / 2, 1.08, (az + bz) / 2, WOOD_D, P);
+          r.castShadow = false;
+          for (let s = 0; s <= len; s += 3) posts.push([ax + ((bx - ax) * s) / len, az + ((bz - az) * s) / len]);
+          for (let s = 0.4; s < len; s += 0.8) {
+            bulbs.push(matAt(ax + ((bx - ax) * s) / len, 1.2, az + ((bz - az) * s) / len));
+            cols.push(pal[bulbs.length % pal.length]);
+          }
+        };
+        rail(x0, z0, x1, z0);
+        rail(x0, z0, x0, z1);
+        rail(x1, z0, x1, z1);
+        rail(x0, z1, CX - gap, z1);
+        rail(CX + gap, z1, x1, z1);
+        const postIM = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.08, 0.1, 1.1, 6).translate(0, 0.55, 0), WOOD_D, posts.length);
+        posts.forEach(([x, z], i) => postIM.setMatrixAt(i, matAt(x, 0, z)));
+        P.add(postIM);
+        const bIM = new THREE.InstancedMesh(new THREE.SphereGeometry(0.09, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }), bulbs.length);
+        bulbs.forEach((m, i) => {
+          bIM.setMatrixAt(i, m);
+          bIM.setColorAt(i, tmpColor.setHex(cols[i]).multiplyScalar(2.2));
+        });
+        P.add(bIM);
+        // four warm lamps on the corners
+        for (const [lx, lz] of [[x0, z0], [x1, z0], [x0, z1], [x1, z1]]) {
+          rcyl(0.06, 0.07, 2.6, lx, 1.3, lz, lampPoleMat, 6, P);
+          rmesh(new THREE.SphereGeometry(0.22, 12, 8), GLOW_WARM, lx, 2.72, lz, P);
+        }
+
+        // the cake: a gold board and three tiers — cream, rose, cream
+        const CREAM = RM(0xfff1f4, { roughness: 0.5, emissive: 0x4a3038, emissiveIntensity: 0.4 });
+        const ROSEC = RM(0xff9cc2, { roughness: 0.45, emissive: 0x5a1838, emissiveIntensity: 0.45 });
+        const GOLD = RM(0xffd27a, { roughness: 0.3, metalness: 0.75, emissive: 0x4a3008, emissiveIntensity: 0.45 });
+        const PEARL = RM(0xfffaf4, { roughness: 0.25, metalness: 0.2, emissive: 0x4a4038, emissiveIntensity: 0.4 });
+        const ROSEM = RM(0xd8142c, { roughness: 0.5, emissive: 0x5a0610, emissiveIntensity: 0.55 });
+        rcyl(2.55, 2.62, 0.2, CX, 0.13, CZ, GOLD, 48, P);
+        let y = 0.23;
+        const drips = [],
+          dripsB = [],
+          pearls = [],
+          roses = [];
+        const TIERS = [
+          [2.2, 0.9, CREAM, ROSEC],
+          [1.6, 0.8, ROSEC, CREAM],
+          [1.05, 0.7, CREAM, ROSEC],
+        ];
+        const tops = [];
+        TIERS.forEach(([r, h, body, icing], ti) => {
+          rcyl(r, r, h, CX, y + h / 2, CZ, body, 48, P);
+          // icing: a rim on top and drips running down the side
+          const rim = rmesh(new THREE.TorusGeometry(r - 0.03, 0.09, 8, 56), icing, CX, y + h, CZ, P);
+          rim.rotation.x = Math.PI / 2;
+          rcyl(r - 0.02, r - 0.02, 0.05, CX, y + h, CZ, icing, 48, P);
+          const nd = Math.round(r * 13);
+          for (let k = 0; k < nd; k++) {
+            const a = (k / nd) * 6.283 + ti;
+            const L = 1.6 + hash(k, ti, 77) * 2.6;
+            const m = new THREE.Matrix4().compose(
+              _bv.set(CX + Math.sin(a) * (r + 0.01), y + h - 0.05 - L * 0.06, CZ + Math.cos(a) * (r + 0.01)),
+              new THREE.Quaternion(),
+              new THREE.Vector3(1, L, 1),
+            );
+            (icing === ROSEC ? drips : dripsB).push(m);
+          }
+          // a string of pearls round the foot of every tier
+          const np = Math.round(r * 26);
+          for (let k = 0; k < np; k++) {
+            const a = (k / np) * 6.283;
+            pearls.push(matAt(CX + Math.sin(a) * (r + 0.04), y + 0.06, CZ + Math.cos(a) * (r + 0.04)));
+          }
+          tops.push([y + h, r]);
+          y += h;
+        });
+        const dripGeo = new THREE.SphereGeometry(0.075, 8, 6);
+        for (const [list, mat] of [[drips, ROSEC], [dripsB, CREAM]]) {
+          const im = new THREE.InstancedMesh(dripGeo, mat, list.length);
+          list.forEach((m, i) => im.setMatrixAt(i, m));
+          P.add(im);
+        }
+        const pIM = new THREE.InstancedMesh(new THREE.SphereGeometry(0.06, 8, 6), PEARL, pearls.length);
+        pearls.forEach((m, i) => pIM.setMatrixAt(i, m));
+        P.add(pIM);
+        // red roses on the two ledges
+        for (const [ty, rOut, rIn, n] of [[tops[0][0], 2.2, 1.6, 11], [tops[1][0], 1.6, 1.05, 8]])
+          for (let k = 0; k < n; k++) {
+            const a = (k / n) * 6.283 + 0.3;
+            const rr = (rOut + rIn) / 2;
+            roses.push(
+              new THREE.Matrix4().compose(
+                _bv.set(CX + Math.sin(a) * rr, ty + 0.12, CZ + Math.cos(a) * rr),
+                new THREE.Quaternion(),
+                new THREE.Vector3(1, 0.72, 1),
+              ),
+            );
+          }
+        const rIM = new THREE.InstancedMesh(new THREE.SphereGeometry(0.17, 12, 8), ROSEM, roses.length);
+        roses.forEach((m, i) => rIM.setMatrixAt(i, m));
+        P.add(rIM);
+        // her name, piped round the front of the cake
+        const band = (r, yy, h, arc, text, font, color) => {
+          const tex = bdayTex(2048, Math.round((2048 * h) / (r * arc)), (g, w, hh) => {
+            g.textAlign = "center";
+            g.textBaseline = "middle";
+            g.direction = /[؀-ۿ]/.test(text) ? "rtl" : "ltr";
+            let px = hh * 0.78;
+            g.font = font(px);
+            while (g.measureText(text).width > w - 40 && px > 8) g.font = font((px *= 0.92));
+            g.shadowColor = "rgba(255,255,255,0.9)";
+            g.shadowBlur = 10;
+            g.fillStyle = color;
+            g.fillText(text, w / 2, hh * 0.54);
+          });
+          const m = new THREE.Mesh(
+            new THREE.CylinderGeometry(r, r, h, 48, 1, true, -arc / 2, arc),
+            new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }),
+          );
+          m.position.set(CX, yy, CZ);
+          P.add(m);
+        };
+        const SCRIPT = (px) => `italic 700 ${Math.round(px)}px Georgia, "Palatino Linotype", serif`;
+        band(2.215, 0.23 + 0.45, 0.52, 2.6, "Happy Birthday Rose ♥", SCRIPT, "#c8104a");
+        band(1.615, tops[0][0] + 0.4, 0.42, 1.7, "روز", (px) => `700 ${Math.round(px)}px "Segoe UI", Tahoma, sans-serif`, "#fff6fa");
+        // the candles: eight round the top tier, each with a living flame
+        const [topY] = tops[2];
+        const CANDLE_COLS = [0xff7ab0, 0xc58bff, 0xffd166, 0x7fd8ff];
+        const cIM = new THREE.InstancedMesh(
+          new THREE.CylinderGeometry(0.06, 0.06, 0.5, 10).translate(0, 0.25, 0),
+          RM(0xffffff, { roughness: 0.4, emissive: 0x3a2a30, emissiveIntensity: 0.4 }),
+          8,
+        );
+        const wicks = [];
+        for (let k = 0; k < 8; k++) {
+          const a = (k / 8) * 6.283 + 0.39;
+          const x = CX + Math.sin(a) * 0.68,
+            z = CZ + Math.cos(a) * 0.68;
+          cIM.setMatrixAt(k, matAt(x, topY, z));
+          cIM.setColorAt(k, tmpColor.setHex(CANDLE_COLS[k % 4]));
+          wicks.push(matAt(x, topY + 0.5, z));
+          const sp = new THREE.Sprite(
+            new THREE.SpriteMaterial({ map: FLAME_TEX, transparent: true, depthWrite: false, fog: false, blending: THREE.AdditiveBlending }),
+          );
+          const halo = new THREE.Sprite(
+            new THREE.SpriteMaterial({ map: HALO_TEX, color: 0xffb070, transparent: true, depthWrite: false, fog: false, blending: THREE.AdditiveBlending, opacity: 0.4 }),
+          );
+          halo.scale.set(0.8, 0.8, 1);
+          halo.position.set(x, topY + 0.66, z);
+          P.add(sp, halo);
+          CAKE.flames.push({ sp, halo, x, y: topY + 0.52, z, lit: true, need: 1 });
+        }
+        P.add(cIM);
+        const wIM = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.012, 0.012, 0.07, 4).translate(0, 0.035, 0), RM(0x2a2020), 8);
+        wicks.forEach((m, i) => wIM.setMatrixAt(i, m));
+        P.add(wIM);
+        // the topper: « Rose ♥ » in gold, on two little gold sticks
+        const topper = new THREE.Sprite(
+          new THREE.SpriteMaterial({
+            map: bdayTex(512, 200, (g, w, h) => {
+              g.textAlign = "center";
+              g.textBaseline = "middle";
+              g.font = SCRIPT(120);
+              g.shadowColor = "#ff5d9e";
+              g.shadowBlur = 24;
+              const gr = g.createLinearGradient(0, 30, 0, 170);
+              gr.addColorStop(0, "#fff3c4");
+              gr.addColorStop(1, "#ffb43a");
+              g.fillStyle = gr;
+              g.fillText("Rose ♥", w / 2, h / 2 + 6);
+            }),
+            transparent: true,
+            depthWrite: false,
+          }),
+        );
+        topper.scale.set(1.9, 0.74, 1);
+        topper.position.set(CX, topY + 1.45, CZ);
+        P.add(topper);
+        for (const sx of [-0.3, 0.3]) rcyl(0.018, 0.018, 1.1, CX + sx, topY + 0.55, CZ, GOLD, 6, P);
+        // puffs of smoke when a candle goes out
+        for (let k = 0; k < 28; k++) {
+          const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: SMOKE_TEX, transparent: true, depthWrite: false, opacity: 0 }));
+          s.visible = false;
+          P.add(s);
+          CAKE.smoke.push({ s, t: 1 });
+        }
+        // a welcome arch where the pier leaves the beach
+        const AZ = PIER.z0 - 1;
+        for (const sx of [-1, 1]) rcyl(0.12, 0.14, 4.4, PIER.x + sx * (PIER.hw + 0.35), 2.2, AZ, WOOD_D, 8, P);
+        for (const ry of [0, Math.PI]) {
+          const sg = ry
+            ? textPlane("روز ♥", "HAPPY BIRTHDAY ROSE", 6.4, 1.7, "#4a1238", "#fff2f8", "#ffd166")
+            : textPlane("🎂 رصيف الميلاد", "BIRTHDAY PIER · YOUR CAKE AWAITS", 6.4, 1.7, "#4a1238", "#fff2f8", "#ffd166");
+          sg.position.set(PIER.x, 4.0, AZ + (ry ? -0.04 : 0.04));
+          sg.rotation.y = ry;
+          P.add(sg);
+        }
+      }
+      const allLit = () => CAKE.flames.every((f) => f.lit);
+      function relightCandles() {
+        for (const f of CAKE.flames) f.lit = true;
+      }
+      function puff(f) {
+        let n = 0;
+        for (const p of CAKE.smoke) {
+          if (p.t < 1) continue;
+          p.t = -n * 0.12;
+          p.x = f.x;
+          p.y = f.y + 0.1;
+          p.z = f.z;
+          p.s.visible = true;
+          if (++n >= 3) break;
+        }
+      }
+
+      // blowing: her breath into the mic (or holding 💨 / Space) adds up, and the
+      // candles go out one by one, in a random order
+      const blowEl = document.getElementById("blow"),
+        blowSub = document.getElementById("blow-s"),
+        blowBar = document.getElementById("blow-bar"),
+        blowHoldEl = document.getElementById("blow-hold");
+      let blowHeld = false;
+      const setBlowHeld = (v) => (e) => {
+        if (e && e.preventDefault) e.preventDefault();
+        blowHeld = v;
+        blowHoldEl.classList.toggle("on", v);
+      };
+      blowHoldEl.addEventListener("pointerdown", setBlowHeld(true));
+      for (const ev of ["pointerup", "pointercancel", "pointerleave"]) blowHoldEl.addEventListener(ev, setBlowHeld(false));
+      document.getElementById("blow-x").addEventListener("click", () => endBlow(false));
+      addEventListener("keydown", (e) => {
+        if (CAKE.blowing && e.code === "Escape") endBlow(false);
+      });
+      function micOn() {
+        const md = navigator.mediaDevices;
+        if (!md || !md.getUserMedia || !hallCtx) {
+          blowSub.textContent = "Hold 💨 and blow them out";
+          return;
+        }
+        blowSub.textContent = "Blow into your microphone 🎤 — or hold 💨";
+        md.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } })
+          .then((stream) => {
+            if (!CAKE.blowing) return stream.getTracks().forEach((tr) => tr.stop());
+            const src = hallCtx.createMediaStreamSource(stream);
+            const an = hallCtx.createAnalyser();
+            an.fftSize = 1024;
+            src.connect(an);
+            // (a silent tap to the speakers, so every browser keeps the analyser running)
+            const mute = hallCtx.createGain();
+            mute.gain.value = 0;
+            an.connect(mute);
+            mute.connect(hallCtx.destination);
+            CAKE.mic = { stream, src, an, mute, buf: new Float32Array(an.fftSize), base: 0, age: 0 };
+            blowSub.textContent = "Blow into your mic, Rose 💨";
+          })
+          .catch(() => (blowSub.textContent = "Hold 💨 and blow them out"));
+      }
+      function micOff() {
+        const m = CAKE.mic;
+        CAKE.mic = null;
+        if (!m) return;
+        try {
+          m.src.disconnect();
+          m.mute.disconnect();
+        } catch (e) {}
+        m.stream.getTracks().forEach((tr) => tr.stop());
+      }
+      function startBlow() {
+        initHallAudio();
+        if (hallCtx && hallCtx.state !== "running") hallCtx.resume();
+        // stand her before the cake, facing it, the candles in view
+        girl.pos.set(CAKE.x, 0, CAKE.z + 3.6);
+        girl.yaw = Math.PI;
+        vel.set(0, 0, 0);
+        yaw = 0;
+        pitch = 0.12;
+        CAKE.acc = 0;
+        CAKE.blowing = true;
+        const order = CAKE.flames.map((_, i) => i).sort(() => Math.random() - 0.5);
+        order.forEach((fi, k) => (CAKE.flames[fi].need = ((k + 0.7) / CAKE.flames.length) * 0.97));
+        blowBar.style.width = "0%";
+        blowEl.classList.add("on");
+        pauseUI();
+        micOn();
+        bdayCaption("Make a wish, Rose ✨", "close your eyes… then blow", 4);
+        track("🎂 At the birthday cake");
+      }
+      function endBlow(done) {
+        CAKE.blowing = false;
+        setBlowHeld(false)();
+        blowEl.classList.remove("on");
+        micOff();
+        resumeUI();
+        if (!done) return;
+        // 🎉 all out — Happy Birthday!
+        track("🎂 Blew out all the birthday candles!");
+        screenBurst(["🎂", "🎉", "💗", "✨", "🎆", "🌹"], 34);
+        bdayCaption("Happy Birthday, Rose! 🎂", "May every wish you made tonight come true ✨", 8);
+        holdSky(0.0, 85); // midnight over the sea, for the fireworks
+        playBirthdaySong();
+        yaw = 0;
+        pitch = 0.8; // she looks up
+        CAKE.show = true;
+        CAKE.showT = -1.4;
+      }
+      // the « Happy Birthday » melody on the hall's grand piano, heard everywhere
+      let bdaySong = false,
+        bdayUntil = 0;
+      function playBirthdaySong() {
+        initHallAudio();
+        if (!hallCtx) return;
+        if (hallCtx.state !== "running") hallCtx.resume();
+        if (music && !music.paused) music.pause();
+        startSong("bday");
+        bdaySong = true;
+        bdayUntil = nowS() + (SONGS.bday.beats * 60) / SONGS.bday.bpm - 0.2;
+      }
+      // the show over the sea: [seconds, what]
+      const showAt = (dx, top, burst, delay = 0) => fwLaunch(SHOW_X + dx, SHOW_Z + (Math.random() - 0.5) * 30, top, burst, delay);
+      const volley = (n, spread = 170) => {
+        for (let k = 0; k < n; k++)
+          showAt((Math.random() - 0.5) * spread, 55 + Math.random() * 50, (x, y, z) => fwPeony(x, y, z), k * 0.28);
+      };
+      const SHOW = [
+        [0, () => volley(3, 120)],
+        [2.4, () => showAt(0, 88, (x, y, z) => fwWord("ROSE", x, y, z, FW_COLS[0], 120))],
+        [6.6, () => (showAt(-50, 72, (x, y, z) => fwHeart(x, y, z)), showAt(50, 72, (x, y, z) => fwHeart(x, y, z), 0.2))],
+        [8.6, () => volley(4)],
+        [11, () => showAt(0, 96, (x, y, z) => fwWord("HAPPY BIRTHDAY", x, y, z, FW_COLS[1], 160))],
+        [15.6, () => volley(5)],
+        [17.6, () => showAt(0, 80, (x, y, z) => fwHeart(x, y, z, FW_COLS[0], 34))],
+        [19.6, () => volley(6)],
+        [22.2, () => showAt(0, 90, (x, y, z) => fwWord("ROSE ♥", x, y, z, FW_COLS[2], 130, 4))],
+        [24.5, () => volley(10, 200)],
+        [26.4, () => volley(8, 200)],
+        [29.5, () => nameInStars(0, 0, 0.55)],
+      ];
+      function updateCake(dt, t) {
+        // the flames flicker — and bow away from her while she blows
+        CAKE.lean += (CAKE.blow - CAKE.lean) * Math.min(1, dt * 10);
+        for (let i = 0; i < CAKE.flames.length; i++) {
+          const f = CAKE.flames[i];
+          f.sp.visible = f.halo.visible = f.lit;
+          if (!f.lit) continue;
+          const fl = 1 + 0.12 * Math.sin(t * 13 + i * 2.1) + 0.06 * Math.sin(t * 29 + i);
+          const ln = CAKE.lean * (0.7 + 0.3 * Math.sin(t * 40 + i * 3));
+          const h = 0.34 * fl * (1 - ln * 0.55);
+          f.sp.scale.set(0.17 * fl * (1 + ln * 0.4), h, 1);
+          f.sp.position.set(f.x, f.y + h / 2, f.z - ln * 0.09);
+          f.halo.material.opacity = 0.4 * fl * (1 - ln * 0.5);
+        }
+        for (const p of CAKE.smoke) {
+          if (p.t >= 1) continue;
+          p.t += dt / 2.4;
+          if (p.t < 0) continue;
+          if (p.t >= 1) {
+            p.s.visible = false;
+            continue;
+          }
+          const k = 0.15 + p.t * 0.9;
+          p.s.scale.set(k, k, 1);
+          p.s.position.set(p.x + Math.sin(p.t * 5 + p.x) * 0.12, p.y + p.t * 1.4, p.z - p.t * 0.3);
+          p.s.material.opacity = 0.55 * Math.sin(Math.min(1, p.t * 1.2) * Math.PI);
+        }
+        if (CAKE.blowing) {
+          let s = blowHeld || keys["Space"] ? 0.7 : 0;
+          const m = CAKE.mic;
+          if (m) {
+            m.an.getFloatTimeDomainData(m.buf);
+            let sum = 0;
+            for (let k = 0; k < m.buf.length; k++) sum += m.buf[k] * m.buf[k];
+            const rms = Math.sqrt(sum / m.buf.length);
+            m.age += dt;
+            // the first moment learns the room's quiet; a breath is far louder
+            if (m.age < 0.4) m.base = Math.max(m.base, rms);
+            else s = Math.max(s, clamp((rms - Math.max(0.07, m.base * 2.5)) / 0.12, 0, 1));
+          }
+          CAKE.blow = s;
+          CAKE.acc = Math.min(1, CAKE.acc + (s * dt) / 1.5);
+          for (const f of CAKE.flames)
+            if (f.lit && CAKE.acc >= f.need) {
+              f.lit = false;
+              puff(f);
+            }
+          blowBar.style.width = Math.round(CAKE.acc * 100) + "%";
+          if (!CAKE.flames.some((f) => f.lit)) endBlow(true);
+        } else CAKE.blow = 0;
+        if (CAKE.show) {
+          const prev = CAKE.showT;
+          CAKE.showT += dt;
+          for (const [at, fn] of SHOW) if (prev < at && CAKE.showT >= at) fn();
+          if (CAKE.showT > 34) CAKE.show = false;
+        } else if (!CAKE.blowing && !allLit() && Math.hypot(girl.pos.x - CAKE.x, girl.pos.z - CAKE.z) > 30) relightCandles();
+        if (bdaySong && nowS() > bdayUntil) {
+          bdaySong = false;
+          if (roseOn) startSong("rose"); // back to her ♪ song, if it was on
+        }
+      }
+      RESORT_SPOTS.push({
+        x: CAKE.x,
+        z: CAKE.z + 3.6,
+        r: 3.2,
+        icon: "🎂",
+        label: () => (CAKE.show ? "Happy Birthday, Rose ♥" : allLit() ? "Make a wish & blow out the candles" : "Light the candles again"),
+        use: () => {
+          if (CAKE.show) return screenBurst(["🎂", "💗", "✨"], 10);
+          if (!allLit()) {
+            relightCandles();
+            screenBurst(["🕯️", "✨"], 8);
+            return;
+          }
+          startBlow();
+        },
+      });
+
+      // ---- 🏮 sky lanterns from the beach beside the pier -----------------------------
+      const LANT_STAND = { x: PIER.x - 8, z: PIER.z0 };
+      const LANT_N = 200;
+      const lantIM = new THREE.InstancedMesh(
+        new THREE.CylinderGeometry(0.46, 0.3, 0.95, 10),
+        new THREE.MeshBasicMaterial({ color: 0xffffff, fog: false }),
+        LANT_N,
+      );
+      lantIM.frustumCulled = false;
+      lantIM.visible = false;
+      bdayRoot.add(lantIM);
+      const LG = glowPoints(LANT_N);
+      LG.pts.visible = false;
+      const LANT_COLS = [
+        [1.7, 0.95, 0.42],
+        [1.7, 0.95, 0.42],
+        [1.7, 0.82, 0.36],
+        [1.7, 0.7, 0.8],
+        [1.8, 1.25, 0.55],
+      ];
+      const lanterns = [];
+      for (let i = 0; i < LANT_N; i++) {
+        const c = LANT_COLS[i % LANT_COLS.length];
+        lantIM.setColorAt(i, tmpColor.setRGB(c[0], c[1], c[2]));
+        LG.col[i * 3] = Math.min(1, c[0] * 0.6);
+        LG.col[i * 3 + 1] = c[1] * 0.42;
+        LG.col[i * 3 + 2] = c[2] * 0.3;
+        LG.size[i] = 3.4;
+        lanterns.push({ on: false, x: 0, y: 0, z: 0, vy: 1, age: 0, life: 1, ph: Math.random() * 6.28, wx: 0, wz: 0 });
+      }
+      let lantLive = 0;
+      const _lm = new THREE.Matrix4(),
+        _lq = new THREE.Quaternion(),
+        _le = new THREE.Euler(),
+        _ls = new THREE.Vector3();
+      function lantStart(L, x, y, z, delay, hers) {
+        L.on = true;
+        L.x = x;
+        L.y = y;
+        L.z = z;
+        L.age = -delay;
+        L.hers = hers;
+        L.vy = hers ? 0.55 : 0.85 + Math.random() * 0.7;
+        L.life = 110 + Math.random() * 60;
+        // the breeze carries them out to sea, each a little its own way
+        const ox = x - LAND_CX,
+          oz = z - LAND_CZ,
+          ol = Math.hypot(ox, oz) || 1;
+        L.wx = (ox / ol) * 0.8 + (Math.random() - 0.5) * 0.5;
+        L.wz = (oz / ol) * 0.8 + (Math.random() - 0.5) * 0.5;
+        if (!lantLive++) lantIM.visible = LG.pts.visible = true;
+      }
+      function releaseLanterns() {
+        track("🏮 Released sky lanterns");
+        if (uNight.value < 0.9) holdSky(0.8, 150); // the sky darkens to a deep blue dusk
+        const gp = girl.pos;
+        // she faces the sea, and her lantern leaves her hands first
+        girl.yaw = Math.PI;
+        yaw = 0;
+        pitch = 0.7;
+        const free = lanterns.filter((L) => !L.on);
+        if (!free.length) return;
+        lantStart(free[0], gp.x, gp.y + 1.7, gp.z - 0.8, 0, true);
+        // …then the whole coast answers
+        for (let k = 1; k < free.length && k < 170; k++) {
+          let x = 0,
+            z = 0,
+            ok = false;
+          for (let tries = 0; tries < 10 && !ok; tries++) {
+            const a = Math.random() * 6.283,
+              d = 12 + Math.pow(Math.random(), 0.7) * 230;
+            x = gp.x + Math.cos(a) * d;
+            z = gp.z + Math.sin(a) * d;
+            ok = coastDist(x, z) > -45; // from the beaches, the boats, the sea
+          }
+          lantStart(free[k], x, ok ? 2 + Math.random() * 22 : 60 + Math.random() * 40, z, 2 + Math.random() * 30, false);
+        }
+        bdayCaption("Make a wish, Rose 🏮", "…and let it fly — the whole island lets one go with you", 7);
+        screenBurst(["🏮", "✨", "💗"], 12);
+      }
+      function updateLanterns(dt, t) {
+        if (!lantLive) return;
+        for (let i = 0; i < LANT_N; i++) {
+          const L = lanterns[i];
+          if (!L.on) {
+            LG.alpha[i] = 0;
+            _lm.makeScale(0, 0, 0);
+            lantIM.setMatrixAt(i, _lm);
+            continue;
+          }
+          L.age += dt;
+          if (L.age < 0) {
+            LG.alpha[i] = 0;
+            _lm.makeScale(0, 0, 0);
+            lantIM.setMatrixAt(i, _lm);
+            continue;
+          }
+          if (L.age > L.life || L.y > 320) {
+            L.on = false;
+            LG.alpha[i] = 0;
+            _lm.makeScale(0, 0, 0);
+            lantIM.setMatrixAt(i, _lm);
+            if (!--lantLive) lantIM.visible = LG.pts.visible = false;
+            continue;
+          }
+          // hers lingers a moment near her hands, then climbs like the rest
+          const vy = L.hers && L.age < 3 ? 0.35 : L.vy * (1 - Math.min(0.5, L.y / 600));
+          L.y += vy * dt;
+          L.x += (L.wx + Math.sin(t * 0.3 + L.ph) * 0.25) * dt * (L.hers && L.age < 3 ? 0.2 : 1);
+          L.z += (L.wz + Math.cos(t * 0.27 + L.ph) * 0.25) * dt * (L.hers && L.age < 3 ? 0.2 : 1);
+          const fadeIn = Math.min(1, L.age / 2),
+            fadeOut = Math.min(1, (L.life - L.age) / 8, (320 - L.y) / 40);
+          const k = Math.max(0.001, Math.min(fadeIn, fadeOut));
+          _le.set(Math.sin(t * 0.8 + L.ph) * 0.07, L.ph, Math.cos(t * 0.7 + L.ph) * 0.07);
+          _lm.compose(_bv.set(L.x, L.y, L.z), _lq.setFromEuler(_le), _ls.setScalar(k));
+          lantIM.setMatrixAt(i, _lm);
+          LG.pos[i * 3] = L.x;
+          LG.pos[i * 3 + 1] = L.y;
+          LG.pos[i * 3 + 2] = L.z;
+          LG.alpha[i] = k * (0.5 + 0.12 * Math.sin(t * 7 + L.ph * 3) + 0.06 * Math.sin(t * 17 + L.ph));
+        }
+        lantIM.instanceMatrix.needsUpdate = true;
+        LG.dirty();
+      }
+      {
+        // the stand: a little table of paper lanterns and a sign
+        const P = bdayRoot,
+          X = LANT_STAND.x,
+          Z = LANT_STAND.z;
+        rbox(1.9, 0.08, 0.9, X, 0.86, Z, WOOD, P);
+        for (const [dx, dz] of [[-0.85, -0.38], [0.85, -0.38], [-0.85, 0.38], [0.85, 0.38]]) rbox(0.08, 0.84, 0.08, X + dx, 0.42, Z + dz, WOOD_D, P);
+        const PAPER = RM(0xffe2b8, { emissive: 0xff9a4a, emissiveIntensity: 1.3 });
+        const PAPER_P = RM(0xffd0e0, { emissive: 0xff6f9e, emissiveIntensity: 1.2 });
+        for (let k = 0; k < 5; k++) rcyl(0.2, 0.14, 0.42, X - 0.7 + k * 0.35, 1.11, Z + (k % 2 ? 0.15 : -0.12), k % 2 ? PAPER_P : PAPER, 10, P);
+        for (const sx of [-1, 1]) {
+          rcyl(0.06, 0.07, 3.2, X + sx * 1.6, 1.6, Z - 0.7, WOOD_D, 6, P);
+          rcyl(0.24, 0.17, 0.5, X + sx * 1.6, 3.45, Z - 0.7, sx > 0 ? PAPER_P : PAPER, 10, P);
+        }
+        for (const ry of [0, Math.PI]) {
+          const sg = textPlane("فوانيس السما", "🏮 SKY LANTERNS", 3.0, 1.0, "#4a1a10", "#fff2e0", "#ffb347");
+          sg.position.set(X, 2.55, Z - 0.7 + (ry ? -0.03 : 0.03));
+          sg.rotation.y = ry;
+          P.add(sg);
+        }
+        AIR_SOLIDS.push({ x0: X - 1, x1: X + 1, z0: Z - 0.5, z1: Z + 0.5, h: 1.2 });
+      }
+      RESORT_SPOTS.push({
+        x: LANT_STAND.x,
+        z: LANT_STAND.z + 1.6,
+        r: 2.8,
+        icon: "🏮",
+        label: () => (lantLive ? "Release another sky lantern" : "Release a sky lantern"),
+        use: () => {
+          if (lantLive) {
+            // one more of her own
+            const L = lanterns.find((q) => !q.on);
+            if (L) lantStart(L, girl.pos.x, girl.pos.y + 1.7, girl.pos.z - 0.8, 0, true);
+            screenBurst(["🏮", "✨"], 6);
+            return;
+          }
+          releaseLanterns();
+        },
+      });
+
+      // ---- ✨ « Rose » in the stars ---------------------------------------------------
+      // A cursive « Rose ♥ », drawn as a constellation: stars at the corners,
+      // faint lines between them that light up like a pen writing her name.
+      const NAME_D = 1200, // metres out (inside the far plane, in front of the sky)
+        NAME_S = 23; // metres per letter unit
+      const NAME_STROKES = [
+        [[0, 0], [0, 10]], // R
+        [[0, 10], [3.6, 10], [5.4, 8.9], [5.6, 7.3], [4.6, 5.8], [2.6, 5.1], [0, 5]],
+        [[2.6, 5.1], [4.4, 2.6], [6.3, 0]],
+        [[10, 6], [11.9, 5.1], [12.4, 3], [11.9, 0.9], [10, 0], [8.1, 0.9], [7.6, 3], [8.1, 5.1], [10, 6]], // o
+        [[18.6, 5.4], [17.3, 6], [15.6, 5.6], [15.2, 4.4], [16.4, 3.3], [18.2, 2.6], [18.8, 1.3], [17.8, 0.2], [15.9, 0], [14.8, 0.7]], // s
+        [[20.6, 3.1], [24.6, 3.1], [24.4, 4.7], [23.1, 6], [21.5, 5.7], [20.5, 4.2], [20.5, 1.9], [21.6, 0.3], [23.4, 0], [24.8, 0.9]], // e
+      ];
+      {
+        // ♥ after her name
+        const h = [];
+        for (let k = 0; k <= 12; k++) {
+          const t = (k / 12) * 6.283;
+          h.push([28.6 + Math.pow(Math.sin(t), 3) * 1.7, 4.4 + ((13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t)) / 16) * 1.7]);
+        }
+        NAME_STROKES.push(h);
+      }
+      const nameSky = new THREE.Group();
+      nameSky.visible = false;
+      scene.add(nameSky);
+      const NAME = { t: -1, next: 0, look: 0 };
+      const nameLineMat = new THREE.ShaderMaterial({
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        fog: false,
+        uniforms: { uProg: { value: 0 }, uOp: { value: 0 } },
+        vertexShader: `
+    attribute float aT;
+    attribute float aSide;
+    varying float vT;
+    varying float vS;
+    void main() {
+      vT = aT;
+      vS = aSide;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }`,
+        fragmentShader: `
+    uniform float uProg;
+    uniform float uOp;
+    varying float vT;
+    varying float vS;
+    void main() {
+      if (vT > uProg) discard;
+      // a thin bright line in a soft glow, brightest at the pen's tip
+      float a = exp(-vS * vS * 9.0) * 0.45 + smoothstep(0.32, 0.0, abs(vS)) * 0.55;
+      float tip = smoothstep(0.035, 0.0, uProg - vT);
+      gl_FragColor = vec4(vec3(1.0, 0.86, 0.93) * a * (1.0 + tip * 1.5), uOp);
+    }`,
+      });
+      let NAME_STARS,
+        NAME_W = 700;
+      {
+        let minX = 1e9,
+          maxX = -1e9,
+          minY = 1e9,
+          maxY = -1e9;
+        for (const s of NAME_STROKES)
+          for (const [x, y] of s) {
+            minX = Math.min(minX, x);
+            maxX = Math.max(maxX, x);
+            minY = Math.min(minY, y);
+            maxY = Math.max(maxY, y);
+          }
+        const cx = (minX + maxX) / 2,
+          cy = (minY + maxY) / 2;
+        const L = (p) => [(p[0] - cx) * NAME_S, (p[1] - cy) * NAME_S];
+        NAME_W = (maxX - minX) * NAME_S;
+        // the pen's path: every stroke in order, with a little lift between them
+        let total = 0;
+        const segs = [];
+        for (const s of NAME_STROKES) {
+          for (let i = 0; i + 1 < s.length; i++) {
+            const a = L(s[i]),
+              b = L(s[i + 1]);
+            const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+            segs.push([a, b, total, total + len]);
+            total += len;
+          }
+          total += 2 * NAME_S;
+        }
+        const W = 6; // half-width of a line's glow (m)
+        const pos = [],
+          tt = [],
+          side = [],
+          idx = [];
+        for (const [a, b, t0, t1] of segs) {
+          const dx = b[0] - a[0],
+            dy = b[1] - a[1],
+            l = Math.hypot(dx, dy) || 1;
+          const nx = (-dy / l) * W,
+            ny = (dx / l) * W;
+          const base = pos.length / 3;
+          pos.push(a[0] + nx, a[1] + ny, -NAME_D, a[0] - nx, a[1] - ny, -NAME_D, b[0] + nx, b[1] + ny, -NAME_D, b[0] - nx, b[1] - ny, -NAME_D);
+          tt.push(t0 / total, t0 / total, t1 / total, t1 / total);
+          side.push(1, -1, 1, -1);
+          idx.push(base, base + 1, base + 2, base + 1, base + 3, base + 2);
+        }
+        const g = new THREE.BufferGeometry();
+        g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+        g.setAttribute("aT", new THREE.Float32BufferAttribute(tt, 1));
+        g.setAttribute("aSide", new THREE.Float32BufferAttribute(side, 1));
+        g.setIndex(idx);
+        const lines = new THREE.Mesh(g, nameLineMat);
+        lines.frustumCulled = false;
+        nameSky.add(lines);
+        // the stars: one at every corner of the path (each lights as the pen reaches it)
+        const seen = new Map();
+        for (const [a, b, t0, t1] of segs)
+          for (const [p, tp] of [[a, t0], [b, t1]]) {
+            const key = Math.round(p[0]) + "," + Math.round(p[1]);
+            if (!seen.has(key)) seen.set(key, [p, tp / total]);
+          }
+        const list = [...seen.values()];
+        const S = glowPoints(list.length, nameSky);
+        list.forEach(([p], i) => {
+          S.pos[i * 3] = p[0];
+          S.pos[i * 3 + 1] = p[1];
+          S.pos[i * 3 + 2] = -NAME_D;
+          const warm = i % 5 === 0;
+          S.col[i * 3] = 1;
+          S.col[i * 3 + 1] = warm ? 0.85 : 0.92;
+          S.col[i * 3 + 2] = warm ? 0.8 : 1;
+          S.size[i] = 13 + (i % 3) * 3;
+        });
+        S.dirty();
+        NAME_STARS = { S, at: list.map(([, tp]) => tp) };
+      }
+      // write her name across the sky, centred where she's looking (or on a heading)
+      function nameInStars(delay = 0, heading, elev = 0.5) {
+        if (NAME.t >= 0 && NAME.t < 44) return; // already shining
+        if (heading === undefined) {
+          camera.getWorldDirection(_bv);
+          heading = Math.atan2(-_bv.x, -_bv.z);
+        }
+        nameSky.rotation.set(elev, heading, 0, "YXZ");
+        // as wide as the sky she can see — narrower on a phone held upright
+        const half = Math.atan(Math.tan(d2r(camera.fov / 2)) * camera.aspect);
+        const s = Math.min(1, (2 * NAME_D * Math.tan(half) * 0.86) / NAME_W);
+        nameSky.scale.set(s, s, 1);
+        NAME.t = -delay;
+        NAME.capped = false;
+        nameSky.visible = true;
+        track("✨ Her name in the stars");
+      }
+      function updateNameSky(dt, t) {
+        // she looks up into a night sky… and the stars find her
+        if (!nameSky.visible) {
+          if (started && uNight.value > 0.75 && nowS() > NAME.next && !uiPaused) {
+            camera.getWorldDirection(_bv);
+            NAME.look = _bv.y > 0.22 ? NAME.look + dt : 0;
+            if (NAME.look > 1.4) {
+              NAME.look = 0;
+              nameInStars(0, undefined, clamp(Math.asin(_bv.y) + 0.2, 0.4, 1.0));
+            }
+          }
+          return;
+        }
+        NAME.t += dt;
+        nameSky.position.copy(camera.position);
+        const T = NAME.t;
+        const appear = clamp(T / 2, 0, 1),
+          fade = clamp((48 - T) / 4, 0, 1);
+        const op = Math.min(appear, fade) * clamp((uNight.value - 0.3) / 0.5, 0, 1);
+        const u = clamp((T - 2) / 9, 0, 1);
+        const prog = u * u * (3 - 2 * u);
+        nameLineMat.uniforms.uProg.value = prog * 1.0001;
+        nameLineMat.uniforms.uOp.value = op;
+        const { S, at } = NAME_STARS;
+        for (let i = 0; i < at.length; i++) {
+          const lit = clamp((prog - at[i]) / 0.03 + 1, 0, 1);
+          S.alpha[i] = op * (0.35 + 0.65 * lit) * (0.82 + 0.18 * Math.sin(t * 2.3 + i * 1.9));
+        }
+        S.pts.geometry.attributes.aAlpha.needsUpdate = true;
+        if (!NAME.capped && T > 4) {
+          NAME.capped = true;
+          if (op > 0.2) bdayCaption("✨ Even the stars know your name", "Rose — written across the night, just for you", 7);
+        }
+        if (T > 52 || (T > 2 && op <= 0.001 && uNight.value < 0.3)) {
+          nameSky.visible = false;
+          NAME.t = -1;
+          NAME.next = nowS() + 120;
+        }
+      }
+      // 🗼 at the lighthouse: look up at the stars
+      RESORT_SPOTS.push({
+        x: LIGHTHOUSE.x - 3.6,
+        z: LIGHTHOUSE.z + 3.6,
+        r: 2.6,
+        icon: "🌟",
+        label: () => "Look up at the stars",
+        use: () => {
+          if (uNight.value < 0.95) holdSky(0.0, 75);
+          yaw = -Math.PI / 4; // out over the sea
+          pitch = 0.9;
+          nameInStars(3, -Math.PI / 4, 0.5);
+          screenBurst(["🌟", "✨", "💗"], 10);
+        },
+      });
+
+      function updateBirthday(dt, t) {
+        glowScale.value = (innerHeight * renderer.getPixelRatio()) / (2 * Math.tan(d2r(camera.fov / 2)));
+        updateCake(dt, t);
+        updateFireworks(dt, t);
+        updateLanterns(dt, t);
+        updateNameSky(dt, t);
       }
 
       // ============================================================================
@@ -14299,6 +15594,8 @@
         if (vehMode !== "plane") put(plane.pos.x, plane.pos.z, "#59b7ff", 3.2);
         put(HALL.cx, HALL.cz, "#c58bff", 3.4); // 🎹 Rosmantic Music
         put(RESORT.x, CITY_Z1 + 20, "#ff7ad9", 3.4); // 🏝️ Rose Resort
+        put(CAKE.x, CAKE.z, "#ffd166", 3.4); // 🎂 the birthday cake, end of the pier
+        put(LANT_STAND.x, LANT_STAND.z, "#ff9a4a", 2.6); // 🏮 sky lanterns
         if (!(vehMode === "car" && drv === boat)) put(boat.pos.x, boat.pos.z, "#ffffff", 2.4); // 🦢
 
         // north tick + her arrow (she always points up)
