@@ -11032,10 +11032,15 @@
       // any tower like a spider: push into a wall and she sticks; W climbs,
       // A/D shimmies sideways, Space leaps off. The rooftops are all hers.
       // ============================================================================
+      // warm rosy skin: the filmic tone-mapping turns pale peach sallow-green,
+      // so the base is pinker and a soft warm glow keeps her cheeks alive
+      // under any light — blue sky, moonlight or neon
       const SKIN_MAT = new THREE.MeshStandardMaterial({
-        color: 0xffd9c4,
-        roughness: 0.6,
+        color: 0xf6b9a2,
+        roughness: 0.55,
         metalness: 0,
+        emissive: 0x7a2c22,
+        emissiveIntensity: 0.45,
       });
       const HAIR_MAT = new THREE.MeshStandardMaterial({
         color: 0x7a4128, // warm chestnut
