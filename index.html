@@ -1747,7 +1747,18 @@
           g.shadowColor = glow;
           g.shadowBlur = 30;
           g.fillStyle = ln.color;
-          g.font = ln.font;
+          // Arabic is laid out right-to-left; the font shrinks until the whole
+          // word (ink + glow) fits inside the canvas, so no letter is ever cut
+          g.direction = /[\u0600-\u06ff]/.test(ln.t) ? "rtl" : "ltr";
+          let font = ln.font;
+          g.font = font;
+          for (let guard = 0; guard < 24; guard++) {
+            const m = g.measureText(ln.t);
+            const ink = Math.max(m.width, (m.actualBoundingBoxLeft || 0) + (m.actualBoundingBoxRight || 0));
+            if (ink <= w - 90) break;
+            font = font.replace(/(\d+(?:\.\d+)?)px/, (_, px) => Math.floor(+px * 0.92) + "px");
+            g.font = font;
+          }
           g.fillText(ln.t, w / 2, y);
         });
         const t = new THREE.CanvasTexture(cv);
@@ -2257,9 +2268,9 @@
       const MAX_PER_CHUNK = CHUNK * CHUNK * 5; // up to 3 telescoping tiers + 2 masts per lot
 
       // 🏝️ ROSE ISLAND — the city is one island (no endless repeating streets):
-      // lots gx −8…11 × gz −9…8, ringed by the coastal Corniche road, a promenade
-      // and a sandy beach — and then open sea on every side.
-      const ISLE = { gx0: -8, gx1: 11, gz0: -9, gz1: 8 };
+      // 20 × 20 lots (gx −8…11 × gz −10…9), ringed by the coastal Corniche road,
+      // a promenade and a sandy beach — and then open sea on every side.
+      const ISLE = { gx0: -8, gx1: 11, gz0: -10, gz1: 9 };
       const BEACH = 34; // land beyond the Corniche's centre line (promenade + sand)
       const ISLE_R = 46; // the coast's rounded corners
       const CITY_X0 = ISLE.gx0 * TILE,
@@ -3045,7 +3056,10 @@
             const lw = 16,
               lh = lw * labelAspect;
             sign.scale.set(lw, lh, 1);
-            sign.position.set(spec.x, spec.roof + lh * 0.55 + 3, spec.z);
+            // above the antenna masts too, so no needle ever runs through the letters
+            let top = spec.roof + 3;
+            for (const m of spec.masts) top = Math.max(top, m.h + 1);
+            sign.position.set(spec.x, top + lh * 0.55, spec.z);
             group.add(sign);
           }
         }
@@ -6963,22 +6977,131 @@
         parkSeesaws = [],
         parkCarousels = [],
         airships = [];
+      // ---- 🌱 real grass: one 8 m tile — blades, patches of lusher and drier
+      // grass, mowing stripes, a little clover — shared by the park's lawn and
+      // Rose Airfield. grassPlane() tiles it at 8 m whatever the plane's size.
+      const GRASS_MAT = (() => {
+        const S = 256,
+          cv = document.createElement("canvas");
+        cv.width = cv.height = S;
+        const g = cv.getContext("2d");
+        let seed = 11;
+        const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+        // draw near an edge → also draw wrapped, so the tile repeats without seams
+        const wrap = (x, y, fn) => {
+          fn(0, 0);
+          if (x < 10) fn(S, 0);
+          if (x > S - 10) fn(-S, 0);
+          if (y < 10) fn(0, S);
+          if (y > S - 10) fn(0, -S);
+        };
+        g.fillStyle = "#3f7d35";
+        g.fillRect(0, 0, S, S);
+        for (let i = 0; i < 70; i++) {
+          const x = r() * S,
+            y = r() * S,
+            rad = 12 + r() * 42,
+            lush = r() < 0.5;
+          wrap(x, y, (dx, dy) => {
+            const gr = g.createRadialGradient(x + dx, y + dy, 0, x + dx, y + dy, rad);
+            gr.addColorStop(0, lush ? "rgba(58,138,48,0.38)" : "rgba(150,160,62,0.24)");
+            gr.addColorStop(1, "rgba(0,0,0,0)");
+            g.fillStyle = gr;
+            g.beginPath();
+            g.arc(x + dx, y + dy, rad, 0, 7);
+            g.fill();
+          });
+        }
+        // mowing stripes: a light and a dark 4 m band
+        const st = g.createLinearGradient(0, 0, 0, S);
+        st.addColorStop(0, "rgba(255,255,210,0.12)");
+        st.addColorStop(0.46, "rgba(255,255,210,0.12)");
+        st.addColorStop(0.54, "rgba(0,20,0,0.15)");
+        st.addColorStop(1, "rgba(0,20,0,0.15)");
+        g.fillStyle = st;
+        g.fillRect(0, 0, S, S);
+        // thousands of little blades
+        g.lineWidth = 1;
+        for (let i = 0; i < 3200; i++) {
+          const x = r() * S,
+            y = r() * S,
+            h = 2 + r() * 5,
+            lean = (r() - 0.5) * 3;
+          g.strokeStyle = `hsla(${95 + r() * 30},${40 + r() * 30}%,${24 + r() * 34}%,0.75)`;
+          wrap(x, y, (dx, dy) => {
+            g.beginPath();
+            g.moveTo(x + dx, y + dy);
+            g.lineTo(x + dx + lean, y + dy - h);
+            g.stroke();
+          });
+        }
+        // clover and the odd daisy
+        for (let i = 0; i < 26; i++) {
+          g.fillStyle = r() < 0.6 ? "rgba(255,255,255,0.85)" : "rgba(255,230,90,0.9)";
+          g.beginPath();
+          g.arc(r() * S, r() * S, 1.2, 0, 7);
+          g.fill();
+        }
+        const t = new THREE.CanvasTexture(cv);
+        t.colorSpace = THREE.SRGBColorSpace;
+        t.wrapS = t.wrapT = THREE.RepeatWrapping;
+        t.anisotropy = 8;
+        return new THREE.MeshStandardMaterial({
+          map: t,
+          roughness: 0.95,
+          metalness: 0,
+          emissive: 0x0f2a14, // never black at night
+          emissiveIntensity: 0.45,
+        });
+      })();
+      function grassPlane(w, d) {
+        const geo = new THREE.PlaneGeometry(w, d);
+        const uv = geo.attributes.uv;
+        for (let i = 0; i < uv.count; i++) uv.setXY(i, (uv.getX(i) * w) / 8, (uv.getY(i) * d) / 8);
+        return geo;
+      }
+      // 🌾 tufts of taller grass: two crossed blades-planes, instanced
+      const TUFT_MAT = (() => {
+        const cv = document.createElement("canvas");
+        cv.width = cv.height = 64;
+        const g = cv.getContext("2d");
+        let seed = 5;
+        const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+        for (let i = 0; i < 12; i++) {
+          const a = -1.05 + (i / 11) * 2.1 + (r() - 0.5) * 0.2,
+            len = 34 + r() * 26,
+            tipX = 32 + Math.sin(a) * len,
+            tipY = 64 - Math.cos(a) * len;
+          g.fillStyle = `hsl(${100 + r() * 25},${45 + r() * 20}%,${26 + r() * 18}%)`;
+          g.beginPath();
+          g.moveTo(30, 64);
+          g.lineTo(34, 64);
+          g.lineTo(tipX, tipY);
+          g.closePath();
+          g.fill();
+        }
+        const t = new THREE.CanvasTexture(cv);
+        t.colorSpace = THREE.SRGBColorSpace;
+        return new THREE.MeshStandardMaterial({
+          map: t,
+          alphaTest: 0.5,
+          side: THREE.DoubleSide,
+          roughness: 1,
+          emissive: 0x0a200e,
+          emissiveIntensity: 0.35,
+        });
+      })();
+      const TUFT_GEO = mergeGeometries([
+        new THREE.PlaneGeometry(0.8, 0.55).translate(0, 0.275, 0).toNonIndexed(),
+        new THREE.PlaneGeometry(0.8, 0.55).rotateY(Math.PI / 2).translate(0, 0.275, 0).toNonIndexed(),
+      ]);
+
       // the cinema screen's texture — filled with gif frames by the poster system
       const parkScreenTex = new THREE.Texture();
       parkScreenTex.colorSpace = THREE.SRGBColorSpace;
       {
         // ---- the wide lawn + glowing cross paths ---------------------------------
-        const GRASS = new THREE.MeshStandardMaterial({
-          color: 0x1e4d2e,
-          roughness: 0.95,
-          metalness: 0,
-          emissive: 0x123a1e,
-          emissiveIntensity: 0.4,
-        });
-        const lawn = new THREE.Mesh(
-          new THREE.PlaneGeometry(PARK.w, PARK.d),
-          GRASS,
-        );
+        const lawn = new THREE.Mesh(grassPlane(PARK.w, PARK.d), GRASS_MAT);
         lawn.rotation.x = -Math.PI / 2;
         lawn.position.set(PARK0.x, 0.05, PARK0.z);
         lawn.receiveShadow = true;
@@ -7663,9 +7786,12 @@
         { colA: "#9b4dff", colB: "#ffffff", cx: PARK.x, cz: PARK.z, r: 38, h: 68, speed: 0.055, phase: 0 },
         { colA: "#7a2fe0", colB: "#f4ecff", cx: 0, cz: 0, r: 85, h: 108, speed: 0.038, phase: 2.4 },
         { colA: "#ba7bff", colB: "#ffffff", cx: 8.5 * TILE - 41, cz: 0.5 * TILE, r: 55, h: 88, speed: 0.045, phase: 4.4 },
+        // 🎈 the BIG one — a pink & gold giant, slowly circling the whole island
+        { colA: "#ff5d9e", colB: "#ffd166", cx: LAND_CX, cz: LAND_CZ, r: 250, h: 150, speed: 0.02, phase: 1.2, s: 2.8 },
       ]) {
         const a = makeAirship(spec.colA, spec.colB);
-        airships.push(Object.assign(a, spec));
+        a.g.scale.setScalar(spec.s || 1);
+        airships.push(Object.assign({ s: 1 }, a, spec));
       }
       function updatePark(dt, t) {
         for (const s of parkSwings)
@@ -7693,29 +7819,30 @@
               by = a.g.position.y,
               bz = a.g.position.z;
             const dxz = Math.hypot(gp.x - bx, gp.z - bz);
+            const S = a.s; // (the giant balloon's basket & envelope are scaled up)
             if (a.rider) {
               // aboard: the basket carries her along its drift
               if (
-                dxz < 1.8 &&
-                gp.y > by - 1.2 &&
-                gp.y < by + 3 &&
+                dxz < 1.8 * S &&
+                gp.y > by - 1.2 * S &&
+                gp.y < by + 3 * S &&
                 vel.y <= 0.01
               ) {
                 gp.x += bx - prevX;
                 gp.z += bz - prevZ;
-                gp.y = by + 0.9;
+                gp.y = by + 0.9 * S;
                 vel.y = 0;
                 girl.onBalloon = true;
                 girl.grounded = true;
               } else a.rider = false; // she leapt out
             } else if (
-              dxz < 1.6 &&
-              gp.y > by - 1.4 &&
-              gp.y < by + 2.6 &&
+              dxz < 1.6 * S &&
+              gp.y > by - 1.4 * S &&
+              gp.y < by + 2.6 * S &&
               vel.y <= 0.5
             ) {
               a.rider = true; // welcome aboard 🎈
-              gp.y = by + 0.9;
+              gp.y = by + 0.9 * S;
               vel.y = 0;
               girl.onBalloon = true;
               girl.grounded = true;
@@ -7723,10 +7850,10 @@
             } else {
               // solid envelope: slide her off the balloon skin
               const ex = gp.x - bx,
-                ey = gp.y + 1.2 - (by + 9.8),
+                ey = gp.y + 1.2 - (by + 9.8 * S),
                 ez = gp.z - bz;
               const ed = Math.sqrt(ex * ex + ey * ey + ez * ez),
-                ER = 7.3;
+                ER = 7.3 * S;
               if (ed < ER) {
                 const inv = 1 / (ed || 1),
                   push = ER - ed;
@@ -8332,36 +8459,9 @@
       const AIR_X = 8.5 * TILE; // centre of the airfield clearing (x, metres)
       const RW_LEN = 7 * TILE - 10; // runway length
       {
-        const field = new THREE.Mesh(
-          new THREE.PlaneGeometry(7 * TILE + 2, 3 * TILE + 2),
-          (() => {
-            // pale lavender concrete slabs (8 m) with darker expansion joints
-            const cv = document.createElement("canvas");
-            cv.width = cv.height = 128;
-            const g = cv.getContext("2d");
-            g.fillStyle = "#b9aec8";
-            g.fillRect(0, 0, 128, 128);
-            for (let i = 0; i < 160; i++) {
-              g.fillStyle = `rgba(${90 + ((i * 37) % 60)},${80 + ((i * 53) % 50)},${110 + ((i * 29) % 50)},0.08)`;
-              g.fillRect((i * 71) % 128, (i * 113) % 128, 6 + (i % 9), 4 + (i % 7));
-            }
-            g.fillStyle = "rgba(70,55,90,0.55)";
-            g.fillRect(0, 0, 128, 3);
-            g.fillRect(0, 0, 3, 128);
-            const t = new THREE.CanvasTexture(cv);
-            t.colorSpace = THREE.SRGBColorSpace;
-            t.wrapS = t.wrapT = THREE.RepeatWrapping;
-            t.repeat.set((7 * TILE + 2) / 8, (3 * TILE + 2) / 8);
-            t.anisotropy = 8;
-            return new THREE.MeshStandardMaterial({
-              map: t,
-              roughness: 0.85,
-              metalness: 0,
-              emissive: 0x2a2238, // glows softly at night
-              emissiveIntensity: 0.6,
-            });
-          })(),
-        );
+        // 🌱 a real grass airfield — the runway, taxiway, apron and the buildings'
+        // pads are paved; everything else is mown grass with tufts
+        const field = new THREE.Mesh(grassPlane(7 * TILE + 2, 3 * TILE + 2), GRASS_MAT);
         field.rotation.x = -Math.PI / 2;
         field.position.set(AIR_X, 0.06, RUNWAY_Z);
         field.receiveShadow = true;
@@ -8487,7 +8587,8 @@
           flat(0.25, 6.5, AIR_X + dx, RUNWAY_Z + 11.5, YELLOW, 0.13);
         }
         // the apron in front of the terminal
-        flat(70, 9, AIR_X - 8, TWY_Z + 8, AM(0x9e94b2, { roughness: 0.85, emissive: 0x241c30, emissiveIntensity: 0.5 }), 0.09);
+        const APRON = AM(0x9e94b2, { roughness: 0.85, emissive: 0x241c30, emissiveIntensity: 0.5 });
+        flat(70, 9, AIR_X - 8, TWY_Z + 8, APRON, 0.09);
 
         // 🏢 the terminal: pearl-pink walls, a long glass front, a wave canopy
         const T_X = AIR_X - 8,
@@ -8611,6 +8712,39 @@
           { x0: TW_X - 2, x1: TW_X + 2, z0: TW_Z - 2, z1: TW_Z + 2, h: 26 },
           { x0: H_X - 10, x1: H_X + 10, z0: H_Z - 9, z1: H_Z + 9, h: 10 },
         );
+        // concrete pads under the terminal, the tower and the hangar
+        flat(T_W + 8, T_D + 10, T_X, T_Z - 1, APRON, 0.08);
+        flat(14, 14, TW_X, TW_Z, APRON, 0.08);
+        flat(24, 24, H_X, H_Z, APRON, 0.08);
+        // 🌾 tufts of grass everywhere that isn't paved
+        const paved = (x, z) =>
+          (Math.abs(x - AIR_X) < RW_LEN / 2 + 1 && Math.abs(z - RUNWAY_Z) < 9.6) ||
+          (Math.abs(x - AIR_X) < 90 && Math.abs(z - TWY_Z) < 4.2) ||
+          [-70, 62].some((dx) => Math.abs(x - (AIR_X + dx)) < 4 && z > RUNWAY_Z + 8 && z < TWY_Z) ||
+          (Math.abs(x - (AIR_X - 8)) < 36 && Math.abs(z - (TWY_Z + 8)) < 5) ||
+          (Math.abs(x - T_X) < T_W / 2 + 4.5 && Math.abs(z - (T_Z - 1)) < T_D / 2 + 5.5) ||
+          (Math.abs(x - TW_X) < 7.5 && Math.abs(z - TW_Z) < 7.5) ||
+          (Math.abs(x - H_X) < 12.5 && Math.abs(z - H_Z) < 12.5) ||
+          (Math.abs(x - WS_X) < 1.5 && Math.abs(z - WS_Z) < 1.5) ||
+          [-1, 1].some((e) => Math.abs(x - (AIR_X + e * (RW_LEN / 2 - 30))) < 1 && z > RUNWAY_Z - 17 && z < RUNWAY_Z - 11);
+        const tufts = [];
+        const FW = 7 * TILE - 2,
+          FD = 3 * TILE - 2;
+        for (let i = 0; i < 1400 && tufts.length < 700; i++) {
+          const x = AIR_X - FW / 2 + hash(i, 1, 400) * FW,
+            z = RUNWAY_Z - FD / 2 + hash(i, 2, 400) * FD;
+          if (paved(x, z)) continue;
+          dummy.position.set(x, 0.06, z);
+          dummy.rotation.set(0, hash(i, 3, 400) * 6.28, 0);
+          dummy.scale.setScalar(0.7 + hash(i, 4, 400) * 0.6);
+          dummy.updateMatrix();
+          tufts.push(dummy.matrix.clone());
+        }
+        const tIM = new THREE.InstancedMesh(TUFT_GEO, TUFT_MAT, Math.max(1, tufts.length));
+        tufts.forEach((m, i) => tIM.setMatrixAt(i, m));
+        tIM.count = tufts.length;
+        tIM.name = "airTufts";
+        air.add(tIM);
       }
 
       // ---- shared vehicle materials ----------------------------------------------
@@ -8761,26 +8895,43 @@
         const B = (w, h, d, x, y, z) => at(new THREE.BoxGeometry(w, h, d), x, y, z);
         const seams = [],
           chrome = [],
-          amber = [];
+          amber = [],
+          red = []; // everything that glows red with the brakes
         for (const sx of [-1, 1]) {
           const x = sx * (halfW - 0.005);
           seams.push(B(0.03, 0.46, 0.025, x, 0.66, 0.62), B(0.03, 0.46, 0.025, x, 0.66, -0.66)); // door gaps
           seams.push(B(0.03, 0.025, 2.0, x, 0.42, -0.1)); // rocker line
           chrome.push(B(0.035, 0.04, 0.2, x + sx * 0.01, 0.86, 0.3), B(0.035, 0.04, 0.2, x + sx * 0.01, 0.86, -0.95)); // handles
-          amber.push(B(0.14, 0.05, 0.07, sx * 0.86, 0.72, 2.2), B(0.16, 0.05, 0.05, sx * 0.72, 0.76, -2.31));
+          amber.push(B(0.14, 0.05, 0.07, sx * 0.86, 0.72, 2.2)); // front indicators
+          // ---- the rear, seen from the chase camera most of the time: lamp clusters
+          // that wrap round the corners (indicator + reverse light inside), twin
+          // exhausts with dark mouths, reflectors low on the bumper
+          red.push(B(0.5, 0.16, 0.05, sx * 0.62, 0.78, -2.32), B(0.05, 0.12, 0.22, sx * (halfW - 0.02), 0.8, -2.14));
+          amber.push(B(0.16, 0.05, 0.03, sx * 0.72, 0.76, -2.35));
+          chrome.push(B(0.12, 0.05, 0.03, sx * 0.42, 0.76, -2.35)); // reverse lights
           chrome.push(at(new THREE.CylinderGeometry(0.055, 0.055, 0.14, 10), sx * 0.5, 0.33, -2.3, Math.PI / 2)); // exhaust
+          seams.push(at(new THREE.CylinderGeometry(0.036, 0.036, 0.02, 10), sx * 0.5, 0.33, -2.372, Math.PI / 2));
+          red.push(B(0.18, 0.04, 0.03, sx * 0.8, 0.42, -2.36)); // reflectors
         }
         seams.push(B(1.0, 0.2, 0.05, 0, 0.5, 2.31)); // grille
         for (const y of [0.44, 0.5, 0.56]) chrome.push(B(0.96, 0.022, 0.03, 0, y, 2.345)); // grille bars
+        // the full-width light bar, the high brake light on the rear glass, a lower
+        // bumper band with diffuser fins, and a round chrome badge over the plate
+        red.push(B(1.78, 0.07, 0.06, 0, 0.86, -2.3), B(0.6, 0.03, 0.08, 0, 1.3, -1.15));
+        seams.push(B(1.9, 0.18, 0.08, 0, 0.42, -2.31));
+        for (const x of [-0.36, 0, 0.36]) seams.push(B(0.03, 0.12, 0.22, x, 0.27, -2.2));
+        chrome.push(at(new THREE.CylinderGeometry(0.055, 0.055, 0.02, 14), 0, 0.81, -2.335, Math.PI / 2));
         const plates = [
           at(new THREE.PlaneGeometry(0.52, 0.13), 0, 0.42, 2.35),
-          at(new THREE.PlaneGeometry(0.52, 0.13), 0, 0.56, -2.37, 0, Math.PI),
+          at(new THREE.PlaneGeometry(0.52, 0.13), 0, 0.5, -2.37, 0, Math.PI),
         ];
         return {
           seams: mergeGeometries(seams),
           chrome: mergeGeometries(chrome),
           amber: mergeGeometries(amber),
           plates: mergeGeometries(plates),
+          red: mergeGeometries(red),
+          lip: at(new THREE.BoxGeometry(1.3, 0.035, 0.26), 0, 0.99, -2.0, -0.14), // ducktail spoiler lip
         };
       }
       function makeCarWheel(front, vip) {
@@ -8864,19 +9015,18 @@
         // camera-stalk mirrors
         mkBox(c, 0.2, 0.07, 0.13, 1.03, 1.02, 0.72, paint);
         mkBox(c, 0.2, 0.07, 0.13, -1.03, 1.02, 0.72, paint);
-        {
-          const d = carDetailGeos(0.97);
-          add(d.seams, TRIM_DARK);
-          add(d.chrome, CHROME);
-          add(d.amber, AMBER_MAT);
-          add(d.plates, PLATE_MAT);
-        }
+        const d = carDetailGeos(0.97);
+        add(d.seams, TRIM_DARK);
+        add(d.chrome, CHROME);
+        add(d.amber, AMBER_MAT);
+        add(d.plates, PLATE_MAT);
+        add(d.lip, paint); // the spoiler lip, in the car's own paint
         // ✨ LED signature: slim headlights joined by a full-width light bar,
         // and a full-width tail bar
         mkBox(c, 0.5, 0.05, 0.1, 0.58, 0.74, 2.24, rig.headMat);
         mkBox(c, 0.5, 0.05, 0.1, -0.58, 0.74, 2.24, rig.headMat);
         mkBox(c, 1.7, 0.025, 0.05, 0, 0.66, 2.3, vip ? SM(0xd9b8ff, 2.4) : rig.headMat);
-        rig.tail = mkBox(c, 1.78, 0.07, 0.06, 0, 0.86, -2.3, rig.tailMat);
+        rig.tail = add(d.red, rig.tailMat); // light bar, clusters, brake light, reflectors
         if (vip) {
           // lilac underglow along the sills + a "ROSE" badge on the tail
           mkBox(c, 0.04, 0.04, 2.3, 1.0, 0.27, 0, SM(0xba7bff, 2.2));
@@ -10544,13 +10694,14 @@
       }
 
       // ---- shared low-poly car parts (same sculpted shape as her VIP car) --------
-      // the body carries its two mirrors (so they take the car's paint)
+      const fleetDetail = carDetailGeos(0.95);
+      // the body carries its two mirrors and the spoiler lip (so they take the car's paint)
       const fleetBodyGeo = mergeNI([
         extrudeSide(carBodyShape(), 1.9, 0.08, 6),
         placed(new THREE.BoxGeometry(0.2, 0.07, 0.13), 1.01, 1.02, 0.72),
         placed(new THREE.BoxGeometry(0.2, 0.07, 0.13), -1.01, 1.02, 0.72),
+        fleetDetail.lip,
       ]);
-      const fleetDetail = carDetailGeos(0.95);
       const fleetGlassGeo = extrudeSide(carGlassShape(), 1.54, 0.06, 6);
       const fleetDarkGeo = mergeNI([
         ...WHEEL_XZ.map(([x, z]) =>
@@ -10571,7 +10722,7 @@
         placed(new THREE.BoxGeometry(0.5, 0.06, 0.1), 0.58, 0.74, 2.24),
         placed(new THREE.BoxGeometry(0.5, 0.06, 0.1), -0.58, 0.74, 2.24),
       ]);
-      const fleetTailGeo = placed(new THREE.BoxGeometry(1.74, 0.08, 0.06), 0, 0.86, -2.3);
+      const fleetTailGeo = fleetDetail.red; // light bar, clusters, brake light, reflectors
       const FLEET_PAINT = new THREE.MeshStandardMaterial({
         color: 0xffffff,
         roughness: 0.28,
@@ -11174,7 +11325,7 @@
         ["القهوة", "Coffee"], ["الهدايا", "Gifts"], ["الأمل", "Hope"], ["السعادة", "Joy"],
         ["الفانيليا", "Vanilla"], ["الكناري", "Canary"], ["المرجان", "Coral"], ["الغروب", "Sunset"],
         ["الندى", "Dew"], ["الزنبق", "Lily"], ["الفيروز", "Turquoise"], ["البالونات", "Balloon"],
-        ["الشموع", "Candle"],
+        ["الشموع", "Candle"], ["اللوز", "Almond"], ["الغزل", "Serenade"],
       ].map(([a, e]) => ({ ar: "جادة " + a, en: e + " Ave" }));
       // dir 1 = the N-S street at x = n·TILE, dir 0 = the E-W street at z = n·TILE
       function streetOf(dir, n) {
@@ -11749,7 +11900,7 @@
         return best;
       }
       function inResortArea(x, z) {
-        return x > RX - 95 && x < RX + 62 && z > CITY_Z1 + ROAD_HW + 1 && z < 390;
+        return x > RX - 95 && x < RX + 62 && z > CITY_Z1 + ROAD_HW + 1 && z < SHORE_Z + 66;
       }
 
       // ---- 🌴 the entrance: a neon heart arch on the promenade ----------------------
@@ -13178,7 +13329,7 @@
         BP_LEN = 100, // banner length
         BP_H = 25, // banner height (two lines of big lettering)
         BP_ROPE = 24; // tow hook → banner leading edge (m behind the plane's origin)
-      function makeBannerTexture() {
+      function makeBannerTexture(l1 = "12/11/2026", l2 = "Your smile matters", hue = "#c8104a", hue2 = "#9e1250") {
         const W = 2048,
           H = 512,
           cv = document.createElement("canvas");
@@ -13238,30 +13389,36 @@
           x += tw + gap;
           heart(x + hr * 1.1);
         };
-        line("12/11/2026", H * 0.33, 220, "#c8104a");
-        line("Your smile matters", H * 0.7, 170, "#9e1250");
+        line(l1, H * 0.33, 220, hue);
+        line(l2, H * 0.7, 170, hue2);
         const t = new THREE.CanvasTexture(cv);
         t.colorSpace = THREE.SRGBColorSpace; // decoded to linear, re-encoded on output
         t.anisotropy = 8;
         return t;
       }
-      const bannerPlane = {
+      // two of them share her sky: « Rose » with the date, and a second plane on a
+      // wider, higher circle with the birthday wish itself — always on opposite
+      // sides of the circle, so they never meet
+      const bannerState = (ang, r, alt) => ({
         root: new THREE.Group(),
         cx: 0,
         cz: -8,
-        ang: -Math.PI / 2, // starts dead ahead of her first view, crossing left → right
-        x: 0,
-        y: BP_ALT,
-        z: -8 - BP_R,
+        ang, // −π/2 starts dead ahead of her first view, crossing left → right
+        r,
+        alt,
+        x: Math.cos(ang) * r,
+        y: alt,
+        z: -8 + Math.sin(ang) * r,
         yaw: Math.PI / 2,
         prop: null,
         strobe: null,
         mat: null,
         hearts: [],
         heartT: 0,
-      };
-      {
-        const bp = bannerPlane;
+      });
+      const bannerPlane = bannerState(-Math.PI / 2, BP_R, BP_ALT);
+      const bannerPlane2 = bannerState(Math.PI / 2, BP_R + 60, BP_ALT + 30);
+      function buildBannerPlane(bp, trim, lines) {
         // its own unfogged materials so the plane stays crisp far up in the sky
         const PM = (c, e) =>
           new THREE.MeshStandardMaterial({
@@ -13273,7 +13430,7 @@
             fog: false,
           });
         const WHITE = PM(0xfff4f8, 0.3),
-          ROSE = PM(0xff3d6e, 0.55),
+          ROSE = PM(trim, 0.55),
           DARKM = PM(0x6a4a5a, 0.05);
         const GLASS = new THREE.MeshStandardMaterial({
           color: 0x3a5a7a,
@@ -13395,7 +13552,7 @@
         bp.mat = new THREE.ShaderMaterial({
           side: THREE.DoubleSide,
           uniforms: {
-            uMap: { value: makeBannerTexture() },
+            uMap: { value: makeBannerTexture(...lines) },
             uTime: { value: 0 },
             uDim: { value: 1 },
           },
@@ -13454,6 +13611,8 @@
         bp.root.rotation.set(0, bp.yaw, 0, "YXZ");
         scene.add(bp.root);
       }
+      buildBannerPlane(bannerPlane, 0xff3d6e, []);
+      buildBannerPlane(bannerPlane2, 0xb98aff, ["Happy Birthday Rose", "كل سنة وإنتِ طيبة يا روز", "#7a2fa0", "#c2347a"]);
       // tallest roof / mast around a point — what the banner plane must clear
       function skylineAt(x, z) {
         let top = 0;
@@ -13469,15 +13628,18 @@
         return top;
       }
       function updateBannerPlane(dt, t) {
-        const bp = bannerPlane;
+        updateOneBanner(bannerPlane, dt, t);
+        updateOneBanner(bannerPlane2, dt, t);
+      }
+      function updateOneBanner(bp, dt, t) {
         const fp = focusPos();
         // the flight circle drifts after her, so the banner always stays in her sky
         const follow = Math.min(1, dt * 0.12);
         bp.cx += (fp.x - bp.cx) * follow;
         bp.cz += (fp.z - bp.cz) * follow;
-        bp.ang += (BP_SPEED / BP_R) * dt;
-        const nx = bp.cx + Math.cos(bp.ang) * BP_R,
-          nz = bp.cz + Math.sin(bp.ang) * BP_R;
+        bp.ang += (BP_SPEED / bp.r) * dt;
+        const nx = bp.cx + Math.cos(bp.ang) * bp.r,
+          nz = bp.cz + Math.sin(bp.ang) * bp.r;
         const mx = nx - bp.x,
           mz = nz - bp.z;
         if (mx * mx + mz * mz > 1e-8)
@@ -13488,7 +13650,7 @@
         // when she flies high, the plane rises to keep her company
         const fx = Math.sin(bp.yaw),
           fz = Math.cos(bp.yaw);
-        let need = Math.max(BP_ALT, fp.y + 20);
+        let need = Math.max(bp.alt, fp.y + 20);
         for (const a of [-110, -60, 0, 45, 90])
           need = Math.max(need, skylineAt(nx + fx * a, nz + fz * a) + BP_H + 22);
         const prevY = bp.y;
