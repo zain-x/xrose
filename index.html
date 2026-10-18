@@ -10756,8 +10756,12 @@
         scene.add(im);
         return im;
       }
-      const PROP_R = isTouch ? 1 : 2; // chunks (radius) that get street props
-      const PROP_CHUNKS = (2 * PROP_R + 1) * (2 * PROP_R + 1);
+      // the whole island's props are poured at once (it's only 16 chunks), so no
+      // parked car ever pops in or out at the edge of a loaded ring
+      const PROP_CHUNK_LIST = [];
+      for (let cx = Math.floor(ISLE.gx0 / CHUNK); cx <= Math.floor(ISLE.gx1 / CHUNK); cx++)
+        for (let cz = Math.floor(ISLE.gz0 / CHUNK); cz <= Math.floor(ISLE.gz1 / CHUNK); cz++) PROP_CHUNK_LIST.push([cx, cz]);
+      const PROP_CHUNKS = PROP_CHUNK_LIST.length;
       const LOT_N = CHUNK * CHUNK;
       const FLEET_CAP = PROP_CHUNKS * LOT_N * 2 + EXTRA_MAX;
       const fleet = {
@@ -11017,7 +11021,7 @@
         const key = cx + "," + cz;
         let p = propCache.get(key);
         if (!p) {
-          if (propCache.size > 160) propCache.clear();
+          if (propCache.size > 64) propCache.clear();
           p = computeChunkProps(cx, cz);
           propCache.set(key, p);
         }
@@ -11044,16 +11048,9 @@
         _tailOff = new THREE.Color(0.35, 0.02, 0.03);
       let propKey = "";
       function updateStreetProps() {
-        const ccx = Math.floor(camera.position.x / CHUNK_SIZE),
-          ccz = Math.floor(camera.position.z / CHUNK_SIZE);
-        const key = ccx + "," + ccz;
-        if (key === propKey) return;
-        propKey = key;
-        const list = [];
-        for (let dx = -PROP_R; dx <= PROP_R; dx++)
-          for (let dz = -PROP_R; dz <= PROP_R; dz++)
-            if (dx * dx + dz * dz <= (PROP_R + 0.5) * (PROP_R + 0.5))
-              list.push(chunkProps(ccx + dx, ccz + dz));
+        if (propKey === "island") return; // (reset to "" when she takes a parked car)
+        propKey = "island";
+        const list = PROP_CHUNK_LIST.map(([cx, cz]) => chunkProps(cx, cz));
         busFrames.count = pour(busFrames, list, "bus");
         busGlass.count = pour(busGlass, list, "bus");
         busAds.count = pour(busAds, list, "bus");
@@ -11280,6 +11277,7 @@
         for (const rig of [car, streetCar])
           if (
             !driving(rig) &&
+            rig.pos.y > -50 && // (the idle street car waits far below the world — not a wall)
             Math.abs(rig.pos.x - x) < 9 &&
             Math.abs(rig.pos.z - z) < 9
           )
@@ -13624,7 +13622,7 @@
         scene.add(bp.root);
       }
       buildBannerPlane(bannerPlane, 0xff3d6e, []);
-      buildBannerPlane(bannerPlane2, 0xb98aff, ["Happy Birthday Rose", "كل سنة وإنتِ طيبة يا روز", "#7a2fa0", "#c2347a"]);
+      buildBannerPlane(bannerPlane2, 0xb98aff, ["Happy Birthday Rose", "The whole sky is yours today", "#7a2fa0", "#c2347a"]);
       // tallest roof / mast around a point — what the banner plane must clear
       function skylineAt(x, z) {
         let top = 0;
