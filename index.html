@@ -5621,7 +5621,9 @@
           g.shadowColor = "rgba(255,90,160,0.95)";
           g.shadowBlur = 30;
           g.fillStyle = "#fff2f8";
-          g.font = 'italic 700 120px Georgia, "Palatino Linotype", serif';
+          let fs = 120; // shrink until the whole title fits on the board
+          do g.font = `italic 700 ${fs}px Georgia, "Palatino Linotype", serif`;
+          while (g.measureText("Rosmantic Music").width > W * 0.86 && (fs -= 4) > 40);
           g.fillText("Rosmantic Music", W / 2, H * 0.42);
           g.shadowColor = "rgba(185,138,255,0.95)";
           g.fillStyle = "#e3c8ff";
@@ -5637,20 +5639,27 @@
       hallPlane(8.4, 2.6, hallSignMat, -2.8, 7.6, -HALL.d / 2 + HALL.t + 0.02);
       // a big floating sign over the roof so she can spot it from afar
       {
+        // one line — "🎹 Rosmantic Music ♪" — on a wide board, sized to fit
+        const cv = document.createElement("canvas");
+        cv.width = 1024;
+        cv.height = 200;
+        const g = cv.getContext("2d");
+        const TITLE = "🎹 Rosmantic Music ♪";
+        g.textAlign = "center";
+        g.textBaseline = "middle";
+        let fs = 110;
+        do g.font = EN(fs);
+        while (g.measureText(TITLE).width > cv.width * 0.9 && (fs -= 4) > 40);
+        g.shadowColor = "rgba(255,110,170,0.95)";
+        g.shadowBlur = 30;
+        g.fillStyle = LC.white;
+        g.fillText(TITLE, cv.width / 2, cv.height * 0.52);
+        const tex = new THREE.CanvasTexture(cv);
+        tex.anisotropy = 4;
         const sp = new THREE.Sprite(
-          new THREE.SpriteMaterial({
-            map: makeLabel(
-              [
-                { t: "🎹 Rosmantic", font: EN(78), color: LC.white },
-                { t: "♪ Music ♫", font: EN(58), color: LC.pink },
-              ],
-              "rgba(255,110,170,0.95)",
-            ),
-            transparent: true,
-            depthWrite: false,
-          }),
+          new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }),
         );
-        sp.scale.set(20, 10, 1);
+        sp.scale.set(26, 26 * (cv.height / cv.width), 1);
         sp.position.set(0, HALL.h + 6, 0);
         hallRoot.add(sp);
       }
@@ -10203,6 +10212,10 @@
         const along = (m + 0.5 + (hash(m, n, 94 + dir) - 0.5) * 0.25) * TILE;
         const lat = n * TILE + side * PARK_LAT;
         const col = CAR_PAINTS[(hash(m, n, 96 + dir) * CAR_PAINTS.length) | 0];
+        // keep the kerb in front of Rosmantic Music's door clear
+        const px = dir === 0 ? along : lat,
+          pz = dir === 0 ? lat : along;
+        if (Math.abs(px - HALL.cx) < 10 && Math.abs(pz - HALL.z1) < 9) return null;
         return dir === 0
           ? { x: along, z: lat, yaw: side > 0 ? Math.PI / 2 : -Math.PI / 2, col, dir, m, n, key }
           : { x: lat, z: along, yaw: side > 0 ? Math.PI : 0, col, dir, m, n, key };
