@@ -8943,55 +8943,193 @@
         roughness: 0.5,
         metalness: 0.1,
       });
-      // ---- modern car shape (shared by her VIP car & every parked car) ---------
-      // A side silhouette — long hood, raked windscreen, fastback, ducktail — is
-      // extruded across the car's width with rounded (bevelled) edges, so cars read
-      // as smooth sculpted bodies instead of stacked boxes. Nose = +Z locally.
-      function carBodyShape() {
-        const s = new THREE.Shape();
-        s.moveTo(-2.2, 0.3);
-        s.lineTo(2.05, 0.3);
-        s.quadraticCurveTo(2.32, 0.32, 2.34, 0.52); // front bumper
-        s.quadraticCurveTo(2.33, 0.74, 1.95, 0.82); // nose
-        s.quadraticCurveTo(1.3, 0.92, 0.8, 0.98); // long hood up to the windscreen
-        s.lineTo(-1.55, 1.02); // beltline
-        s.quadraticCurveTo(-2.15, 1.04, -2.3, 0.86); // ducktail
-        s.quadraticCurveTo(-2.36, 0.5, -2.2, 0.3); // rear bumper
-        return s;
-      }
-      function carGlassShape() {
-        const s = new THREE.Shape();
-        s.moveTo(0.92, 0.94);
-        s.quadraticCurveTo(0.35, 1.36, -0.35, 1.4); // raked windscreen → glass roof
-        s.quadraticCurveTo(-1.25, 1.38, -1.85, 0.99); // fastback
-        s.lineTo(0.92, 0.94);
-        return s;
-      }
-      // extrude a side profile across `width` (m); the result lies along +Z
-      function extrudeSide(shape, width, bevel, segs = 10) {
-        const depth = width - bevel * 2;
-        const geo = new THREE.ExtrudeGeometry(shape, {
-          depth,
-          bevelEnabled: true,
-          bevelThickness: bevel,
-          bevelSize: bevel * 0.8,
-          bevelSegments: segs > 6 ? 3 : 2,
-          curveSegments: segs,
-        });
-        geo.translate(0, 0, -depth / 2);
-        geo.rotateY(-Math.PI / 2); // profile length → car +Z, extrusion → car X
-        geo.computeVertexNormals();
-        return geo;
-      }
+      // ---- 🚗 the car model (her VIP car, the street car & every parked car) -------
+      // A real sculpted body, not an extruded outline: cross-sections lofted along
+      // the car — rounded flanks that lean in at the shoulders, a tapered nose and
+      // tail, wheel arches cut out of the fenders — under a glasshouse with its own
+      // tumblehome, pillars and roof. Then the parts that make it a car: swept LED
+      // headlights, a grille with chrome slats, wraparound tail lamps, door seams &
+      // handles, mirrors, a side skirt, a diffuser, twin exhausts and alloy wheels
+      // with brake discs. Nose = +Z, ground at y = 0. q = high detail (her rides)
+      // or light (the hundreds of parked cars).
       const WHEEL_XZ = [
         [0.86, 1.45],
         [-0.86, 1.45],
         [0.86, -1.45],
         [-0.86, -1.45],
       ];
-      // ✨ the little things that make a car read as a car: door seams & handles,
-      // a chrome grille, licence plates, amber indicators, exhaust tips (shared by
-      // her VIP car, the street car and every parked car). Car-local, nose = +Z.
+      const WHEEL_Y = 0.37;
+      const CAR_Z0 = -2.3,
+        CAR_Z1 = 2.34;
+      // a smooth curve through [z, value] keys, listed nose → tail
+      const carCurve = (keys) => (z) => {
+        if (z >= keys[0][0]) return keys[0][1];
+        for (let i = 1; i < keys.length; i++) {
+          const [z1, v1] = keys[i];
+          if (z >= z1) {
+            const [z0, v0] = keys[i - 1];
+            const e = 0.5 - 0.5 * Math.cos(((z - z1) / (z0 - z1)) * Math.PI);
+            return v1 + (v0 - v1) * e;
+          }
+        }
+        return keys[keys.length - 1][1];
+      };
+      // the body's top line (bumper → hood → beltline → deck → ducktail)…
+      const CAR_TOP = carCurve([[2.34, 0.6], [2.27, 0.72], [2.05, 0.83], [1.45, 0.94], [0.95, 0.99], [0.4, 1.01], [-1.0, 1.03], [-1.75, 1.02], [-2.12, 0.99], [-2.26, 0.93], [-2.3, 0.82]]);
+      // …its underside, its half-width in plan, and how square its sections are
+      const CAR_BOT = carCurve([[2.34, 0.42], [2.18, 0.3], [-2.12, 0.3], [-2.3, 0.42]]);
+      const CAR_HW = carCurve([[2.34, 0.74], [2.24, 0.87], [2.0, 0.95], [1.45, 0.99], [0.75, 0.965], [-0.4, 0.96], [-1.45, 0.995], [-2.0, 0.97], [-2.24, 0.9], [-2.3, 0.8]]);
+      const CAR_N = carCurve([[2.34, 2.4], [1.9, 3.3], [-1.9, 3.3], [-2.3, 2.5]]);
+      const ARCH_R = 0.46;
+      function carBottom(z) {
+        let b = CAR_BOT(z);
+        for (const wz of [1.45, -1.45]) {
+          const dz = z - wz;
+          if (Math.abs(dz) < ARCH_R) b = Math.max(b, WHEEL_Y + Math.sqrt(ARCH_R * ARCH_R - dz * dz));
+        }
+        return b;
+      }
+      const sePow = (v, p) => Math.sign(v) * Math.pow(Math.abs(v), p);
+      // a point on the body's cross-section at z, angle th (0 = right flank)
+      function carSec(z, th) {
+        const w = CAR_HW(z),
+          yb = carBottom(z),
+          yt = CAR_TOP(z),
+          n = CAR_N(z);
+        const ux = sePow(Math.cos(th), 2 / n),
+          uy = sePow(Math.sin(th), 2 / n);
+        // the flanks lean in toward the shoulders and tuck under at the sills
+        const k = uy > 0 ? 1 - 0.07 * uy * uy : 1 - 0.1 * uy * uy;
+        return [ux * w * k, (yb + yt) / 2 + (uy * (yt - yb)) / 2];
+      }
+      // the body's outer x at height y (for parts that sit on its sides)
+      function carSideX(z, y) {
+        const yb = carBottom(z),
+          yt = CAR_TOP(z),
+          n = CAR_N(z);
+        const uy = clamp((2 * (y - yb)) / Math.max(1e-3, yt - yb) - 1, -1, 1);
+        const ux = Math.pow(Math.max(0, 1 - Math.pow(Math.abs(uy), n)), 1 / n);
+        return ux * CAR_HW(z) * (uy > 0 ? 1 - 0.07 * uy * uy : 1 - 0.1 * uy * uy);
+      }
+      const carInside = (z, x, y) => y > carBottom(z) && y < CAR_TOP(z) && Math.abs(x) <= carSideX(z, y);
+      // where the nose / the tail reaches at (x, y)
+      function carFrontZ(x, y) {
+        for (let z = CAR_Z1; z > 1.0; z -= 0.004) if (carInside(z, x, y)) return z;
+        return 1.0;
+      }
+      function carRearZ(x, y) {
+        for (let z = CAR_Z0; z < -1.0; z += 0.004) if (carInside(z, x, y)) return z;
+        return -1.0;
+      }
+      // a part set flush into the nose (dir 1) or the tail (dir −1): its face turns
+      // and tilts with the surface there, standing proud of it by `out`
+      function carFlush(g, x, y, dir, depth, out = 0.012) {
+        const f = dir > 0 ? carFrontZ : carRearZ,
+          e = 0.04;
+        const z = f(x, y);
+        const ry = Math.atan2(-(f(x + e, y) - f(x - e, y)), 2 * e),
+          rx = Math.atan2(f(x, y + e) - f(x, y - e), 2 * e);
+        g.rotateX(rx);
+        g.rotateY(ry);
+        const back = depth / 2 - out;
+        return g.translate(x - dir * Math.sin(ry) * back, y, z - dir * Math.cos(ry) * back);
+      }
+      // the glasshouse: sits on the beltline, narrower at the roof (tumblehome)
+      const CAR_ROOF = carCurve([[0.98, 1.0], [0.62, 1.2], [0.25, 1.36], [-0.1, 1.43], [-0.7, 1.44], [-1.15, 1.39], [-1.55, 1.25], [-1.95, 1.02]]);
+      function cabSec(z, th, grow = 0) {
+        const yb = CAR_TOP(z) - 0.03,
+          yt = Math.max(yb + 0.01, CAR_ROOF(z)) + grow;
+        const wb = CAR_HW(z) * 0.9 + grow,
+          wt = wb * 0.74;
+        const ux = sePow(Math.cos(th), 0.5),
+          f = (sePow(Math.sin(th), 0.5) + 1) / 2;
+        return [ux * (wb + (wt - wb) * f), yb + f * (yt - yb)];
+      }
+      // loft cross-sections along z (zs nose → tail) into a mesh
+      function carLoft(zs, M, sec, { th0 = 0, th1 = Math.PI * 2, closed = true, caps = closed } = {}) {
+        const pos = [],
+          idx = [];
+        const cols = closed ? M : M + 1;
+        for (const z of zs)
+          for (let j = 0; j < cols; j++) {
+            const [x, y] = sec(z, th0 + ((th1 - th0) * j) / M);
+            pos.push(x, y, z);
+          }
+        for (let i = 0; i + 1 < zs.length; i++)
+          for (let j = 0; j < M; j++) {
+            const j2 = closed ? (j + 1) % M : j + 1;
+            const a = i * cols + j,
+              b = i * cols + j2,
+              c = (i + 1) * cols + j,
+              d = (i + 1) * cols + j2;
+            idx.push(a, c, b, b, c, d);
+          }
+        if (caps)
+          for (const [ri, dir] of [[0, 1], [zs.length - 1, -1]]) {
+            const base = pos.length / 3;
+            let cx = 0,
+              cy = 0;
+            for (let j = 0; j < M; j++) {
+              cx += pos[(ri * cols + j) * 3] / M;
+              cy += pos[(ri * cols + j) * 3 + 1] / M;
+            }
+            pos.push(cx, cy, zs[ri] + dir * 0.012);
+            for (let j = 0; j < M; j++) pos.push(pos[(ri * cols + j) * 3], pos[(ri * cols + j) * 3 + 1], zs[ri]);
+            for (let j = 0; j < M; j++) {
+              const p = base + 1 + j,
+                q = base + 1 + ((j + 1) % M);
+              if (dir > 0) idx.push(base, p, q);
+              else idx.push(base, q, p);
+            }
+          }
+        const g = new THREE.BufferGeometry();
+        g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+        g.setIndex(idx);
+        g.computeVertexNormals();
+        return g;
+      }
+      // stations along the car: denser at the ends, crisp at the arch edges
+      function carStations(n, from, to, arch = 7) {
+        const zs = [];
+        for (let i = 0; i <= n; i++) zs.push(from + (to - from) * (0.5 - 0.5 * Math.cos((i / n) * Math.PI)));
+        for (const wz of [1.45, -1.45]) {
+          for (const e of [ARCH_R + 0.002, ARCH_R - 0.002]) zs.push(wz + e, wz - e);
+          for (let k = 1; k <= arch; k++) zs.push(wz - ARCH_R + (2 * ARCH_R * k) / (arch + 1));
+        }
+        return zs.filter((z) => z <= Math.max(from, to) && z >= Math.min(from, to)).sort((a, b) => b - a);
+      }
+      // keep just position + normal (+ uv when asked), unindexed, so parts merge
+      function carPN(g, uv = false) {
+        g = g.index ? g.toNonIndexed() : g;
+        for (const k of Object.keys(g.attributes)) if (k !== "position" && k !== "normal" && !(uv && k === "uv")) g.deleteAttribute(k);
+        if (!g.attributes.normal) g.computeVertexNormals();
+        return g;
+      }
+      // a tube through points (pillars, seams, chrome lines)
+      const carTube = (pts, r, seg = 5, along = pts.length * 2) =>
+        new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map(([x, y, z]) => new THREE.Vector3(x, y, z))), Math.max(3, along), r, seg, false);
+      // place a geometry: rotate (x, y, z order), then move
+      const carAt = (g, x, y, z, rx = 0, ry = 0, rz = 0) => {
+        if (rx) g.rotateX(rx);
+        if (ry) g.rotateY(ry);
+        if (rz) g.rotateZ(rz);
+        return g.translate(x, y, z);
+      };
+      const carFlip = (g) => {
+        g = g.index ? g.toNonIndexed() : g;
+        const p = g.attributes.position.array;
+        for (let i = 0; i < p.length; i += 9)
+          for (let k = 0; k < 3; k++) {
+            const t = p[i + 3 + k];
+            p[i + 3 + k] = p[i + 6 + k];
+            p[i + 6 + k] = t;
+          }
+        g.deleteAttribute("normal");
+        g.computeVertexNormals();
+        return g;
+      };
+
+      // ✨ the licence plates & the amber indicators
       const PLATE_MAT = (() => {
         const cv = document.createElement("canvas");
         cv.width = 256;
@@ -9012,91 +9150,237 @@
         return new THREE.MeshStandardMaterial({ map: t, emissiveMap: t, emissive: 0xffffff, emissiveIntensity: 0.25, roughness: 0.5 });
       })();
       const AMBER_MAT = new THREE.MeshStandardMaterial({ color: 0x3a2000, emissive: 0xffa22a, emissiveIntensity: 1.4 });
-      function carDetailGeos(halfW) {
-        const at = (geo, x, y, z, rx = 0, ry = 0) => {
-          geo.rotateX(rx);
-          geo.rotateY(ry);
-          geo.translate(x, y, z);
-          return geo.index ? geo.toNonIndexed() : geo;
-        };
-        const B = (w, h, d, x, y, z) => at(new THREE.BoxGeometry(w, h, d), x, y, z);
-        const seams = [],
-          chrome = [],
-          amber = [],
-          red = []; // everything that glows red with the brakes
-        for (const sx of [-1, 1]) {
-          const x = sx * (halfW - 0.005);
-          seams.push(B(0.03, 0.46, 0.025, x, 0.66, 0.62), B(0.03, 0.46, 0.025, x, 0.66, -0.66)); // door gaps
-          seams.push(B(0.03, 0.025, 2.0, x, 0.42, -0.1)); // rocker line
-          chrome.push(B(0.035, 0.04, 0.2, x + sx * 0.01, 0.86, 0.3), B(0.035, 0.04, 0.2, x + sx * 0.01, 0.86, -0.95)); // handles
-          amber.push(B(0.14, 0.05, 0.07, sx * 0.86, 0.72, 2.2)); // front indicators
-          // ---- the rear, seen from the chase camera most of the time: lamp clusters
-          // that wrap round the corners (indicator + reverse light inside), twin
-          // exhausts with dark mouths, reflectors low on the bumper
-          red.push(B(0.5, 0.16, 0.05, sx * 0.62, 0.78, -2.32), B(0.05, 0.12, 0.22, sx * (halfW - 0.02), 0.8, -2.14));
-          amber.push(B(0.16, 0.05, 0.03, sx * 0.72, 0.76, -2.35));
-          chrome.push(B(0.12, 0.05, 0.03, sx * 0.42, 0.76, -2.35)); // reverse lights
-          chrome.push(at(new THREE.CylinderGeometry(0.055, 0.055, 0.14, 10), sx * 0.5, 0.33, -2.3, Math.PI / 2)); // exhaust
-          seams.push(at(new THREE.CylinderGeometry(0.036, 0.036, 0.02, 10), sx * 0.5, 0.33, -2.372, Math.PI / 2));
-          red.push(B(0.18, 0.04, 0.03, sx * 0.8, 0.42, -2.36)); // reflectors
-        }
-        seams.push(B(1.0, 0.2, 0.05, 0, 0.5, 2.31)); // grille
-        for (const y of [0.44, 0.5, 0.56]) chrome.push(B(0.96, 0.022, 0.03, 0, y, 2.345)); // grille bars
-        // the full-width light bar, the high brake light on the rear glass, a lower
-        // bumper band with diffuser fins, and a round chrome badge over the plate
-        red.push(B(1.78, 0.07, 0.06, 0, 0.86, -2.3), B(0.6, 0.03, 0.08, 0, 1.3, -1.15));
-        seams.push(B(1.9, 0.18, 0.08, 0, 0.42, -2.31));
-        for (const x of [-0.36, 0, 0.36]) seams.push(B(0.03, 0.12, 0.22, x, 0.27, -2.2));
-        chrome.push(at(new THREE.CylinderGeometry(0.055, 0.055, 0.02, 14), 0, 0.81, -2.335, Math.PI / 2));
-        const plates = [
-          at(new THREE.PlaneGeometry(0.52, 0.13), 0, 0.42, 2.35),
-          at(new THREE.PlaneGeometry(0.52, 0.13), 0, 0.5, -2.37, 0, Math.PI),
+      const CALIPER_MAT = new THREE.MeshStandardMaterial({ color: 0xe0203a, roughness: 0.4, metalness: 0.3, emissive: 0x3a0610, emissiveIntensity: 0.4 });
+      const DISC_MAT = new THREE.MeshStandardMaterial({ color: 0xb4b0bc, roughness: 0.35, metalness: 0.85 });
+      const INTERIOR_MAT = new THREE.MeshStandardMaterial({ color: 0x7a5068, roughness: 0.8, emissive: 0x2a1020, emissiveIntensity: 0.4 });
+      // her rides get see-through glass, so the seats and the wheel show inside
+      const GLASS_CLEAR = new THREE.MeshStandardMaterial({
+        color: 0x3a5a86,
+        roughness: 0.06,
+        metalness: 0.5,
+        emissive: 0x0e2240,
+        emissiveIntensity: 0.5,
+        transparent: true,
+        opacity: 0.58,
+      });
+
+      // one wheel, axle along X, its face to +X: lathed tyre, rim lip, spokes, hub,
+      // a brake disc (spins) and a caliper (stays put)
+      function carWheelGeos(q) {
+        const seg = q ? 30 : 12;
+        const prof = [
+          [0.25, -0.135], [0.3, -0.15], [0.343, -0.142], [0.362, -0.115], [0.368, -0.05],
+          [0.368, 0.05], [0.362, 0.115], [0.343, 0.142], [0.3, 0.15], [0.25, 0.135],
+        ].map(([r, y]) => new THREE.Vector2(r, y));
+        const tire = carPN(new THREE.LatheGeometry(q ? prof : prof.filter((_, i) => i % 2 === 0 || i === 9), seg).rotateZ(-Math.PI / 2));
+        const dark = [
+          carPN(carAt(new THREE.CylinderGeometry(0.252, 0.252, 0.26, seg, 1, true), 0, 0, 0, 0, 0, Math.PI / 2)), // the barrel
+          carPN(carAt(new THREE.CylinderGeometry(0.09, 0.09, 0.03, seg), 0.085, 0, 0, 0, 0, Math.PI / 2)), // the hub
         ];
-        return {
-          seams: mergeGeometries(seams),
-          chrome: mergeGeometries(chrome),
-          amber: mergeGeometries(amber),
-          plates: mergeGeometries(plates),
-          red: mergeGeometries(red),
-          lip: at(new THREE.BoxGeometry(1.3, 0.035, 0.26), 0, 0.99, -2.0, -0.14), // ducktail spoiler lip
-        };
-      }
-      function makeCarWheel(front, vip) {
-        const pivot = new THREE.Group(); // steering pivot (front wheels)
-        const spin = new THREE.Group(); // rolling pivot
-        pivot.add(spin);
-        const tire = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.37, 0.37, 0.3, 22),
-          TIRE,
-        );
-        tire.rotation.z = Math.PI / 2;
-        tire.castShadow = true;
-        spin.add(tire);
-        // flush aero rim: dark disc, chrome spokes (+ a glowing lilac ring on the VIP)
-        const rim = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.27, 0.27, 0.32, 20),
-          TRIM_DARK,
-        );
-        rim.rotation.z = Math.PI / 2;
-        spin.add(rim);
-        for (let i = 0; i < 5; i++) {
-          const spoke = new THREE.Mesh(
-            new THREE.BoxGeometry(0.33, 0.05, 0.4),
-            CHROME,
-          );
-          spoke.rotation.x = (i / 5) * Math.PI;
-          spin.add(spoke);
+        const chrome = [carPN(carAt(new THREE.TorusGeometry(0.243, 0.016, q ? 6 : 3, seg), 0.122, 0, 0, 0, Math.PI / 2))];
+        const nSp = q ? 10 : 5;
+        for (let k = 0; k < nSp; k++) {
+          const a = (k / nSp) * Math.PI * 2 + (q ? (k % 2 ? 0.09 : -0.09) : 0);
+          const sp = new THREE.BoxGeometry(0.035, 0.19, q ? 0.034 : 0.05);
+          sp.translate(0, 0.145, 0);
+          sp.rotateZ(q ? 0.06 : 0); // a touch of concave dish
+          sp.rotateX(a);
+          sp.translate(0.1, 0, 0);
+          chrome.push(carPN(sp));
         }
-        if (vip)
-          for (const sx of [-1, 1]) {
-            const ring = new THREE.Mesh(
-              new THREE.TorusGeometry(0.255, 0.012, 6, 28),
-              SM(0xba7bff, 1.6),
-            );
-            ring.rotation.y = Math.PI / 2;
-            ring.position.x = sx * 0.165;
-            spin.add(ring);
+        chrome.push(carPN(carAt(new THREE.CylinderGeometry(0.06, 0.068, 0.05, q ? 16 : 8), 0.118, 0, 0, 0, 0, Math.PI / 2)));
+        if (q)
+          for (let k = 0; k < 5; k++) {
+            const a = (k / 5) * Math.PI * 2;
+            chrome.push(carPN(carAt(new THREE.CylinderGeometry(0.011, 0.011, 0.03, 6), 0.13, Math.cos(a) * 0.085, Math.sin(a) * 0.085, 0, 0, Math.PI / 2)));
           }
+        const disc = carPN(carAt(new THREE.CylinderGeometry(0.205, 0.205, 0.028, seg), 0.0, 0, 0, 0, 0, Math.PI / 2));
+        const caliper = carPN(carAt(new THREE.BoxGeometry(0.07, 0.13, 0.1), 0.045, 0.13, -0.11, 0.5));
+        return { tire, dark: mergeGeometries(dark), chrome: mergeGeometries(chrome), disc, caliper };
+      }
+
+      // the whole car, its parts sorted by material
+      const carModels = {};
+      function carModel(q) {
+        if (carModels[q]) return carModels[q];
+        const P = { paint: [], glass: [], trim: [], chrome: [], head: [], drl: [], tail: [], amber: [], plate: [], interior: [] };
+        const put = (k, g, uv = false) => P[k].push(carPN(g, uv));
+        const B = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+        // ---- the body & the glasshouse
+        put("paint", carLoft(carStations(q ? 44 : 18, CAR_Z1, CAR_Z0, q ? 7 : 4), q ? 30 : 14, carSec));
+        const cabZ = carStations(q ? 26 : 10, 0.98, -1.95, q ? 7 : 2).filter((z) => z < 0.985 && z > -1.955);
+        const L = q ? 1 : 0.5; // (lighter tubes on the parked cars)
+        put("glass", carLoft(cabZ, q ? 22 : 12, (z, th) => cabSec(z, th)));
+        // a painted roof panel over the glass, and its rails, the A & C pillars
+        const TH_R = 0.62;
+        put("paint", carLoft(cabZ.filter((z) => z < 0.24 && z > -1.24), q ? 14 : 6, (z, th) => cabSec(z, th, 0.012), { th0: TH_R, th1: Math.PI - TH_R, closed: false }));
+        for (const th of [TH_R, Math.PI - TH_R]) {
+          const pts = [];
+          for (let z = 0.97; z >= -1.93; z -= q ? 0.12 : 0.2) {
+            const [x, y] = cabSec(z, th, 0.01);
+            pts.push([x, y, z]);
+          }
+          put("paint", carTube(pts, 0.032, q ? 6 : 3, pts.length * 2 * L));
+          // the chrome window line along the beltline
+          const belt = [];
+          for (let z = 0.94; z >= -1.88; z -= 0.14) {
+            const [x, y] = cabSec(z, th > 1 ? Math.PI + 0.69 : -0.69, 0.008);
+            belt.push([x, y, z]);
+          }
+          put("chrome", carTube(belt, 0.012, q ? 4 : 3, belt.length * 2 * L));
+          // the B pillar
+          const bp = [];
+          for (let k = 0; k <= 6; k++) {
+            const t = -0.75 + (k / 6) * (TH_R + 0.75);
+            const [x, y] = cabSec(-0.32, th > 1 ? Math.PI - t : t, 0.01);
+            bp.push([x, y, -0.32]);
+          }
+          put("trim", carTube(bp, 0.045, q ? 4 : 3, q ? 12 : 4)); // (satin trim)
+        }
+        // ---- wheel wells: dark tubs and liners in the arches
+        for (const wz of [1.45, -1.45]) {
+          put("trim", carAt(B(1.4, 0.5, 0.86), 0, 0.56, wz));
+          for (const sx of [-1, 1]) put("trim", carFlip(carAt(new THREE.CylinderGeometry(ARCH_R - 0.01, ARCH_R - 0.01, 0.3, q ? 18 : 9, 1, true, 0, Math.PI), sx * 0.84, WHEEL_Y, wz, 0, 0, Math.PI / 2)));
+        }
+        // ---- the front
+        const fz = (x, y) => carFrontZ(x, y);
+        put("trim", carAt(B(0.86, 0.15, 0.1), 0, 0.575, fz(0, 0.575) - 0.03)); // grille
+        if (q) {
+          for (const y of [0.53, 0.575, 0.62]) put("chrome", carAt(B(0.82, 0.014, 0.03), 0, y, fz(0, y) + 0.005));
+          put("chrome", carAt(new THREE.TorusGeometry(0.055, 0.009, 6, 20), 0, 0.575, fz(0, 0.575) + 0.03)); // badge
+        }
+        put("chrome", carAt(B(0.9, 0.018, 0.04), 0, 0.655, fz(0, 0.655) - 0.005)); // grille surround (top)
+        put("trim", carAt(B(1.1, 0.07, 0.1), 0, 0.33, fz(0, 0.33) - 0.035)); // lower intake
+        put("trim", carAt(B(1.3, 0.025, 0.16), 0, 0.305, fz(0, 0.34) - 0.06)); // splitter
+        put("plate", carAt(new THREE.PlaneGeometry(0.52, 0.12), 0, 0.43, fz(0, 0.43) + 0.006), true);
+        for (const sx of [-1, 1]) {
+          // a swept headlight: dark housing, two projector lenses, an LED brow
+          for (const [dx, w] of [[-0.12, 0.2], [0.1, 0.2]]) {
+            const x = sx * (0.6 + dx);
+            put("trim", carFlush(B(w, 0.1, 0.12), x, 0.735, 1, 0.12, 0.008));
+            put("drl", carFlush(B(w, 0.018, 0.04), x, 0.78, 1, 0.04, 0.01));
+            put("head", carFlush(new THREE.CylinderGeometry(0.036, 0.036, 0.04, q ? 14 : 8).rotateX(Math.PI / 2), x, 0.728, 1, 0.04, 0.014));
+          }
+          put("amber", carFlush(B(0.08, 0.03, 0.04), sx * 0.83, 0.71, 1, 0.04, 0.008));
+          if (q) put("head", carFlush(new THREE.CylinderGeometry(0.04, 0.04, 0.03, 12).rotateX(Math.PI / 2), sx * 0.5, 0.36, 1, 0.03, 0.01)); // fog lamps
+        }
+        // ---- the rear
+        const rz = (x, y) => carRearZ(x, y);
+        for (const sx of [-1, 1]) {
+          // wraparound LED tail lamps
+          const ty = 0.86;
+          for (const dx of [-0.12, 0.12]) put("tail", carFlush(B(0.25, 0.085, 0.08), sx * (0.6 + dx), ty, -1, 0.08, 0.01));
+          const wz = -2.06;
+          put("tail", carAt(B(0.04, 0.075, 0.3), sx * (carSideX(wz, ty) - 0.01), ty, wz));
+          put("chrome", carFlush(B(0.11, 0.035, 0.03), sx * 0.42, 0.79, -1, 0.03, 0.006)); // reverse lights
+          put("amber", carFlush(B(0.12, 0.03, 0.03), sx * 0.72, 0.79, -1, 0.03, 0.006));
+          put("tail", carFlush(B(0.16, 0.035, 0.03), sx * 0.7, 0.42, -1, 0.03, 0.006)); // reflectors
+          // twin exhausts with dark mouths
+          const ex = sx * 0.55;
+          const ez = rz(ex, 0.36);
+          put("chrome", carAt(new THREE.CylinderGeometry(0.052, 0.052, 0.16, q ? 14 : 8), ex, 0.34, ez + 0.02, Math.PI / 2));
+          put("trim", carAt(new THREE.CylinderGeometry(0.036, 0.036, 0.02, q ? 12 : 6), ex, 0.34, ez - 0.062, Math.PI / 2));
+        }
+        put("tail", carAt(B(0.72, 0.022, 0.04), 0, 0.89, rz(0, 0.89) - 0.004)); // the light bar
+        {
+          // the high brake light at the top of the rear glass
+          let z = -1.9;
+          while (CAR_ROOF(z) < 1.2 && z < -1.2) z += 0.01;
+          put("tail", carAt(B(0.5, 0.02, 0.05), 0, CAR_ROOF(z) + 0.012, z - 0.01, -0.5));
+        }
+        put("trim", carAt(B(0.62, 0.17, 0.05), 0, 0.56, rz(0, 0.56) + 0.01)); // plate recess
+        put("plate", carAt(new THREE.PlaneGeometry(0.52, 0.12, 1, 1).rotateY(Math.PI), 0, 0.56, rz(0, 0.56) - 0.018), true);
+        put("trim", carAt(B(1.44, 0.1, 0.26), 0, 0.33, rz(0, 0.36) + 0.1)); // diffuser
+        for (const x of [-0.3, 0, 0.3]) put("trim", carAt(B(0.025, 0.07, 0.2), x, 0.315, rz(0, 0.36) + 0.06));
+        put("paint", carAt(B(1.24, 0.03, 0.2), 0, CAR_TOP(-2.12) + 0.016, -2.13, -0.14)); // ducktail lip
+        if (q) put("chrome", carAt(new THREE.TorusGeometry(0.05, 0.009, 6, 20), 0, 0.72, rz(0, 0.72) - 0.006));
+        // ---- the sides
+        for (const sx of [-1, 1]) {
+          // door shut-lines, from the sill up to the window line
+          for (const z of [0.9, -0.32, -1.02]) {
+            const pts = [];
+            for (let y = 0.36; y <= CAR_TOP(z) - 0.05; y += 0.06) pts.push([sx * (carSideX(z, y) + 0.003), y, z]);
+            put("trim", carTube(pts, 0.007, 3, pts.length * 2 * L));
+          }
+          // the side skirt between the arches
+          const sk = [];
+          for (let z = 0.96; z >= -0.97; z -= 0.24) sk.push([sx * (carSideX(z, 0.36) + 0.006), 0.33, z]);
+          put("trim", carTube(sk, 0.03, q ? 4 : 3, sk.length * 2 * L));
+          // flush chrome handles
+          for (const z of [0.32, -0.78]) put("chrome", carAt(B(0.02, 0.032, 0.17), sx * (carSideX(z, 0.87) + 0.008), 0.87, z));
+          // the mirrors: a dark arm, a cap in the body's paint, an amber repeater
+          const mz = 0.78,
+            mx = carSideX(mz, 0.98);
+          put("trim", carAt(B(0.14, 0.035, 0.07), sx * (mx + 0.05), 0.99, mz));
+          const cap = new THREE.SphereGeometry(0.1, q ? 14 : 7, q ? 10 : 5);
+          cap.scale(1.15, 0.62, 0.72);
+          put("paint", carAt(cap, sx * (mx + 0.15), 1.03, mz - 0.02));
+          put("amber", carAt(B(0.1, 0.012, 0.02), sx * (mx + 0.16), 0.99, mz + 0.045));
+          put("amber", carAt(B(0.012, 0.022, 0.07), sx * (carSideX(0.92, 0.72) + 0.006), 0.72, 0.9)); // fender repeater
+        }
+        // wipers
+        for (const x of [-0.42, 0.2]) put("trim", carAt(B(0.55, 0.012, 0.02), x, CAR_TOP(0.93) + 0.012, 0.93, 0, 0.12));
+        // ---- inside (her rides only): seats, a dashboard, the steering wheel
+        if (q) {
+          for (const x of [-0.4, 0.4]) {
+            put("interior", carAt(B(0.48, 0.12, 0.5), x, 0.62, 0.0));
+            put("interior", carAt(B(0.48, 0.58, 0.1), x, 0.95, -0.27, -0.18));
+            put("interior", carAt(B(0.3, 0.14, 0.08), x, 1.3, -0.33, -0.18));
+          }
+          put("interior", carAt(B(1.4, 0.12, 0.5), 0, 0.62, -0.95));
+          put("interior", carAt(B(1.4, 0.48, 0.1), 0, 0.9, -1.2, -0.25));
+          put("interior", carAt(B(1.5, 0.16, 0.3), 0, 0.86, 0.66));
+          put("trim", carAt(new THREE.TorusGeometry(0.16, 0.022, 8, 24), 0.4, 1.02, 0.52, -0.35));
+          put("trim", carAt(new THREE.CylinderGeometry(0.025, 0.025, 0.24, 6), 0.4, 0.98, 0.6, Math.PI / 2 - 0.35));
+        }
+        const out = {};
+        for (const k in P) out[k] = P[k].length ? mergeGeometries(P[k]) : null;
+        // the parked cars carry their wheels inside the same merged parts
+        if (!q) {
+          const W = carWheelGeos(false);
+          const wd = [],
+            wc = [];
+          for (const [x, z] of WHEEL_XZ) {
+            const at = (g) => carAt(g.clone(), 0, 0, 0, 0, x < 0 ? Math.PI : 0).translate(x, WHEEL_Y, z);
+            wd.push(at(W.tire), at(W.dark), at(W.disc));
+            wc.push(at(W.chrome));
+          }
+          out.wheelsDark = mergeGeometries(wd);
+          out.wheelsChrome = mergeGeometries(wc);
+        }
+        return (carModels[q] = out);
+      }
+      // a drivable car's wheel: steering pivot → rolling spin → the wheel itself
+      function makeCarWheel(front, vip, left) {
+        const W = carWheelGeos(true);
+        const pivot = new THREE.Group(),
+          spin = new THREE.Group(),
+          face = new THREE.Group();
+        pivot.add(spin);
+        spin.add(face);
+        if (left) face.rotation.y = Math.PI;
+        const mesh = (g, m, parent) => {
+          const o = new THREE.Mesh(g, m);
+          o.castShadow = true;
+          parent.add(o);
+          return o;
+        };
+        mesh(W.tire, TIRE, face);
+        mesh(W.dark, TRIM_DARK, face);
+        mesh(W.chrome, CHROME, face);
+        mesh(W.disc, DISC_MAT, face);
+        // the caliper grips the disc and doesn't roll with it
+        const cal = new THREE.Group();
+        if (left) cal.rotation.y = Math.PI;
+        pivot.add(cal);
+        mesh(W.caliper, CALIPER_MAT, cal);
+        if (vip) {
+          // a glowing lilac ring round the rim
+          const ring = new THREE.Mesh(new THREE.TorusGeometry(0.228, 0.01, 6, 32), SM(0xba7bff, 1.6));
+          ring.rotation.y = Math.PI / 2;
+          ring.position.x = 0.128;
+          face.add(ring);
+        }
         return { pivot, spin, front };
       }
       // A drivable car rig. Two exist: her violet VIP car, and the "street car" —
@@ -9123,41 +9407,22 @@
           c.add(m);
           return m;
         };
-        // sculpted body + one-piece panoramic glass canopy
-        add(extrudeSide(carBodyShape(), 1.94, 0.1, 14), paint);
-        add(extrudeSide(carGlassShape(), 1.58, 0.08, 14), GLASS_DARK);
-        // dark wheel arches & sills give it a planted, sporty stance
-        for (const [sx, sz] of WHEEL_XZ) {
-          const arch = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.46, 0.46, 0.1, 22),
-            TRIM_DARK,
-          );
-          arch.rotation.z = Math.PI / 2;
-          arch.position.set(sx * 1.13, 0.38, sz);
-          c.add(arch);
-        }
-        mkBox(c, 2.0, 0.12, 2.3, 0, 0.3, 0, TRIM_DARK); // sills between the arches
-        mkBox(c, 1.7, 0.1, 0.35, 0, 0.27, 2.12, TRIM_DARK); // front splitter
-        mkBox(c, 1.6, 0.14, 0.3, 0, 0.33, -2.18, TRIM_DARK); // rear diffuser
-        // camera-stalk mirrors
-        mkBox(c, 0.2, 0.07, 0.13, 1.03, 1.02, 0.72, paint);
-        mkBox(c, 0.2, 0.07, 0.13, -1.03, 1.02, 0.72, paint);
-        const d = carDetailGeos(0.97);
-        add(d.seams, TRIM_DARK);
-        add(d.chrome, CHROME);
-        add(d.amber, AMBER_MAT);
-        add(d.plates, PLATE_MAT);
-        add(d.lip, paint); // the spoiler lip, in the car's own paint
-        // ✨ LED signature: slim headlights joined by a full-width light bar,
-        // and a full-width tail bar
-        mkBox(c, 0.5, 0.05, 0.1, 0.58, 0.74, 2.24, rig.headMat);
-        mkBox(c, 0.5, 0.05, 0.1, -0.58, 0.74, 2.24, rig.headMat);
-        mkBox(c, 1.7, 0.025, 0.05, 0, 0.66, 2.3, vip ? SM(0xd9b8ff, 2.4) : rig.headMat);
-        rig.tail = add(d.red, rig.tailMat); // light bar, clusters, brake light, reflectors
+        // the sculpted body, see-through glass (seats & the wheel show inside), parts
+        const M = carModel(true);
+        add(M.paint, paint);
+        add(M.glass, GLASS_CLEAR).castShadow = false;
+        add(M.trim, TRIM_DARK);
+        add(M.chrome, CHROME);
+        add(M.amber, AMBER_MAT);
+        add(M.plate, PLATE_MAT);
+        add(M.interior, INTERIOR_MAT);
+        add(M.head, rig.headMat);
+        add(M.drl, vip ? SM(0xd9b8ff, 2.4) : rig.headMat); // the LED brows
+        rig.tail = add(M.tail, rig.tailMat); // lamps, light bar, high brake light, reflectors
         if (vip) {
           // lilac underglow along the sills + a "ROSE" badge on the tail
-          mkBox(c, 0.04, 0.04, 2.3, 1.0, 0.27, 0, SM(0xba7bff, 2.2));
-          mkBox(c, 0.04, 0.04, 2.3, -1.0, 0.27, 0, SM(0xba7bff, 2.2));
+          mkBox(c, 0.04, 0.04, 1.9, 0.86, 0.27, 0, SM(0xba7bff, 2.2));
+          mkBox(c, 0.04, 0.04, 1.9, -0.86, 0.27, 0, SM(0xba7bff, 2.2));
           const badge = new THREE.Mesh(
             new THREE.PlaneGeometry(0.62, 0.155),
             new THREE.MeshBasicMaterial({
@@ -9170,20 +9435,20 @@
               toneMapped: false,
             }),
           );
-          badge.position.set(0, 0.68, -2.37);
+          badge.position.set(0, 0.7, carRearZ(0, 0.7) - 0.014);
           badge.rotation.y = Math.PI;
           c.add(badge);
         }
         for (const [sx, sz] of WHEEL_XZ) {
-          const w = makeCarWheel(sz > 0, vip);
-          w.pivot.position.set(sx, 0.37, sz);
+          const w = makeCarWheel(sz > 0, vip, sx < 0);
+          w.pivot.position.set(sx, WHEEL_Y, sz);
           c.add(w.pivot);
           rig.wheels.push(w);
         }
         // real headlight beams that light the road at night
         for (const s of [-1, 1]) {
           const L = new THREE.SpotLight(0xfff2cf, 0, 60, 0.58, 0.45, 1.4);
-          L.position.set(s * 0.58, 0.74, 2.2);
+          L.position.set(s * 0.6, 0.73, 2.16);
           const tgt = new THREE.Object3D();
           tgt.position.set(s * 0.6, 0.1, 14);
           c.add(tgt);
@@ -9500,8 +9765,7 @@
           engOsc.connect(filt);
           filt.connect(engGain);
           engGain.connect(engCtx.destination);
-          engOsc.start();
-          engGain.gain.linearRampToValueAtTime(0.045, engCtx.currentTime + 0.4);
+          engOsc.start(); // (silent until she actually moves — see tuneEngine)
         } catch (e) {}
       }
       function stopEngine() {
@@ -9525,6 +9789,17 @@
             vehMode === "car"
               ? 52 + Math.abs(drv.speed) * 2.7
               : 60 + plane.throttle * 75 + plane.speed * 0.5;
+          // 🔇 only heard while it's actually moving (or the plane's throttle is open)
+          const moving =
+            vehMode === "car"
+              ? Math.abs(drv.speed) > 0.4
+              : plane.speed > 0.6 || plane.throttle > 0.04;
+          const want = !moving
+            ? 0
+            : vehMode === "car"
+              ? 0.028 + Math.min(0.02, Math.abs(drv.speed) * 0.001)
+              : 0.035 + plane.throttle * 0.02;
+          engGain.gain.setTargetAtTime(want, engCtx.currentTime, moving ? 0.12 : 0.3);
         } catch (e) {}
       }
 
@@ -10832,36 +11107,14 @@
           : { x: lat, z: along, yaw: side > 0 ? Math.PI : 0, col, dir, m, n, key };
       }
 
-      // ---- shared low-poly car parts (same sculpted shape as her VIP car) --------
-      const fleetDetail = carDetailGeos(0.95);
-      // the body carries its two mirrors and the spoiler lip (so they take the car's paint)
-      const fleetBodyGeo = mergeNI([
-        extrudeSide(carBodyShape(), 1.9, 0.08, 6),
-        placed(new THREE.BoxGeometry(0.2, 0.07, 0.13), 1.01, 1.02, 0.72),
-        placed(new THREE.BoxGeometry(0.2, 0.07, 0.13), -1.01, 1.02, 0.72),
-        fleetDetail.lip,
-      ]);
-      const fleetGlassGeo = extrudeSide(carGlassShape(), 1.54, 0.06, 6);
-      const fleetDarkGeo = mergeNI([
-        ...WHEEL_XZ.map(([x, z]) =>
-          placed(new THREE.CylinderGeometry(0.36, 0.36, 0.28, 12), x, 0.36, z, 0, 0, Math.PI / 2),
-        ),
-        placed(new THREE.BoxGeometry(1.96, 0.12, 2.3), 0, 0.3, 0),
-        placed(new THREE.BoxGeometry(1.6, 0.1, 0.3), 0, 0.27, 2.12),
-        fleetDetail.seams,
-      ]);
-      // chrome: grille bars, handles, exhausts + a hubcap on every wheel
-      const fleetChromeGeo = mergeNI([
-        fleetDetail.chrome,
-        ...WHEEL_XZ.map(([x, z]) =>
-          placed(new THREE.CylinderGeometry(0.2, 0.2, 0.3, 12), x, 0.36, z, 0, 0, Math.PI / 2),
-        ),
-      ]);
-      const fleetHeadGeo = mergeNI([
-        placed(new THREE.BoxGeometry(0.5, 0.06, 0.1), 0.58, 0.74, 2.24),
-        placed(new THREE.BoxGeometry(0.5, 0.06, 0.1), -0.58, 0.74, 2.24),
-      ]);
-      const fleetTailGeo = fleetDetail.red; // light bar, clusters, brake light, reflectors
+      // ---- shared car parts (the same sculpted model as her rides, lighter) --------
+      const FM = carModel(false);
+      const fleetBodyGeo = FM.paint;
+      const fleetGlassGeo = FM.glass;
+      const fleetDarkGeo = mergeNI([FM.trim, FM.wheelsDark]); // trim, tyres, rims, discs
+      const fleetChromeGeo = mergeNI([FM.chrome, FM.wheelsChrome]); // spokes, lips, handles, exhausts
+      const fleetHeadGeo = mergeNI([FM.head, FM.drl]);
+      const fleetTailGeo = FM.tail; // lamps, light bar, high brake light, reflectors
       const FLEET_PAINT = new THREE.MeshStandardMaterial({
         color: 0xffffff,
         roughness: 0.28,
@@ -10898,8 +11151,8 @@
         head: makePool(fleetHeadGeo, LIGHT_MAT, FLEET_CAP, true),
         tail: makePool(fleetTailGeo, LIGHT_MAT, FLEET_CAP, true),
         chrome: makePool(fleetChromeGeo, CHROME, FLEET_CAP, false),
-        amber: makePool(fleetDetail.amber, AMBER_MAT, FLEET_CAP, false),
-        plate: makePool(fleetDetail.plates, PLATE_MAT, FLEET_CAP, false),
+        amber: makePool(FM.amber, AMBER_MAT, FLEET_CAP, false),
+        plate: makePool(FM.plate, PLATE_MAT, FLEET_CAP, false),
       };
       let parkedCount = 0;
 
