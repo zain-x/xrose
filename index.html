@@ -10912,6 +10912,9 @@
               [nx - 1, nz],
               [nx, nz],
             ];
+            // one corner in three (staggered, so every street still gets a sign
+            // every third block) — enough to find the way without a forest of signs
+            if ((((nx + nz) % 3) + 3) % 3 !== 0) continue;
             if (around.some(([a, b]) => inAirport(a, b))) continue; // the runway
             if (around.every(([a, b]) => inPark(a, b))) continue; // inside the park
             const x = nx * TILE + LAMP_OFF,
