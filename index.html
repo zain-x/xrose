@@ -993,6 +993,30 @@
         margin-top: 4px;
         color: #ffd0e4;
       }
+      /* 🌠 how far through the wishes she is */
+      .wish-count {
+        margin: -4px 0 4px;
+        font-size: 13px;
+        color: #ffe3a6;
+      }
+      .wish-dots {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 5px;
+        margin-top: 6px;
+      }
+      .wish-dots i {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: rgba(255, 220, 150, 0.18);
+        border: 1px solid rgba(255, 220, 150, 0.45);
+      }
+      .wish-dots i.on {
+        background: #ffd66e;
+        box-shadow: 0 0 6px rgba(255, 210, 100, 0.9);
+      }
       /* 🌠 her own wish, written to the star */
       .wish-box {
         display: block;
@@ -4252,7 +4276,12 @@
           return;
         }
         const w = nextWish();
+        // where she is in the round: « أمنية 3 من 16 » and a row of little stars
+        const n = WISHES.length - wishBag.length,
+          N = WISHES.length;
+        const dots = WISHES.map((_, k) => `<i class="${k < n ? "on" : ""}"></i>`).join("");
         openPanel(`<span class="emoji-head">🌠</span><h2>نجمة الأمنية</h2>
+    <div class="wish-count"><span>أمنية ${n} من ${N}</span><div class="wish-dots" dir="rtl">${dots}</div></div>
     <p>سكّري عينيكي واطلبي أمنية…</p>
     <p class="big-msg">${w}</p>
     <div class="panel-btn" id="wishMore">⭐ أمنية تانية</div>`);
