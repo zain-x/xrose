@@ -8918,15 +8918,18 @@
           T_W = 44,
           T_D = 12,
           T_H = 8;
-        const PEARL = AM(0xf6e4ee, { emissive: 0x3a2430, emissiveIntensity: 0.4 });
+        // (pale colours here turned green-grey under the filmic tone mapping and the
+        // blue sky, and bright blue glass went teal — so: warm pearl walls with a
+        // rosy glow, violet-blue glass, and no bare metal anywhere)
+        const PEARL = AM(0xfbe4ec, { emissive: 0x5a2c3c, emissiveIntensity: 0.5 });
         abox(T_W, T_H, T_D, T_X, T_H / 2, T_Z, PEARL);
-        const glass = AM(0x8fb4e8, { roughness: 0.15, metalness: 0.2, emissive: 0x6a86d8, emissiveIntensity: 0.55 });
+        const glass = AM(0x7f86e0, { roughness: 0.15, emissive: 0x6a4cc8, emissiveIntensity: 0.45 });
         const front = T_Z - T_D / 2 - 0.03;
         const gl = new THREE.Mesh(new THREE.PlaneGeometry(T_W - 3, 4.4), glass);
         gl.position.set(T_X, 3.3, front);
         gl.rotation.y = Math.PI;
         air.add(gl);
-        const MULL = AM(0xd8c6dc, { metalness: 0.4 });
+        const MULL = AM(0xe6cfe0, { emissive: 0x4a2a3c, emissiveIntensity: 0.45 });
         for (let x = -T_W / 2 + 1.5; x <= T_W / 2 - 1.5; x += 3.4) abox(0.18, 4.4, 0.12, T_X + x, 3.3, front - 0.05, MULL);
         abox(T_W + 4, 0.4, T_D + 6, T_X, T_H + 0.2, T_Z - 2, AM(0xffffff, { emissive: 0x3a2a34, emissiveIntensity: 0.4 }));
         abox(T_W + 4.2, 0.12, 0.12, T_X, T_H, T_Z - T_D / 2 - 5, AM(0x5a1030, { emissive: 0xff5d9e, emissiveIntensity: 2.2 }));
@@ -8971,7 +8974,7 @@
         air.add(deck);
         const cab = new THREE.Mesh(
           new THREE.CylinderGeometry(3.4, 3.0, 3.2, 20, 1, true),
-          AM(0x9fc8ff, { roughness: 0.1, metalness: 0.2, emissive: 0x8fb4ff, emissiveIntensity: 0.9, side: THREE.DoubleSide }),
+          AM(0x9a9cff, { roughness: 0.1, emissive: 0x7a5ce0, emissiveIntensity: 0.7, side: THREE.DoubleSide }),
         );
         cab.position.set(TW_X, 23.6, TW_Z);
         air.add(cab);
@@ -8986,7 +8989,7 @@
         // 🛖 the hangar: a lilac arched roof over a big door
         const H_X = T_X - T_W / 2 - 22,
           H_Z = T_Z - 1;
-        const LILAC = AM(0xc4b0e2, { roughness: 0.5, metalness: 0.3, emissive: 0x2a2040, emissiveIntensity: 0.5, side: THREE.DoubleSide });
+        const LILAC = AM(0xd0b4ec, { roughness: 0.5, emissive: 0x4a2c5a, emissiveIntensity: 0.55, side: THREE.DoubleSide });
         const arch = new THREE.Mesh(new THREE.CylinderGeometry(10, 10, 18, 24, 1, true, -Math.PI / 2, Math.PI), LILAC);
         arch.rotation.x = -Math.PI / 2; // the half-cylinder arches up over the floor
         arch.position.set(H_X, 0, H_Z);
