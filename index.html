@@ -207,7 +207,39 @@
         border-radius: 20px;
         padding: 6px 14px;
         text-shadow: 0 1px 3px #000;
-        pointer-events: none;
+        cursor: pointer; /* tap → the list of what she has found */
+      }
+      .found-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin: 12px 0 4px;
+        text-align: right;
+      }
+      .found-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 9px 12px;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px dashed rgba(255, 170, 205, 0.28);
+        color: rgba(255, 224, 236, 0.55);
+        font-size: 15px;
+      }
+      .found-row.done {
+        background: rgba(255, 110, 170, 0.16);
+        border: 1px solid rgba(255, 150, 195, 0.5);
+        color: #ffe6f0;
+      }
+      .found-row .fi {
+        font-size: 22px;
+        width: 28px;
+        text-align: center;
+      }
+      .found-row b {
+        flex: 1;
+        font-weight: 600;
       }
       #kisses {
         position: fixed;
@@ -4625,6 +4657,9 @@
         s.foundCounted = true;
         discovered.add(id);
         discCountEl.textContent = discovered.size;
+        try {
+          localStorage.setItem("rose-found", JSON.stringify([...discovered]));
+        } catch (e) {}
         track(
           `✨ Discovered surprise: ${id} (${discovered.size}/${countedTotal})`,
         );
@@ -17393,23 +17428,24 @@
         },
       });
 
-      const mood = buildMood(P(...pk(-156, 0)));
-      addSurprise({
-        id: "mood",
-        emoji: "🌈",
-        label: "حديقة المزاج",
-        color: 0xff9ec2,
-        pos: P(...pk(-156, 0)),
-        centerY: 12,
-        markerY: 18,
-        radius: 36,
-        update: (s, t) => {
-          mood.ring.rotation.z = t * 0.6;
-          mood.core.position.y = 8 + Math.sin(t * 1.5) * 0.5;
-          mood.grp.rotation.y = t * 0.2;
-        },
-        activate: () => openMood(),
-      });
+      // 🌈 the mood garden (« كيف مزاجك اليوم؟ ») is out of the hunt for now
+      // const mood = buildMood(P(...pk(-156, 0)));
+      // addSurprise({
+      //   id: "mood",
+      //   emoji: "🌈",
+      //   label: "حديقة المزاج",
+      //   color: 0xff9ec2,
+      //   pos: P(...pk(-156, 0)),
+      //   centerY: 12,
+      //   markerY: 18,
+      //   radius: 36,
+      //   update: (s, t) => {
+      //     mood.ring.rotation.z = t * 0.6;
+      //     mood.core.position.y = 8 + Math.sin(t * 1.5) * 0.5;
+      //     mood.grp.rotation.y = t * 0.2;
+      //   },
+      //   activate: () => openMood(),
+      // });
 
       const sec = buildSecret(P(0, 6 * TILE));
       addSurprise({
@@ -17608,6 +17644,36 @@
 
       const countedTotal = surprises.filter((s) => s.counted).length;
       document.getElementById("disc-total").textContent = countedTotal;
+      // 💾 what she has found stays found, visit after visit
+      try {
+        for (const id of JSON.parse(localStorage.getItem("rose-found") || "[]")) {
+          const s = surprises.find((x) => x.id === id && x.counted);
+          if (!s) continue;
+          s.found = s.foundCounted = true;
+          discovered.add(id);
+        }
+      } catch (e) {}
+      discCountEl.textContent = discovered.size;
+      // tap the counter → what she has found, and how many are still hidden
+      function openFoundList() {
+        const rows = surprises
+          .filter((s) => s.counted)
+          .sort((a, b) => discovered.has(b.id) - discovered.has(a.id))
+          .map((s) =>
+            discovered.has(s.id)
+              ? `<div class="found-row done"><span class="fi">${s.icon}</span><b>${s.label}</b><span>✅</span></div>`
+              : `<div class="found-row"><span class="fi">❔</span><b>لسّا مخبّاية…</b><span>🔒</span></div>`,
+          )
+          .join("");
+        const all = discovered.size >= countedTotal;
+        openPanel(`<span class="emoji-head">💗</span><h2>اكتشافاتك</h2>
+    <p class="big-msg">${discovered.size} / ${countedTotal}${all ? " — لقيتيهم كلّهم 🌹" : ""}</p>
+    <div class="found-list" dir="rtl">${rows}</div>`);
+      }
+      document.getElementById("discovery").addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (!uiPaused) openFoundList();
+      });
 
       function updateSurprises(t) {
         for (const s of surprises) {
