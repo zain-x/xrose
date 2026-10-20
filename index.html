@@ -336,20 +336,29 @@
       body.touch #hud {
         display: none;
       }
-      #title #bday-cd {
-        margin-top: 4px;
-        font-size: 12px;
-        color: #ffd6e8;
-      }
-      #title #bday-cd.today {
+      /* 🎂 one tap and she's standing in front of her birthday cake */
+      #cake-btn {
+        display: inline-block;
+        margin-top: 6px;
+        padding: 5px 13px;
+        border-radius: 16px;
         font-size: 13px;
-        font-weight: 700;
-        color: #ffe08a;
-        animation: bd-glow 1.6s ease-in-out infinite alternate;
+        font-weight: 600;
+        color: #fff4e0;
+        background: rgba(255, 110, 165, 0.38);
+        border: 1px solid rgba(255, 210, 140, 0.7);
+        box-shadow: 0 0 14px rgba(255, 190, 90, 0.45);
+        cursor: pointer;
+        user-select: none;
+        -webkit-user-select: none;
+        animation: cake-glow 1.8s ease-in-out infinite alternate;
       }
-      @keyframes bd-glow {
+      #cake-btn:active {
+        background: rgba(255, 110, 165, 0.7);
+      }
+      @keyframes cake-glow {
         to {
-          text-shadow: 0 0 10px rgba(255, 200, 90, 0.9), 0 1px 6px #000;
+          box-shadow: 0 0 22px rgba(255, 200, 90, 0.85);
         }
       }
       body.touch #title {
@@ -1404,7 +1413,7 @@
 
     <div id="title">
       <h1>ROSE CITY ♥</h1>
-      <p id="bday-cd"></p>
+      <div id="cake-btn" role="button" tabindex="0" aria-label="Go to your birthday cake">🎂 Your cake</div>
     </div>
 
     <div id="stats"></div>
@@ -7224,7 +7233,7 @@
           const dd = Math.hypot(fp.x - HALL.cx, fp.z - HALL.z1);
           if (dd < 30) vol = 0.4 * (1 - dd / 30);
         }
-        if (roseOn) vol = Math.max(vol, 0.7); // ♪ the calm song, softly, all over the island
+        if (roseOn) vol = Math.max(vol, 0.42); // ♪ the calm song, softly, all over the island
         if (bdaySong) vol = Math.max(vol, 0.9); // 🎂 « Happy Birthday », after the candles
         if (hallCtx) {
           const want = vinylPlaying && !pianoOpen ? 0 : vol;
@@ -14698,10 +14707,9 @@
         },
       });
 
-      // ---- 🎂 her birthday, live: a countdown under the title, and on the day itself
+      // ---- 🎂 her birthday, live: on the day itself
       // every rooftop sign wishes her happy birthday, petals pour down, the radio
       // opens with « Sana Helwa »
-      const bdayCdEl = document.getElementById("bday-cd");
       let BDAY_LABELS = null;
       function bdayGoLive(atLoad) {
         BDAY_TODAY = true;
@@ -14734,21 +14742,40 @@
       }
       function bdayCountdown() {
         if (!BDAY_TODAY && isBdayNow()) bdayGoLive(false); // midnight just struck 🎉
-        if (BDAY_TODAY) {
-          bdayCdEl.textContent = "🎂 Happy Birthday, Rose! Today is yours ♥";
-          bdayCdEl.classList.add("today");
-          return;
-        }
-        const now = new Date();
-        let target = new Date(now.getFullYear(), BDAY.month, BDAY.day);
-        if (target <= now) target = new Date(now.getFullYear() + 1, BDAY.month, BDAY.day);
-        const ms = target - now;
-        const d = Math.floor(ms / 864e5),
-          h = Math.floor((ms % 864e5) / 36e5),
-          m = Math.floor((ms % 36e5) / 6e4);
-        bdayCdEl.textContent =
-          d > 0 ? `🎂 ${d} day${d > 1 ? "s" : ""} · ${h} h to Rose's birthday` : `🎂 ${h} h ${m} min to Rose's birthday!`;
       }
+      // 🎂 the button under the title: straight to the cake at the end of the pier
+      function goToCake() {
+        if (!started || uiPaused) return;
+        if (vehMode === "car") exitCar();
+        else if (vehMode === "plane") exitPlane();
+        if (girl.rest) standUp();
+        if (superWoman) toggleSuperWoman();
+        girl.climbing = false;
+        girl.pos.set(CAKE.x, 0.05, CAKE.z + 7);
+        girl.grounded = true;
+        vel.set(0, 0, 0);
+        girl.yaw = Math.PI; // facing the cake
+        yaw = 0;
+        pitch = 0.1;
+        screenBurst(["🎂", "✨", "💗"], 14);
+        bdayCaption("🎂 Your birthday cake", "Walk up to it, make a wish… and blow!", 6);
+        track("🎂 Went to the cake (button)");
+      }
+      {
+        const btn = document.getElementById("cake-btn");
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          goToCake();
+        });
+        btn.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            goToCake();
+          }
+        });
+      }
+      // a golden beam over the cake, so it's easy to spot from anywhere
+      makeBeam(new THREE.Vector3(CAKE.x, 0, CAKE.z), 0xffd166);
       if (BDAY_TODAY) bdayGoLive(true);
       bdayCountdown();
       setInterval(bdayCountdown, 20000);
@@ -15013,6 +15040,63 @@
         fishIM.instanceMatrix.needsUpdate = true;
       }
 
+      // ---- 🦸‍♀️ the air while she flies: soft filtered noise that swells and
+      // brightens with her speed, with slow gusts — eased in and out, never abrupt
+      let airSrc = null,
+        airGain = null,
+        airLP = null,
+        airBP = null;
+      function updateFlightAir(dt, t) {
+        const ctx = hallCtx;
+        if (!ctx) return;
+        const flying = vehMode === "walk" && superWoman && !girl.grounded && !girl.climbing && !uiPaused;
+        if (!airSrc) {
+          if (!flying) return;
+          // ~4 s of soft brown-ish noise, looped
+          const n = ctx.sampleRate * 4,
+            buf = ctx.createBuffer(2, n, ctx.sampleRate);
+          for (let ch = 0; ch < 2; ch++) {
+            const d = buf.getChannelData(ch);
+            let last = 0;
+            for (let i = 0; i < n; i++) {
+              last = last * 0.985 + (Math.random() * 2 - 1) * 0.12;
+              d[i] = last;
+            }
+            // fade the loop seam
+            for (let i = 0; i < 2000; i++) {
+              d[i] *= i / 2000;
+              d[n - 1 - i] *= i / 2000;
+            }
+          }
+          airSrc = ctx.createBufferSource();
+          airSrc.buffer = buf;
+          airSrc.loop = true;
+          airLP = ctx.createBiquadFilter();
+          airLP.type = "lowpass";
+          airLP.frequency.value = 400;
+          airLP.Q.value = 0.5;
+          airBP = ctx.createBiquadFilter(); // a gentle whistle on top, at speed
+          airBP.type = "peaking";
+          airBP.frequency.value = 900;
+          airBP.Q.value = 0.8;
+          airBP.gain.value = 3;
+          airGain = ctx.createGain();
+          airGain.gain.value = 0;
+          airSrc.connect(airLP);
+          airLP.connect(airBP);
+          airBP.connect(airGain);
+          airGain.connect(ctx.destination);
+          airSrc.start();
+        }
+        const spd = Math.hypot(vel.x, vel.y, vel.z);
+        const k = clamp(spd / 48, 0, 1); // 0 hovering … 1 turbo
+        const gust = 0.85 + 0.15 * Math.sin(t * 0.7) * Math.sin(t * 1.9 + 1);
+        const now = ctx.currentTime;
+        airGain.gain.setTargetAtTime(flying ? (0.05 + 0.2 * k) * gust : 0, now, flying ? 0.45 : 0.6);
+        airLP.frequency.setTargetAtTime(300 + 1500 * k * k, now, 0.5);
+        airBP.frequency.setTargetAtTime(700 + 900 * k, now, 0.6);
+      }
+
       function updateBirthday(dt, t) {
         glowScale.value = (innerHeight * renderer.getPixelRatio()) / (2 * Math.tan(d2r(camera.fov / 2)));
         updateCake(dt, t);
@@ -15021,6 +15105,7 @@
         updateNameSky(dt, t);
         updateDolphins(dt, t);
         updateFish(dt, t);
+        updateFlightAir(dt, t);
       }
 
       // ============================================================================
