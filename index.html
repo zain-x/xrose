@@ -7481,41 +7481,89 @@
         for (let i = 0; i < uv.count; i++) uv.setXY(i, (uv.getX(i) * w) / 8, (uv.getY(i) * d) / 8);
         return geo;
       }
-      // 🌾 tufts of taller grass: two crossed blades-planes, instanced
-      const TUFT_MAT = (() => {
-        const cv = document.createElement("canvas");
-        cv.width = cv.height = 64;
-        const g = cv.getContext("2d");
-        let seed = 5;
+      // 🌾 tufts of grass: real clumps of thin, tapered, curving blades — dark at
+      // the root, sunlit at the tip — lit like the lawn (their normals point up,
+      // so no dark backs), and swaying in the breeze, each clump in its own time
+      const TUFT_GEO = (() => {
+        const pos = [],
+          col = [];
+        const ROOT = new THREE.Color(0x24521f),
+          MID = new THREE.Color(0x4f8f30),
+          TIP = new THREE.Color(0xb4d86a);
+        const shade = (s) => (s < 0.5 ? ROOT.clone().lerp(MID, s * 2) : MID.clone().lerp(TIP, (s - 0.5) * 2));
+        let seed = 9;
         const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-        for (let i = 0; i < 12; i++) {
-          const a = -1.05 + (i / 11) * 2.1 + (r() - 0.5) * 0.2,
-            len = 34 + r() * 26,
-            tipX = 32 + Math.sin(a) * len,
-            tipY = 64 - Math.cos(a) * len;
-          g.fillStyle = `hsl(${100 + r() * 25},${45 + r() * 20}%,${26 + r() * 18}%)`;
-          g.beginPath();
-          g.moveTo(30, 64);
-          g.lineTo(34, 64);
-          g.lineTo(tipX, tipY);
-          g.closePath();
-          g.fill();
+        const SEG = 3;
+        for (let b = 0; b < 8; b++) {
+          const a = r() * 6.283,
+            d = r() * 0.14,
+            ht = 0.3 + r() * 0.4,
+            w = 0.04 + r() * 0.025,
+            lean = 0.15 + r() * 0.35,
+            face = a + Math.PI / 2 + (r() - 0.5) * 0.8;
+          const bx = Math.cos(a) * d,
+            bz = Math.sin(a) * d,
+            lx = Math.cos(a),
+            lz = Math.sin(a),
+            fx = Math.cos(face),
+            fz = Math.sin(face);
+          // a point on the blade: s runs root → tip, side is -1 / 1 across it
+          const pt = (s, side) => {
+            const half = w * 0.5 * (1 - s) * side,
+              bend = lean * s * s * ht;
+            return [bx + lx * bend + fx * half, ht * s * (1 - 0.25 * lean * s), bz + lz * bend + fz * half];
+          };
+          const put = (p, s) => {
+            pos.push(...p);
+            const c = shade(s);
+            col.push(c.r, c.g, c.b);
+          };
+          for (let k = 0; k < SEG; k++) {
+            const s0 = k / SEG,
+              s1 = (k + 1) / SEG;
+            const A = pt(s0, -1),
+              B = pt(s0, 1);
+            if (k === SEG - 1) {
+              put(A, s0), put(B, s0), put(pt(1, 0), 1);
+            } else {
+              const C = pt(s1, -1),
+                D = pt(s1, 1);
+              put(A, s0), put(B, s0), put(D, s1);
+              put(A, s0), put(D, s1), put(C, s1);
+            }
+          }
         }
-        const t = new THREE.CanvasTexture(cv);
-        t.colorSpace = THREE.SRGBColorSpace;
-        return new THREE.MeshStandardMaterial({
-          map: t,
-          alphaTest: 0.5,
-          side: THREE.DoubleSide,
-          roughness: 1,
-          emissive: 0x0a200e,
-          emissiveIntensity: 0.35,
-        });
+        const g = new THREE.BufferGeometry();
+        g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+        g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+        const nrm = new Float32Array(pos.length);
+        for (let i = 1; i < nrm.length; i += 3) nrm[i] = 1;
+        g.setAttribute("normal", new THREE.BufferAttribute(nrm, 3));
+        return g;
       })();
-      const TUFT_GEO = mergeGeometries([
-        new THREE.PlaneGeometry(0.8, 0.55).translate(0, 0.275, 0).toNonIndexed(),
-        new THREE.PlaneGeometry(0.8, 0.55).rotateY(Math.PI / 2).translate(0, 0.275, 0).toNonIndexed(),
-      ]);
+      const TUFT_MAT = new THREE.MeshStandardMaterial({
+        vertexColors: true,
+        side: THREE.DoubleSide,
+        roughness: 0.9,
+        metalness: 0,
+        emissive: 0x14321a, // never black at night
+        emissiveIntensity: 0.5,
+      });
+      TUFT_MAT.onBeforeCompile = (sh) => {
+        sh.uniforms.uTime = uCityTime;
+        sh.vertexShader = "uniform float uTime;\n" + sh.vertexShader.replace(
+          "#include <begin_vertex>",
+          `#include <begin_vertex>
+          #ifdef USE_INSTANCING
+            // the breeze: the tips sway, the roots stay put
+            float gk = position.y * position.y * 2.2;
+            vec2 gp = instanceMatrix[3].xz;
+            float gw = sin(uTime * 1.6 + gp.x * 0.21 + gp.y * 0.17) + 0.4 * sin(uTime * 3.3 + gp.x * 0.7);
+            transformed.x += gw * 0.07 * gk;
+            transformed.z += cos(uTime * 1.3 + gp.y * 0.23) * 0.04 * gk;
+          #endif`,
+        );
+      };
 
       // the cinema screen's texture — filled with gif frames by the poster system
       const parkScreenTex = new THREE.Texture();
@@ -7999,18 +8047,22 @@
           const tufts = [],
             tcol = [],
             flowers = [[], [], []];
-          for (let i = 0; i < 9000 && tufts.length < 3600; i++) {
+          const NT = isTouch ? 4200 : 7000;
+          for (let i = 0; i < 20000 && tufts.length < NT; i++) {
             const x = X0 + hash(i, 1, 610) * W,
               z = Z0 + hash(i, 2, 610) * D;
             if (busy(x, z)) continue;
             dummy.position.set(x, 0.05, z);
             dummy.rotation.set(0, hash(i, 3, 610) * 6.28, 0);
-            dummy.scale.setScalar(0.6 + hash(i, 4, 610) * 0.8);
+            const sc = 0.7 + hash(i, 4, 610) * 0.8;
+            dummy.scale.set(sc, sc * (0.8 + hash(i, 11, 610) * 0.5), sc);
             dummy.updateMatrix();
             tufts.push(dummy.matrix.clone());
-            const v = 0.8 + hash(i, 5, 610) * 0.45;
-            tcol.push([v, v * (0.95 + hash(i, 6, 610) * 0.1), v * 0.9]);
-            if (hash(i, 7, 610) < 0.12) {
+            // greener here, a touch golden there
+            const v = 0.85 + hash(i, 5, 610) * 0.3,
+              warm = hash(i, 6, 610);
+            tcol.push([v * (0.92 + warm * 0.16), v, v * (0.95 - warm * 0.15)]);
+            if (hash(i, 7, 610) < 0.08) {
               dummy.position.set(x + 0.3, 0.05, z + 0.2);
               dummy.scale.setScalar(0.7 + hash(i, 8, 610) * 0.5);
               dummy.updateMatrix();
@@ -9239,7 +9291,7 @@
         const tufts = [];
         const FW = 7 * TILE - 2,
           FD = 3 * TILE - 2;
-        for (let i = 0; i < 1400 && tufts.length < 700; i++) {
+        for (let i = 0; i < 3000 && tufts.length < (isTouch ? 900 : 1400); i++) {
           const x = AIR_X - FW / 2 + hash(i, 1, 400) * FW,
             z = RUNWAY_Z - FD / 2 + hash(i, 2, 400) * FD;
           if (paved(x, z)) continue;
@@ -14120,8 +14172,8 @@
 
       // ============================================================================
       // 🎂🎆🏮✨  THE BIRTHDAY FINALE
-      //  · a giant cake at the end of the pier — she blows the candles out for
-      //    real, into her phone's microphone (or holds 💨), and the sky over the
+      //  · a giant cake at the end of the pier — she blows the candles out
+      //    (holding 💨, or Space), and the sky over the
       //    sea answers with fireworks that write ROSE and HAPPY BIRTHDAY
       //  · sky lanterns from the beach by the pier — hers first, then hundreds
       //  · « Rose » in the stars: a constellation that joins up, line by line,
@@ -14481,7 +14533,6 @@
         acc: 0,
         blow: 0,
         lean: 0,
-        mic: null,
         show: false,
         showT: 0,
       };
@@ -14538,25 +14589,27 @@
           rmesh(new THREE.SphereGeometry(0.22, 12, 8), GLOW_WARM, lx, 2.72, lz, P);
         }
 
-        // the cake: a gold board and three tiers — cream, rose, cream — built in
-        // its own group and scaled up to a real giant (CAKE_S)
+        // the cake: a gold board and three tiers — white, pink, white — with red
+        // and pink icing and red roses, built in its own group and scaled up to
+        // a real giant (CAKE_S). The icings glow in their own colour, so they
+        // stay white, red and pink by day, by night and on phones.
         const CG = new THREE.Group();
         CG.position.set(CAKE.x, 0, CAKE.z);
         CG.scale.setScalar(CAKE_S);
         P.add(CG);
-        const CREAM = RM(0xfff1f4, { roughness: 0.5, emissive: 0x4a3038, emissiveIntensity: 0.4 });
-        const ROSEC = RM(0xff9cc2, { roughness: 0.45, emissive: 0x5a1838, emissiveIntensity: 0.45 });
+        const CREAM = RM(0xffffff, { roughness: 0.5, metalness: 0, emissive: 0xf0e4e8, emissiveIntensity: 0.78 });
+        const ROSEC = RM(0xff8ab8, { roughness: 0.45, metalness: 0, emissive: 0xff5c9c, emissiveIntensity: 0.5 });
+        const REDC = RM(0xe0102e, { roughness: 0.4, metalness: 0, emissive: 0xc00824, emissiveIntensity: 0.55 });
         const GOLD = RM(0xffd27a, { roughness: 0.3, metalness: 0.75, emissive: 0x4a3008, emissiveIntensity: 0.45 });
-        const PEARL = RM(0xfffaf4, { roughness: 0.25, metalness: 0.2, emissive: 0x4a4038, emissiveIntensity: 0.4 });
-        const ROSEM = RM(0xd8142c, { roughness: 0.5, emissive: 0x5a0610, emissiveIntensity: 0.55 });
+        const PEARL = RM(0xffffff, { roughness: 0.25, metalness: 0, emissive: 0xf4e8ee, emissiveIntensity: 0.7 });
+        const ROSEM = RM(0xd8142c, { roughness: 0.5, metalness: 0, emissive: 0xb00a22, emissiveIntensity: 0.6 });
         rcyl(2.55, 2.62, 0.2, 0, 0.13, 0, GOLD, 48, CG);
         let y = 0.23;
-        const drips = [],
-          dripsB = [],
+        const drips = new Map(),
           pearls = [],
           roses = [];
         const TIERS = [
-          [2.2, 0.9, CREAM, ROSEC],
+          [2.2, 0.9, CREAM, REDC],
           [1.6, 0.8, ROSEC, CREAM],
           [1.05, 0.7, CREAM, ROSEC],
         ];
@@ -14576,7 +14629,8 @@
               new THREE.Quaternion(),
               new THREE.Vector3(1, L, 1),
             );
-            (icing === ROSEC ? drips : dripsB).push(m);
+            if (!drips.has(icing)) drips.set(icing, []);
+            drips.get(icing).push(m);
           }
           // a string of pearls round the foot of every tier
           const np = Math.round(r * 26);
@@ -14588,7 +14642,7 @@
           y += h;
         });
         const dripGeo = new THREE.SphereGeometry(0.075, 8, 6);
-        for (const [list, mat] of [[drips, ROSEC], [dripsB, CREAM]]) {
+        for (const [mat, list] of drips) {
           const im = new THREE.InstancedMesh(dripGeo, mat, list.length);
           list.forEach((m, i) => im.setMatrixAt(i, m));
           CG.add(im);
@@ -14726,8 +14780,8 @@
         }
       }
 
-      // blowing: her breath into the mic (or holding 💨 / Space) adds up, and the
-      // candles go out one by one, in a random order
+      // blowing: holding 💨 (or Space) adds up, and the candles go out one by
+      // one, in a random order
       const blowEl = document.getElementById("blow"),
         blowSub = document.getElementById("blow-s"),
         blowBar = document.getElementById("blow-bar"),
@@ -14744,40 +14798,6 @@
       addEventListener("keydown", (e) => {
         if (CAKE.blowing && e.code === "Escape") endBlow(false);
       });
-      function micOn() {
-        const md = navigator.mediaDevices;
-        if (!md || !md.getUserMedia || !hallCtx) {
-          blowSub.textContent = "Hold 💨 and blow them out";
-          return;
-        }
-        blowSub.textContent = "Blow into your microphone 🎤 — or hold 💨";
-        md.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } })
-          .then((stream) => {
-            if (!CAKE.blowing) return stream.getTracks().forEach((tr) => tr.stop());
-            const src = hallCtx.createMediaStreamSource(stream);
-            const an = hallCtx.createAnalyser();
-            an.fftSize = 1024;
-            src.connect(an);
-            // (a silent tap to the speakers, so every browser keeps the analyser running)
-            const mute = hallCtx.createGain();
-            mute.gain.value = 0;
-            an.connect(mute);
-            mute.connect(hallCtx.destination);
-            CAKE.mic = { stream, src, an, mute, buf: new Float32Array(an.fftSize), base: 0, age: 0 };
-            blowSub.textContent = "Blow into your mic, Rose 💨";
-          })
-          .catch(() => (blowSub.textContent = "Hold 💨 and blow them out"));
-      }
-      function micOff() {
-        const m = CAKE.mic;
-        CAKE.mic = null;
-        if (!m) return;
-        try {
-          m.src.disconnect();
-          m.mute.disconnect();
-        } catch (e) {}
-        m.stream.getTracks().forEach((tr) => tr.stop());
-      }
       function startBlow() {
         initHallAudio();
         if (hallCtx && hallCtx.state !== "running") hallCtx.resume();
@@ -14794,7 +14814,7 @@
         blowBar.style.width = "0%";
         blowEl.classList.add("on");
         pauseUI();
-        micOn();
+        blowSub.textContent = "Hold 💨 (or Space) to blow them out";
         bdayCaption("Make a wish, Rose ✨", "close your eyes… then blow", 4);
         track("🎂 At the birthday cake");
       }
@@ -14802,7 +14822,6 @@
         CAKE.blowing = false;
         setBlowHeld(false)();
         blowEl.classList.remove("on");
-        micOff();
         resumeUI();
         if (!done) return;
         // 🎉 all out — Happy Birthday!
@@ -14876,18 +14895,7 @@
           p.s.material.opacity = 0.55 * Math.sin(Math.min(1, p.t * 1.2) * Math.PI);
         }
         if (CAKE.blowing) {
-          let s = blowHeld || keys["Space"] ? 0.7 : 0;
-          const m = CAKE.mic;
-          if (m) {
-            m.an.getFloatTimeDomainData(m.buf);
-            let sum = 0;
-            for (let k = 0; k < m.buf.length; k++) sum += m.buf[k] * m.buf[k];
-            const rms = Math.sqrt(sum / m.buf.length);
-            m.age += dt;
-            // the first moment learns the room's quiet; a breath is far louder
-            if (m.age < 0.4) m.base = Math.max(m.base, rms);
-            else s = Math.max(s, clamp((rms - Math.max(0.07, m.base * 2.5)) / 0.12, 0, 1));
-          }
+          const s = blowHeld || keys["Space"] ? 0.7 : 0;
           CAKE.blow = s;
           CAKE.acc = Math.min(1, CAKE.acc + (s * dt) / 1.5);
           for (const f of CAKE.flames)
