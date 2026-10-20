@@ -4213,8 +4213,37 @@
         );
         track("🎂 Opened the birthday letter");
       }
+      // a shuffled deck that never repeats a phrase until every one has been shown
+      // (and never starts a new round with the one she just read); remembered
+      // between visits
+      function shuffleDeck(key, n) {
+        let deck = null,
+          last = -1;
+        try {
+          deck = JSON.parse(localStorage.getItem(key) || "null");
+          last = +(localStorage.getItem(key + "-last") ?? -1);
+        } catch (e) {}
+        if (!Array.isArray(deck) || deck.some((i) => !(i >= 0 && i < n))) deck = [];
+        return () => {
+          if (!deck.length) {
+            deck = [...Array(n).keys()];
+            for (let i = n - 1; i > 0; i--) {
+              const j = (Math.random() * (i + 1)) | 0;
+              [deck[i], deck[j]] = [deck[j], deck[i]];
+            }
+            if (n > 1 && deck[n - 1] === last) [deck[0], deck[n - 1]] = [deck[n - 1], deck[0]];
+          }
+          last = deck.pop();
+          try {
+            localStorage.setItem(key, JSON.stringify(deck));
+            localStorage.setItem(key + "-last", String(last));
+          } catch (e) {}
+          return last;
+        };
+      }
+      const nextReason = shuffleDeck("rose-reasons-deck", LOVE_REASONS.length);
       function openReasons() {
-        const r = pickFrom(LOVE_REASONS);
+        const r = LOVE_REASONS[nextReason()];
         openPanel(`<span class="emoji-head">💝</span><h2>أسباب حبّي لكِ</h2>
     <p class="big-msg">${r}</p>
     <div class="panel-btn" id="reasonNext">💗 سبب تاني</div>`);
