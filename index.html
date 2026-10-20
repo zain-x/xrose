@@ -336,31 +336,6 @@
       body.touch #hud {
         display: none;
       }
-      /* 🎂 one tap and she's standing in front of her birthday cake */
-      #cake-btn {
-        display: inline-block;
-        margin-top: 6px;
-        padding: 5px 13px;
-        border-radius: 16px;
-        font-size: 13px;
-        font-weight: 600;
-        color: #fff4e0;
-        background: rgba(255, 110, 165, 0.38);
-        border: 1px solid rgba(255, 210, 140, 0.7);
-        box-shadow: 0 0 14px rgba(255, 190, 90, 0.45);
-        cursor: pointer;
-        user-select: none;
-        -webkit-user-select: none;
-        animation: cake-glow 1.8s ease-in-out infinite alternate;
-      }
-      #cake-btn:active {
-        background: rgba(255, 110, 165, 0.7);
-      }
-      @keyframes cake-glow {
-        to {
-          box-shadow: 0 0 22px rgba(255, 200, 90, 0.85);
-        }
-      }
       body.touch #title {
         font-size: 0.92em;
       }
@@ -1388,7 +1363,7 @@
         <span class="key">Space</span> handbrake
       </div>
       <div>
-        🛩️ the <b>Rose VIP Plane</b> waits at Rose Airfield (blue beam) —
+        🛩️ the <b>Rose Plane</b> waits at Rose Airfield (blue beam) —
         <span class="key">W</span> throttle, <span class="key">↑</span
         ><span class="key">↓</span> pitch, <span class="key">A</span
         ><span class="key">D</span> bank
@@ -1413,7 +1388,6 @@
 
     <div id="title">
       <h1>ROSE CITY ♥</h1>
-      <div id="cake-btn" role="button" tabindex="0" aria-label="Go to your birthday cake">🎂 Your cake</div>
     </div>
 
     <div id="stats"></div>
@@ -7980,6 +7954,86 @@
             });
         }
 
+        // ---- 🌱 the lawn comes alive: thousands of grass tufts and little flowers,
+        // kept off the paths, the pitch, the court, the playground & the cinema
+        {
+          const busy = (x, z) =>
+            Math.abs(z - PARK0.z) < 3.4 ||
+            Math.abs(x - PARK0.x) < 3.4 ||
+            (x > -170 && x < -118 && z > -6 && z < 30) || // pitch + goals
+            (x > -98 && x < -62 && z > 0 && z < 24) || // court + hoops
+            Math.hypot(x + 99, z - 70) < 19 || // playground
+            (x > -168 && x < -136 && z > 62 && z < 92) || // cinema
+            Math.hypot(x + 156, z) < 14 || // mood garden
+            Math.hypot(x - PARK0.x, z - PARK0.z) < 6; // the glowing cross
+          const X0 = PARK0.x - PARK.w / 2 + 1.5,
+            Z0 = PARK0.z - PARK.d / 2 + 1.5,
+            W = PARK.w - 3,
+            D = PARK.d - 3;
+          const tufts = [],
+            tcol = [],
+            flowers = [[], [], []];
+          for (let i = 0; i < 9000 && tufts.length < 3600; i++) {
+            const x = X0 + hash(i, 1, 610) * W,
+              z = Z0 + hash(i, 2, 610) * D;
+            if (busy(x, z)) continue;
+            dummy.position.set(x, 0.05, z);
+            dummy.rotation.set(0, hash(i, 3, 610) * 6.28, 0);
+            dummy.scale.setScalar(0.6 + hash(i, 4, 610) * 0.8);
+            dummy.updateMatrix();
+            tufts.push(dummy.matrix.clone());
+            const v = 0.8 + hash(i, 5, 610) * 0.45;
+            tcol.push([v, v * (0.95 + hash(i, 6, 610) * 0.1), v * 0.9]);
+            if (hash(i, 7, 610) < 0.12) {
+              dummy.position.set(x + 0.3, 0.05, z + 0.2);
+              dummy.scale.setScalar(0.7 + hash(i, 8, 610) * 0.5);
+              dummy.updateMatrix();
+              flowers[(hash(i, 9, 610) * 3) | 0].push(dummy.matrix.clone());
+            }
+          }
+          const tIM = new THREE.InstancedMesh(TUFT_GEO, TUFT_MAT, tufts.length);
+          tufts.forEach((m, i) => {
+            tIM.setMatrixAt(i, m);
+            tIM.setColorAt(i, tmpColor.setRGB(...tcol[i]));
+          });
+          parkRoot.add(tIM);
+          // daisies: a thin stem and a little blossom (white, rose pink, butter yellow)
+          const flowerMat = (petal) => {
+            const cv = document.createElement("canvas");
+            cv.width = cv.height = 64;
+            const g = cv.getContext("2d");
+            g.strokeStyle = "#3f7d35";
+            g.lineWidth = 3;
+            g.beginPath();
+            g.moveTo(32, 64);
+            g.quadraticCurveTo(28, 44, 32, 26);
+            g.stroke();
+            g.fillStyle = petal;
+            for (let k = 0; k < 6; k++) {
+              const a = (k / 6) * Math.PI * 2;
+              g.beginPath();
+              g.ellipse(32 + Math.cos(a) * 7, 20 + Math.sin(a) * 7, 6, 4, a, 0, Math.PI * 2);
+              g.fill();
+            }
+            g.fillStyle = "#ffd23f";
+            g.beginPath();
+            g.arc(32, 20, 4, 0, Math.PI * 2);
+            g.fill();
+            const t = new THREE.CanvasTexture(cv);
+            t.colorSpace = THREE.SRGBColorSpace;
+            return new THREE.MeshStandardMaterial({ map: t, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.9, emissive: 0x2a1a20, emissiveIntensity: 0.3 });
+          };
+          const FLOWER_GEO = mergeGeometries([
+            new THREE.PlaneGeometry(0.42, 0.42).translate(0, 0.21, 0).toNonIndexed(),
+            new THREE.PlaneGeometry(0.42, 0.42).rotateY(Math.PI / 2).translate(0, 0.21, 0).toNonIndexed(),
+          ]);
+          ["#ffffff", "#ff8fb8", "#fff07a"].forEach((c, k) => {
+            if (!flowers[k].length) return;
+            const im = new THREE.InstancedMesh(FLOWER_GEO, flowerMat(c), flowers[k].length);
+            flowers[k].forEach((m, i) => im.setMatrixAt(i, m));
+            parkRoot.add(im);
+          });
+        }
         // ---- park sign at the east gate, greenery, lamps & benches ---------------
         const sign = new THREE.Sprite(
           new THREE.SpriteMaterial({
@@ -9209,12 +9263,14 @@
         roughness: 0.95,
         metalness: 0,
       });
+      // a clean white plane in any light: no metal (with nothing to reflect it went
+      // grey-green), and a soft white self-glow so the shaded side stays white too
       const FUSELAGE_WHITE = new THREE.MeshStandardMaterial({
-        color: 0xfbf4f2,
-        roughness: 0.4,
-        metalness: 0.12, // (metal with nothing to reflect only goes grey-green)
-        emissive: 0x4a3036, // pearly warm white in any light
-        emissiveIntensity: 0.45,
+        color: 0xffffff,
+        roughness: 0.45,
+        metalness: 0,
+        emissive: 0xd2c6cc,
+        emissiveIntensity: 0.82,
       });
       function mkBox(parent, w, h, d, x, y, z, mat, rx = 0) {
         const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
@@ -9879,12 +9935,12 @@
         }
         // her name painted on both sides of the nose — this plane is « Rose »
         const nameTex = makeLabel(
-          [{ t: "Rose ♥", font: EN(96), color: LC.white }],
+          [{ t: "Rose Plane ♥", font: EN(78), color: LC.white }],
           "rgba(255,110,165,0.95)",
         );
         for (const s of [-1, 1]) {
           const nm = new THREE.Mesh(
-            new THREE.PlaneGeometry(1.5, 0.75),
+            new THREE.PlaneGeometry(1.9, 0.95),
             new THREE.MeshBasicMaterial({
               map: nameTex,
               transparent: true,
@@ -11335,8 +11391,8 @@
                 : "🚗 F — Rose VIP Car"
               : nearVehicle === "plane"
                 ? isTouch
-                  ? "🛩️ Rose VIP Plane"
-                  : "🛩️ F — Rose VIP Plane"
+                  ? "🛩️ Rose Plane"
+                  : "🛩️ F — Rose Plane"
                 : nearVehicle === "boat"
                   ? isTouch
                     ? "🦢 Swan boat"
@@ -11366,7 +11422,7 @@
           const txt =
             vehMode === "car"
               ? `${drv.boat ? "🦢 Swan boat · " : "🚗 " + (drv.vip ? "Rose VIP · " : "")}${kmh} km/h${exitHint}`
-              : `🛩️ Rose VIP · ${kmh} km/h · ⬆ ${Math.max(0, Math.round(plane.pos.y - PLANE_GEAR))}m${exitHint}`;
+              : `🛩️ Rose Plane · ${kmh} km/h · ⬆ ${Math.max(0, Math.round(plane.pos.y - PLANE_GEAR))}m${exitHint}`;
           if (txt !== lastVehHud) {
             vehHud.textContent = txt;
             lastVehHud = txt;
@@ -14005,7 +14061,9 @@
       const SHOW_X = CAKE.x,
         SHOW_Z = CAKE.z - 170;
       WALKWAYS.push({ x0: PIER.x - 9, x1: PIER.x + 9, z0: PIER_END - 17, z1: PIER_END + 1, y: 0 });
-      AIR_SOLIDS.push({ x0: CAKE.x - 2.5, x1: CAKE.x + 2.5, z0: CAKE.z - 2.5, z1: CAKE.z + 2.5, h: 3.2 });
+      const CAKE_S = 1.6; // the cake's scale — a giant, about 4 m to the candle tips
+      const CAKE_R = 2.62 * CAKE_S; // its board's radius
+      AIR_SOLIDS.push({ x0: CAKE.x - CAKE_R, x1: CAKE.x + CAKE_R, z0: CAKE.z - CAKE_R, z1: CAKE.z + CAKE_R, h: 3.2 * CAKE_S });
       {
         const P = bdayRoot;
         const CX = CAKE.x,
@@ -14052,13 +14110,18 @@
           rmesh(new THREE.SphereGeometry(0.22, 12, 8), GLOW_WARM, lx, 2.72, lz, P);
         }
 
-        // the cake: a gold board and three tiers — cream, rose, cream
+        // the cake: a gold board and three tiers — cream, rose, cream — built in
+        // its own group and scaled up to a real giant (CAKE_S)
+        const CG = new THREE.Group();
+        CG.position.set(CAKE.x, 0, CAKE.z);
+        CG.scale.setScalar(CAKE_S);
+        P.add(CG);
         const CREAM = RM(0xfff1f4, { roughness: 0.5, emissive: 0x4a3038, emissiveIntensity: 0.4 });
         const ROSEC = RM(0xff9cc2, { roughness: 0.45, emissive: 0x5a1838, emissiveIntensity: 0.45 });
         const GOLD = RM(0xffd27a, { roughness: 0.3, metalness: 0.75, emissive: 0x4a3008, emissiveIntensity: 0.45 });
         const PEARL = RM(0xfffaf4, { roughness: 0.25, metalness: 0.2, emissive: 0x4a4038, emissiveIntensity: 0.4 });
         const ROSEM = RM(0xd8142c, { roughness: 0.5, emissive: 0x5a0610, emissiveIntensity: 0.55 });
-        rcyl(2.55, 2.62, 0.2, CX, 0.13, CZ, GOLD, 48, P);
+        rcyl(2.55, 2.62, 0.2, 0, 0.13, 0, GOLD, 48, CG);
         let y = 0.23;
         const drips = [],
           dripsB = [],
@@ -14071,17 +14134,17 @@
         ];
         const tops = [];
         TIERS.forEach(([r, h, body, icing], ti) => {
-          rcyl(r, r, h, CX, y + h / 2, CZ, body, 48, P);
+          rcyl(r, r, h, 0, y + h / 2, 0, body, 48, CG);
           // icing: a rim on top and drips running down the side
-          const rim = rmesh(new THREE.TorusGeometry(r - 0.03, 0.09, 8, 56), icing, CX, y + h, CZ, P);
+          const rim = rmesh(new THREE.TorusGeometry(r - 0.03, 0.09, 8, 56), icing, 0, y + h, 0, CG);
           rim.rotation.x = Math.PI / 2;
-          rcyl(r - 0.02, r - 0.02, 0.05, CX, y + h, CZ, icing, 48, P);
+          rcyl(r - 0.02, r - 0.02, 0.05, 0, y + h, 0, icing, 48, CG);
           const nd = Math.round(r * 13);
           for (let k = 0; k < nd; k++) {
             const a = (k / nd) * 6.283 + ti;
             const L = 1.6 + hash(k, ti, 77) * 2.6;
             const m = new THREE.Matrix4().compose(
-              _bv.set(CX + Math.sin(a) * (r + 0.01), y + h - 0.05 - L * 0.06, CZ + Math.cos(a) * (r + 0.01)),
+              _bv.set(0 + Math.sin(a) * (r + 0.01), y + h - 0.05 - L * 0.06, 0 + Math.cos(a) * (r + 0.01)),
               new THREE.Quaternion(),
               new THREE.Vector3(1, L, 1),
             );
@@ -14091,7 +14154,7 @@
           const np = Math.round(r * 26);
           for (let k = 0; k < np; k++) {
             const a = (k / np) * 6.283;
-            pearls.push(matAt(CX + Math.sin(a) * (r + 0.04), y + 0.06, CZ + Math.cos(a) * (r + 0.04)));
+            pearls.push(matAt(0 + Math.sin(a) * (r + 0.04), y + 0.06, 0 + Math.cos(a) * (r + 0.04)));
           }
           tops.push([y + h, r]);
           y += h;
@@ -14100,11 +14163,11 @@
         for (const [list, mat] of [[drips, ROSEC], [dripsB, CREAM]]) {
           const im = new THREE.InstancedMesh(dripGeo, mat, list.length);
           list.forEach((m, i) => im.setMatrixAt(i, m));
-          P.add(im);
+          CG.add(im);
         }
         const pIM = new THREE.InstancedMesh(new THREE.SphereGeometry(0.06, 8, 6), PEARL, pearls.length);
         pearls.forEach((m, i) => pIM.setMatrixAt(i, m));
-        P.add(pIM);
+        CG.add(pIM);
         // red roses on the two ledges
         for (const [ty, rOut, rIn, n] of [[tops[0][0], 2.2, 1.6, 11], [tops[1][0], 1.6, 1.05, 8]])
           for (let k = 0; k < n; k++) {
@@ -14112,7 +14175,7 @@
             const rr = (rOut + rIn) / 2;
             roses.push(
               new THREE.Matrix4().compose(
-                _bv.set(CX + Math.sin(a) * rr, ty + 0.12, CZ + Math.cos(a) * rr),
+                _bv.set(0 + Math.sin(a) * rr, ty + 0.12, 0 + Math.cos(a) * rr),
                 new THREE.Quaternion(),
                 new THREE.Vector3(1, 0.72, 1),
               ),
@@ -14120,7 +14183,7 @@
           }
         const rIM = new THREE.InstancedMesh(new THREE.SphereGeometry(0.17, 12, 8), ROSEM, roses.length);
         roses.forEach((m, i) => rIM.setMatrixAt(i, m));
-        P.add(rIM);
+        CG.add(rIM);
         // her name, piped round the front of the cake
         const band = (r, yy, h, arc, text, font, color) => {
           const tex = bdayTex(2048, Math.round((2048 * h) / (r * arc)), (g, w, hh) => {
@@ -14139,8 +14202,8 @@
             new THREE.CylinderGeometry(r, r, h, 48, 1, true, -arc / 2, arc),
             new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }),
           );
-          m.position.set(CX, yy, CZ);
-          P.add(m);
+          m.position.set(0, yy, 0);
+          CG.add(m);
         };
         const SCRIPT = (px) => `italic 700 ${Math.round(px)}px Georgia, "Palatino Linotype", serif`;
         band(2.215, 0.23 + 0.45, 0.52, 2.6, "Happy Birthday Rose ♥", SCRIPT, "#c8104a");
@@ -14156,8 +14219,8 @@
         const wicks = [];
         for (let k = 0; k < 8; k++) {
           const a = (k / 8) * 6.283 + 0.39;
-          const x = CX + Math.sin(a) * 0.68,
-            z = CZ + Math.cos(a) * 0.68;
+          const x = 0 + Math.sin(a) * 0.68,
+            z = 0 + Math.cos(a) * 0.68;
           cIM.setMatrixAt(k, matAt(x, topY, z));
           cIM.setColorAt(k, tmpColor.setHex(CANDLE_COLS[k % 4]));
           wicks.push(matAt(x, topY + 0.5, z));
@@ -14169,13 +14232,13 @@
           );
           halo.scale.set(0.8, 0.8, 1);
           halo.position.set(x, topY + 0.66, z);
-          P.add(sp, halo);
+          CG.add(sp, halo);
           CAKE.flames.push({ sp, halo, x, y: topY + 0.52, z, lit: true, need: 1 });
         }
-        P.add(cIM);
+        CG.add(cIM);
         const wIM = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.012, 0.012, 0.07, 4).translate(0, 0.035, 0), RM(0x2a2020), 8);
         wicks.forEach((m, i) => wIM.setMatrixAt(i, m));
-        P.add(wIM);
+        CG.add(wIM);
         // the topper: « Rose ♥ » in gold, on two little gold sticks
         const topper = new THREE.Sprite(
           new THREE.SpriteMaterial({
@@ -14196,14 +14259,14 @@
           }),
         );
         topper.scale.set(1.9, 0.74, 1);
-        topper.position.set(CX, topY + 1.45, CZ);
-        P.add(topper);
-        for (const sx of [-0.3, 0.3]) rcyl(0.018, 0.018, 1.1, CX + sx, topY + 0.55, CZ, GOLD, 6, P);
+        topper.position.set(0, topY + 1.45, 0);
+        CG.add(topper);
+        for (const sx of [-0.3, 0.3]) rcyl(0.018, 0.018, 1.1, 0 + sx, topY + 0.55, 0, GOLD, 6, CG);
         // puffs of smoke when a candle goes out
         for (let k = 0; k < 28; k++) {
           const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: SMOKE_TEX, transparent: true, depthWrite: false, opacity: 0 }));
           s.visible = false;
-          P.add(s);
+          CG.add(s);
           CAKE.smoke.push({ s, t: 1 });
         }
         // a welcome arch where the pier leaves the beach
@@ -14291,7 +14354,7 @@
         initHallAudio();
         if (hallCtx && hallCtx.state !== "running") hallCtx.resume();
         // stand her before the cake, facing it, the candles in view
-        girl.pos.set(CAKE.x, 0, CAKE.z + 3.6);
+        girl.pos.set(CAKE.x, 0, CAKE.z + CAKE_R + 1.2);
         girl.yaw = Math.PI;
         vel.set(0, 0, 0);
         yaw = 0;
@@ -14420,7 +14483,7 @@
       }
       RESORT_SPOTS.push({
         x: CAKE.x,
-        z: CAKE.z + 3.6,
+        z: CAKE.z + CAKE_R + 1.2,
         r: 3.2,
         icon: "🎂",
         label: () => (CAKE.show ? "Happy Birthday, Rose ♥" : allLit() ? "Make a wish & blow out the candles" : "Light the candles again"),
@@ -14780,7 +14843,7 @@
         S.pts.geometry.attributes.aAlpha.needsUpdate = true;
         if (!NAME.capped && T > 4) {
           NAME.capped = true;
-          if (op > 0.2) bdayCaption("✨ Even the stars know your name", "Rose — written across the night, just for you", 7);
+          if (op > 0.2) bdayCaption("✨ Even the stars know your name", "", 7);
         }
         if (T > 52 || (T > 2 && op <= 0.001 && uNight.value < 0.3)) {
           nameSky.visible = false;
@@ -14839,37 +14902,6 @@
       }
       function bdayCountdown() {
         if (!BDAY_TODAY && isBdayNow()) bdayGoLive(false); // midnight just struck 🎉
-      }
-      // 🎂 the button under the title: straight to the cake at the end of the pier
-      function goToCake() {
-        if (!started || uiPaused) return;
-        if (vehMode === "car") exitCar();
-        else if (vehMode === "plane") exitPlane();
-        if (girl.rest) standUp();
-        if (superWoman) toggleSuperWoman();
-        girl.climbing = false;
-        girl.pos.set(CAKE.x, 0.05, CAKE.z + 7);
-        girl.grounded = true;
-        vel.set(0, 0, 0);
-        girl.yaw = Math.PI; // facing the cake
-        yaw = 0;
-        pitch = 0.1;
-        screenBurst(["🎂", "✨", "💗"], 14);
-        bdayCaption("🎂 Your birthday cake", "Walk up to it, make a wish… and blow!", 6);
-        track("🎂 Went to the cake (button)");
-      }
-      {
-        const btn = document.getElementById("cake-btn");
-        btn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          goToCake();
-        });
-        btn.addEventListener("keydown", (e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            goToCake();
-          }
-        });
       }
       // a golden beam over the cake, so it's easy to spot from anywhere
       makeBeam(new THREE.Vector3(CAKE.x, 0, CAKE.z), 0xffd166);
@@ -16280,10 +16312,10 @@
             emissive: c,
             emissiveIntensity: e,
             roughness: 0.38,
-            metalness: 0.3,
+            metalness: 0,
             fog: false,
           });
-        const WHITE = PM(0xfff4f8, 0.3),
+        const WHITE = PM(0xfff4f8, 0.62),
           ROSE = PM(trim, 0.55),
           DARKM = PM(0x6a4a5a, 0.05);
         const GLASS = new THREE.MeshStandardMaterial({
@@ -16653,7 +16685,30 @@
         if (vehMode !== "plane") put(plane.pos.x, plane.pos.z, "#59b7ff", 3.2);
         put(HALL.cx, HALL.cz, "#c58bff", 3.4); // 🎹 Rosmantic Music
         put(RESORT.x, CITY_Z1 + 20, "#ff7ad9", 3.4); // 🏝️ Rose Resort
-        put(CAKE.x, CAKE.z, "#ffd166", 3.4); // 🎂 the birthday cake, end of the pier
+        {
+          // 🎂 the birthday cake, end of the pier — a flashing cake on the map
+          // (held just inside the rim when it's out of range)
+          const dx = CAKE.x - fp.x,
+            dz = CAKE.z - fp.z;
+          let rx = dx * cosY - dz * sinY,
+            up = -(dx * sinY + dz * cosY);
+          const dd = Math.hypot(rx, up),
+            lim = RANGE * 0.9;
+          if (dd > lim) {
+            rx *= lim / dd;
+            up *= lim / dd;
+          }
+          const fl = 0.55 + 0.45 * Math.abs(Math.sin(t * 4));
+          radarG.save();
+          radarG.globalAlpha = fl;
+          radarG.font = `${Math.round(13 + fl * 5)}px "Segoe UI Emoji", "Apple Color Emoji", sans-serif`;
+          radarG.textAlign = "center";
+          radarG.textBaseline = "middle";
+          radarG.shadowColor = "rgba(255,210,110,0.95)";
+          radarG.shadowBlur = 8 * fl;
+          radarG.fillText("🎂", cx + rx * sc, cyc - up * sc);
+          radarG.restore();
+        }
         put(LANT_STAND.x, LANT_STAND.z, "#ff9a4a", 2.6); // 🏮 sky lanterns
         if (!(vehMode === "car" && drv === boat)) put(boat.pos.x, boat.pos.z, "#ffffff", 2.4); // 🦢
 
