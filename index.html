@@ -776,6 +776,27 @@
         border: 2px solid rgba(255, 210, 120, 0.8);
         box-shadow: 0 0 18px rgba(255, 80, 120, 0.7);
       }
+      /* in a car or the plane the Super-Woman button steps aside… */
+      body.riding #btn-hero {
+        display: none;
+      }
+      /* …and in a car its slot holds the 🚀 jets */
+      #btn-jet {
+        left: max(20px, env(safe-area-inset-left));
+        bottom: 190px;
+        font-size: 26px;
+        display: none;
+        background: radial-gradient(circle at 50% 38%, rgba(120, 190, 255, 0.55), rgba(60, 70, 200, 0.45));
+        border: 2px solid rgba(190, 220, 255, 0.85);
+        box-shadow: 0 0 18px rgba(110, 170, 255, 0.7);
+      }
+      body.in-car #btn-jet {
+        display: flex;
+      }
+      #btn-jet.on {
+        background: radial-gradient(circle at 50% 38%, #bfe4ff, #3d6cff);
+        box-shadow: 0 0 26px rgba(130, 190, 255, 0.95);
+      }
       #btn-hero.on {
         background: radial-gradient(circle at 50% 38%, #ffd76a, #ff2d5e);
         box-shadow: 0 0 26px rgba(255, 200, 90, 0.95);
@@ -1363,6 +1384,7 @@
         <span class="key">Space</span> handbrake
       </div>
       <div>
+        🚀 in a car, <span class="key">J</span> lights the jets — Space climbs, C descends<br />
         🛩️ the <b>Rose Plane</b> waits at Rose Airfield (blue beam) —
         <span class="key">W</span> throttle, <span class="key">↑</span
         ><span class="key">↓</span> pitch, <span class="key">A</span
@@ -1451,6 +1473,7 @@
       <div class="tbtn" id="btn-down">▼</div>
       <div class="tbtn" id="btn-boost">⚡</div>
       <div class="tbtn" id="btn-hero">🦸‍♀️</div>
+      <div class="tbtn" id="btn-jet">🚀</div>
       <div class="tbtn" id="btn-action">♥</div>
       <div class="tbtn" id="btn-vehicle" style="display: none">🚗</div>
     </div>
@@ -9815,6 +9838,37 @@
           c.add(w.pivot);
           rig.wheels.push(w);
         }
+        // 🚀 the jet package, Tesla-Roadster style: two burners out of the
+        // exhausts and four down-jets under the wheels, which fold flat to fly
+        {
+          const fMat = (r, g, b, o) =>
+            new THREE.MeshBasicMaterial({
+              color: new THREE.Color(r, g, b),
+              transparent: true,
+              opacity: o,
+              blending: THREE.AdditiveBlending,
+              depthWrite: false,
+              side: THREE.DoubleSide,
+              fog: false,
+            });
+          const OUTER = fMat(0.45, 0.72, 1.7, 0.75),
+            CORE = fMat(1.5, 1.55, 1.8, 0.9);
+          const cone = (r, len) => new THREE.ConeGeometry(r, len, 14, 1, true).translate(0, len / 2, 0);
+          Object.assign(rig, { jet: false, jetK: 0, fold: 0, vy: 0, liftT: 0, thrust: 0, flames: [] });
+          const flame = (outer, inner, x, y, z, rx, rear) => {
+            const fg = new THREE.Group();
+            fg.position.set(x, y, z);
+            fg.rotation.x = rx;
+            fg.add(new THREE.Mesh(outer, OUTER), new THREE.Mesh(inner, CORE));
+            fg.visible = false;
+            fg.userData.rear = rear;
+            c.add(fg);
+            rig.flames.push(fg);
+          };
+          const ez = carRearZ(0.55, 0.36) - 0.07;
+          for (const sx of [-1, 1]) flame(cone(0.13, 1.2), cone(0.06, 0.65), sx * 0.55, 0.34, ez, -Math.PI / 2, true);
+          for (const [sx, sz] of WHEEL_XZ) flame(cone(0.22, 0.95), cone(0.1, 0.5), sx, WHEEL_Y - 0.12, sz, Math.PI, false);
+        }
         // real headlight beams that light the road at night
         for (const s of [-1, 1]) {
           const L = new THREE.SpotLight(0xfff2cf, 0, 60, 0.58, 0.45, 1.4);
@@ -10827,9 +10881,59 @@
       );
       vehBtn.addEventListener("click", () => interact());
 
+      // which touch buttons show: Super-Woman on foot, 🚀 jets in a car
+      function setRideClass() {
+        document.body.classList.toggle("riding", vehMode !== "walk");
+        document.body.classList.toggle("in-car", vehMode === "car" && !!drv && !!drv.flames);
+        jetBtn.classList.toggle("on", vehMode === "car" && !!drv.jet);
+      }
+      const jetBtn = document.getElementById("btn-jet");
+      // 🚀 J / the 🚀 button: light the jets and fly the car — again to land
+      function toggleJets() {
+        if (vehMode !== "car" || !drv.flames || uiPaused) return;
+        if (drv.jet && coastDist(drv.pos.x, drv.pos.z) > -1) {
+          bdayCaption("🚀 Not over the sea!", "Fly back over land to switch the jets off", 3);
+          return;
+        }
+        drv.jet = !drv.jet;
+        if (drv.jet) {
+          drv.liftT = 0.9; // a little hop off the ground as they light
+          screenBurst(["🚀", "✨", "💨"], 10);
+          track("🚀 Car jets on — flying!");
+        } else track("🚀 Car jets off — coming down");
+        setRideClass();
+      }
+      jetBtn.addEventListener(
+        "touchstart",
+        (e) => {
+          e.preventDefault();
+          toggleJets();
+        },
+        { passive: false },
+      );
+      jetBtn.addEventListener("click", () => toggleJets());
+      addEventListener("keydown", (e) => {
+        if (e.code === "KeyJ" && !e.repeat && !(e.target && /^(INPUT|TEXTAREA)$/.test(e.target.tagName))) toggleJets();
+      });
+      // put a flying car straight back on the ground (on land), jets off
+      function landCar(rig) {
+        if (!rig.flames) return;
+        rig.jet = false;
+        rig.jetK = 0;
+        rig.fold = 0;
+        rig.vy = 0;
+        rig.liftT = 0;
+        for (const f of rig.flames) f.visible = false;
+        for (const w of rig.wheels) w.pivot.rotation.z = 0;
+        for (let i = 0; i < 40 && coastDist(rig.pos.x, rig.pos.z) > -2.4; i++) keepOnLand(rig.pos, 2.4, false);
+        rig.pos.y = roofUnder(rig.pos.x, rig.pos.z, rig.pos.y);
+        rig.g.position.copy(rig.pos);
+        rig.g.rotation.set(0, rig.yaw, 0);
+      }
       function enterCar(rig = car) {
         drv = rig;
         vehMode = "car";
+        setRideClass();
         drv.speed = 0;
         girl.g.visible = false;
         yaw = drv.yaw + Math.PI;
@@ -10841,7 +10945,9 @@
         track(rig.boat ? "🦢 Took the swan boat" : rig.vip ? "🚗 Riding the VIP car" : "🚗 Borrowed a car from the street");
       }
       function exitCar() {
+        if (drv.flames && (drv.jet || drv.pos.y > 0.05)) landCar(drv); // she sets it down first
         vehMode = "walk";
+        setRideClass();
         drv.speed = 0;
         girl.pos
           .copy(drv.pos)
@@ -10866,6 +10972,7 @@
       }
       function enterPlane() {
         vehMode = "plane";
+        setRideClass();
         girl.g.visible = false;
         yaw = plane.yaw + Math.PI;
         pitch = -0.12;
@@ -10877,6 +10984,7 @@
       }
       function exitPlane() {
         vehMode = "walk";
+        setRideClass();
         plane.throttle = 0;
         girl.pos
           .copy(plane.pos)
@@ -10966,6 +11074,38 @@
             }
           }
       }
+      function flyCollide() {
+        const p = drv.pos;
+        const gx0 = Math.floor(p.x / TILE),
+          gz0 = Math.floor(p.z / TILE);
+        for (let gx = gx0 - 1; gx <= gx0 + 1; gx++)
+          for (let gz = gz0 - 1; gz <= gz0 + 1; gz++) {
+            const spec = towerSpec(gx, gz);
+            if (!spec) continue;
+            for (const t of spec.tiers) {
+              if (p.y >= t.h - 0.25) continue;
+              const hw = t.w / 2 + 1.25,
+                hd = t.d / 2 + 1.25;
+              const dx = p.x - spec.x,
+                dz = p.z - spec.z;
+              if (Math.abs(dx) >= hw || Math.abs(dz) >= hd) continue;
+              if (t.h - p.y < 1.2) {
+                p.y = t.h; // clipped the parapet → up onto the roof
+                drv.vy = Math.max(0, drv.vy);
+                continue;
+              }
+              const px = dx >= 0 ? hw - dx : -(hw + dx);
+              const pz = dz >= 0 ? hd - dz : -(hd + dz);
+              if (Math.abs(px) < Math.abs(pz)) p.x += px;
+              else p.z += pz;
+              if (Math.abs(drv.speed) > 13 && nowS() - lastCrashT > 1.2) {
+                lastCrashT = nowS();
+                screenBurst(["💥", "💫"], 6);
+              }
+              drv.speed *= -0.2;
+            }
+          }
+      }
       function updateCar(dt) {
         let thr = 0,
           brk = 0,
@@ -10984,7 +11124,17 @@
           handbrake = !!keys["Space"];
           boost = keys["ShiftLeft"] || keys["ShiftRight"] || touchBoost;
         }
-        const top = (boost ? 52 : 38) * (drv.boat ? 0.45 : 1); // a pedal boat is gentler
+        // 🚀 jets lit: W / S (or the stick) throttle & brake, Space / ▲ climb,
+        // C / ▼ descend — the ▲▼ buttons stop being gas & brake
+        const jetOn = !!drv.jet;
+        let rise = 0;
+        if (jetOn && !uiPaused) {
+          thr = Math.max(keys["KeyW"] || keys["ArrowUp"] ? 1 : 0, Math.max(0, -joyY));
+          brk = Math.max(keys["KeyS"] || keys["ArrowDown"] ? 1 : 0, Math.max(0, joyY));
+          rise = (keys["Space"] || touchUp ? 1 : 0) - (keys["KeyC"] || keys["ControlLeft"] || touchDown ? 1 : 0);
+          handbrake = false;
+        }
+        const top = (boost ? 52 : 38) * (drv.boat ? 0.45 : 1) * (drv.pos.y > 0.6 ? 1.35 : 1); // a pedal boat is gentler
         if (thr)
           drv.speed +=
             16 *
@@ -11010,12 +11160,47 @@
 
         drv.pos.x += Math.sin(drv.yaw) * drv.speed * dt;
         drv.pos.z += Math.cos(drv.yaw) * drv.speed * dt;
-        carCollide();
-        // 🌊 cars stop at the beach; the swan boat stays on the water
-        if (drv.boat ? keepOnSea(drv.pos, 1.8) : keepOnLand(drv.pos, 2.4, false)) drv.speed *= 0.6;
+        // up & down: the jets climb, hover and descend; without them she falls
+        // back to the street (or onto a roof she's over)
+        if (drv.flames) {
+          const overSea = coastDist(drv.pos.x, drv.pos.z) > -1;
+          if (!jetOn && overSea && drv.pos.y > 0.05) {
+            drv.jet = true; // never drop into the sea — the jets catch her
+            setRideClass();
+          }
+          // (on the street with the jets off, the street is the ground — no popping
+          // up onto a low ledge she drives past)
+          const ground = !drv.jet && drv.pos.y < 0.05 ? 0 : roofUnder(drv.pos.x, drv.pos.z, drv.pos.y);
+          if (drv.jet) {
+            const lift = drv.liftT > 0 ? 1 : rise;
+            drv.liftT = Math.max(0, drv.liftT - dt);
+            drv.vy += (lift * 10 - drv.vy) * Math.min(1, dt * 2.5);
+          } else drv.vy -= 20 * dt;
+          drv.pos.y += drv.vy * dt;
+          const floor = overSea ? Math.max(ground, 1.5) : ground;
+          if (drv.pos.y > 300) {
+            drv.pos.y = 300;
+            drv.vy = Math.min(0, drv.vy);
+          }
+          if (drv.pos.y <= floor) {
+            if (!drv.jet && drv.vy < -14 && nowS() - lastCrashT > 1.2) {
+              lastCrashT = nowS();
+              screenBurst(["💥", "💫"], 6);
+            }
+            drv.pos.y = floor;
+            drv.vy = Math.max(0, drv.vy);
+          }
+          drv.thrust = Math.max(thr, Math.abs(rise) * 0.8, drv.liftT > 0 ? 1 : 0);
+        }
+        const airborne = drv.pos.y > 0.6;
+        if (airborne) flyCollide();
+        else carCollide();
+        // 🌊 cars stop at the beach; the swan boat stays on the water (a flying car
+        // goes wherever it likes)
+        if (!airborne && (drv.boat ? keepOnSea(drv.pos, 1.8) : keepOnLand(drv.pos, 2.4, false))) drv.speed *= 0.6;
         // parked & passing cars: shove apart, and bounce if she drove into one
-        if (hallPush(drv.pos, 1.05, true)) drv.speed *= 0.4; // the music hall
-        const bump = pushOffCars(drv.pos, 1.05);
+        if (drv.pos.y < HALL.h + 0.5 && hallPush(drv.pos, 1.05, true)) drv.speed *= 0.4; // the music hall
+        const bump = drv.pos.y < 2 ? pushOffCars(drv.pos, 1.05) : null;
         if (bump) {
           const into = Math.sin(drv.yaw) * bump[0] + Math.cos(drv.yaw) * bump[1];
           if (into * Math.sign(drv.speed || 1) < -0.4) {
@@ -11029,6 +11214,26 @@
 
         drv.g.position.copy(drv.pos);
         drv.g.rotation.set(0, drv.yaw, 0);
+        if (drv.flames) {
+          // 🚀 the jets: flames grow with throttle & climb, wheels fold flat, and in
+          // the air the car noses up / down with its climb and banks into turns
+          drv.jetK += ((drv.jet ? 1 : 0) - drv.jetK) * Math.min(1, dt * 3);
+          drv.fold += ((drv.jet ? 1 : 0) - drv.fold) * Math.min(1, dt * 2.5);
+          const k = drv.jetK,
+            tt = nowS();
+          if (k > 0.01) {
+            drv.g.rotation.set(clamp(-drv.vy * 0.025, -0.3, 0.3) * k, drv.yaw, -drv.steer * 0.5 * k, "YXZ");
+            drv.g.position.y += Math.sin(tt * 2.1) * 0.05 * k; // hover bob
+          }
+          drv.flames.forEach((f, i) => {
+            f.visible = k > 0.02;
+            if (!f.visible) return;
+            const fl = 0.82 + 0.18 * Math.sin(tt * 43 + i * 1.7) * Math.sin(tt * 29 + i);
+            const len = f.userData.rear ? 0.35 + 0.9 * drv.thrust : 0.55 + 0.45 * Math.max(0, rise) + 0.25 * (drv.liftT > 0 ? 1 : 0);
+            f.scale.set(k, Math.max(0.01, k * len * fl), k);
+          });
+          for (const w of drv.wheels) w.pivot.rotation.z = (w.pivot.position.x > 0 ? -1 : 1) * drv.fold * (Math.PI / 2);
+        }
         if (drv.boat) {
           // bobbing on the swell, leaning into the turns
           drv.g.position.y = Math.sin(nowS() * 1.7) * 0.07;
@@ -11421,7 +11626,7 @@
           const exitHint = isTouch ? "" : " · F للنزول";
           const txt =
             vehMode === "car"
-              ? `${drv.boat ? "🦢 Swan boat · " : "🚗 " + (drv.vip ? "Rose VIP · " : "")}${kmh} km/h${exitHint}`
+              ? `${drv.boat ? "🦢 Swan boat · " : (drv.jet ? "🚀 " : "🚗 ") + (drv.vip ? "Rose VIP · " : "")}${kmh} km/h${drv.pos.y > 0.6 ? ` · ⬆ ${Math.round(drv.pos.y)}m` : ""}${exitHint}`
               : `🛩️ Rose Plane · ${kmh} km/h · ⬆ ${Math.max(0, Math.round(plane.pos.y - PLANE_GEAR))}m${exitHint}`;
           if (txt !== lastVehHud) {
             vehHud.textContent = txt;
@@ -15270,6 +15475,43 @@
         stepIdx = k;
       }
 
+      // ---- 🚀 the car's jets: a soft roar that rises with the throttle
+      let jetSrc = null,
+        jetGain = null,
+        jetLP = null;
+      function updateJetSound() {
+        const ctx = hallCtx;
+        if (!ctx) return;
+        const k = vehMode === "car" && drv.flames ? drv.jetK : 0;
+        if (!jetSrc) {
+          if (k < 0.02) return;
+          const n = ctx.sampleRate * 2,
+            buf = ctx.createBuffer(1, n, ctx.sampleRate),
+            d = buf.getChannelData(0);
+          let last = 0;
+          for (let i = 0; i < n; i++) d[i] = last = last * 0.6 + (Math.random() * 2 - 1) * 0.4;
+          for (let i = 0; i < 1500; i++) {
+            d[i] *= i / 1500;
+            d[n - 1 - i] *= i / 1500;
+          }
+          jetSrc = ctx.createBufferSource();
+          jetSrc.buffer = buf;
+          jetSrc.loop = true;
+          jetLP = ctx.createBiquadFilter();
+          jetLP.type = "lowpass";
+          jetLP.frequency.value = 500;
+          jetGain = ctx.createGain();
+          jetGain.gain.value = 0;
+          jetSrc.connect(jetLP);
+          jetLP.connect(jetGain);
+          jetGain.connect(ctx.destination);
+          jetSrc.start();
+        }
+        const th = vehMode === "car" && drv.flames ? drv.thrust : 0;
+        jetGain.gain.setTargetAtTime(k * (0.03 + 0.05 * th), ctx.currentTime, 0.25);
+        jetLP.frequency.setTargetAtTime(450 + 1500 * th, ctx.currentTime, 0.3);
+      }
+
       function updateBirthday(dt, t) {
         glowScale.value = (innerHeight * renderer.getPixelRatio()) / (2 * Math.tan(d2r(camera.fov / 2)));
         updateCake(dt, t);
@@ -15280,6 +15522,7 @@
         updateFish(dt, t);
         updateFlightAir(dt, t);
         updateFootsteps();
+        updateJetSound();
       }
 
       // ============================================================================
@@ -16887,10 +17130,9 @@
         activate: () => openReasons(),
       });
 
-      // 🌠 the wishing star floats over the beach beside the lighthouse — wishes
-      // made by the sea, under the lighthouse's turning beam (its light beam and
-      // the radar's red dot lead her there)
-      const WISH_AT = P(LIGHTHOUSE.x - 16, LIGHTHOUSE.z - 4);
+      // 🌠 the wishing star floats just beside Rosmantic Music's door, near the
+      // piano — a few steps from the start (its light beam & radar dot show it)
+      const WISH_AT = P(HALL.cx + 8.5, HALL.z1 + 5.5);
       const star = buildStar(WISH_AT);
       addSurprise({
         id: "wish",
