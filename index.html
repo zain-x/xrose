@@ -9759,6 +9759,12 @@
         mesh(W.dark, TRIM_DARK, face);
         mesh(W.chrome, CHROME, face);
         mesh(W.disc, DISC_MAT, face);
+        // 💗 a little pink heart on the hubcap
+        const hub = new THREE.Mesh(LOVE_HEART_GEO, LOVE_PINK);
+        hub.scale.setScalar(0.05);
+        hub.rotation.y = Math.PI / 2;
+        hub.position.x = 0.148;
+        face.add(hub);
         // the caliper grips the disc and doesn't roll with it
         const cal = new THREE.Group();
         if (left) cal.rotation.y = Math.PI;
@@ -9773,6 +9779,201 @@
         }
         return { pivot, spin, front };
       }
+      // ---- 💗 love details for her rides: « Rose ♥ » on both doors, heart hubcaps,
+      // three heart balloons tied to the boot (they sway and stream back as she
+      // drives), a heart charm hanging from the mirror, red roses on the back
+      // shelf, little hearts trailing behind, and a glowing heart on the road
+      // ahead at night
+      const LOVE_HEART_GEO = (() => {
+        const g = new THREE.ExtrudeGeometry(heartShape(), { depth: 0.5, bevelEnabled: true, bevelThickness: 0.18, bevelSize: 0.16, bevelSegments: 3, curveSegments: 14 });
+        g.center(); // (heartShape is already point-down, lobes up)
+        return g;
+      })();
+      const LOVE_PINK = new THREE.MeshStandardMaterial({ color: 0xff5d9e, roughness: 0.3, metalness: 0.1, emissive: 0x7a1440, emissiveIntensity: 0.6 });
+      const LOVE_RED = new THREE.MeshStandardMaterial({ color: 0xe8203c, roughness: 0.25, metalness: 0.05, emissive: 0x6a0818, emissiveIntensity: 0.55 });
+      const DOOR_DECAL = (() => {
+        const cv = document.createElement("canvas");
+        cv.width = 1024;
+        cv.height = 300;
+        const g = cv.getContext("2d");
+        g.textAlign = "center";
+        g.textBaseline = "middle";
+        g.font = 'italic 700 170px Georgia, "Palatino Linotype", serif';
+        g.lineWidth = 10;
+        g.strokeStyle = "rgba(255,255,255,0.95)";
+        g.strokeText("Rose", 470, 150);
+        g.fillStyle = "#ff3d7f";
+        g.fillText("Rose", 470, 150);
+        // a trail of little hearts after the name
+        const heart = (x, y, s, c) => {
+          g.save();
+          g.translate(x, y);
+          g.scale(s, s);
+          g.beginPath();
+          g.moveTo(0, 6);
+          g.bezierCurveTo(-14, -6, -8, -18, 0, -10);
+          g.bezierCurveTo(8, -18, 14, -6, 0, 6);
+          g.fillStyle = c;
+          g.fill();
+          g.restore();
+        };
+        heart(735, 150, 3.4, "#ff3d7f");
+        heart(840, 120, 2.3, "#ff8fb8");
+        heart(915, 160, 1.6, "#ffc2d6");
+        heart(970, 120, 1.1, "#ffffff");
+        const t = new THREE.CanvasTexture(cv);
+        t.colorSpace = THREE.SRGBColorSpace;
+        return new THREE.MeshStandardMaterial({
+          map: t,
+          transparent: true,
+          roughness: 0.3,
+          emissive: 0xffffff,
+          emissiveMap: t,
+          emissiveIntensity: 0.35,
+          depthWrite: false,
+          polygonOffset: true,
+          polygonOffsetFactor: -2,
+        });
+      })();
+      const ROAD_HEART = (() => {
+        const cv = document.createElement("canvas");
+        cv.width = cv.height = 256;
+        const g = cv.getContext("2d");
+        g.translate(128, 140);
+        g.scale(7, 7);
+        g.beginPath();
+        g.moveTo(0, 8);
+        g.bezierCurveTo(-16, -6, -9, -20, 0, -11);
+        g.bezierCurveTo(9, -20, 16, -6, 0, 8);
+        g.fillStyle = "#ff9ec2";
+        g.shadowColor = "#ff5d9e";
+        g.shadowBlur = 3;
+        g.fill();
+        const t = new THREE.CanvasTexture(cv);
+        t.colorSpace = THREE.SRGBColorSpace;
+        return t;
+      })();
+      function addLove(rig) {
+        const c = rig.g;
+        // « Rose ♥ » on both doors
+        for (const sx of [-1, 1]) {
+          const z = -0.12,
+            y = 0.6;
+          const d = new THREE.Mesh(new THREE.PlaneGeometry(1.35, 0.4), DOOR_DECAL);
+          d.position.set(sx * (carSideX(z, y) + 0.012), y, z);
+          d.rotation.y = (sx * Math.PI) / 2;
+          c.add(d);
+        }
+        // three heart balloons on ribbons, tied to the boot
+        const tie = new THREE.Vector3(0, CAR_TOP(-2.0) + 0.02, -1.98);
+        const balloons = [];
+        const strPos = new Float32Array(3 * 2 * 3);
+        const strings = new THREE.LineSegments(
+          new THREE.BufferGeometry().setAttribute("position", new THREE.BufferAttribute(strPos, 3)),
+          new THREE.LineBasicMaterial({ color: 0xffe0ec }),
+        );
+        strings.frustumCulled = false;
+        c.add(strings);
+        [
+          [-0.4, 1.7, 0, LOVE_RED, 0.3],
+          [0.35, 2.05, 1.3, LOVE_PINK, 0.27],
+          [0.0, 2.45, 2.6, LOVE_RED, 0.33],
+        ].forEach(([ox, oy, ph, mat, s]) => {
+          const b = new THREE.Mesh(LOVE_HEART_GEO, mat);
+          b.scale.setScalar(s);
+          b.castShadow = true;
+          c.add(b);
+          balloons.push({ b, ox, oy, ph });
+        });
+        // a heart charm on a thread from the mirror, inside the windscreen
+        const charm = new THREE.Group();
+        charm.position.set(0, 1.33, 0.52);
+        const thread = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.16, 4).translate(0, -0.08, 0), LOVE_PINK);
+        const ch = new THREE.Mesh(LOVE_HEART_GEO, LOVE_PINK);
+        ch.scale.setScalar(0.045);
+        ch.position.y = -0.2;
+        charm.add(thread, ch);
+        c.add(charm);
+        // a bouquet of red roses on the back shelf
+        const bouquet = new THREE.Group();
+        bouquet.position.set(0.38, 1.0, -1.42);
+        bouquet.rotation.x = 0.5;
+        const wrap = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.32, 10, 1, true).rotateX(Math.PI), new THREE.MeshStandardMaterial({ color: 0xffd6e6, side: THREE.DoubleSide, roughness: 0.6 }));
+        bouquet.add(wrap);
+        for (let k = 0; k < 7; k++) {
+          const a = (k / 7) * 6.283;
+          const r = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), LOVE_RED);
+          r.position.set(Math.cos(a) * (k ? 0.07 : 0), 0.17 + (k ? 0 : 0.03), Math.sin(a) * (k ? 0.07 : 0));
+          bouquet.add(r);
+        }
+        c.add(bouquet);
+        // a glowing heart on the road ahead, with the headlights, at night
+        const roadHeart = new THREE.Mesh(
+          new THREE.PlaneGeometry(2.6, 2.6).rotateX(-Math.PI / 2),
+          new THREE.MeshBasicMaterial({ map: ROAD_HEART, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }),
+        );
+        roadHeart.position.set(0, 0.06, 8);
+        c.add(roadHeart);
+        rig.love = { balloons, strings, strPos, tie, charm, roadHeart, trailT: 0 };
+      }
+      // little hearts float up behind the car while she drives
+      const loveTrail = [];
+      for (let i = 0; i < 16; i++) {
+        const sp = emojiSprite(i % 2 ? "💗" : "💕");
+        sp.material.depthTest = true;
+        sp.visible = false;
+        scene.add(sp);
+        loveTrail.push({ sp, t: 1, x: 0, y: 0, z: 0 });
+      }
+      function updateLove(dt, t) {
+        for (const rig of [car, streetCar]) {
+          const L = rig.love;
+          if (!L || (rig === streetCar && !streetCar.active)) continue;
+          const driving = vehMode === "car" && drv === rig;
+          const spd = driving ? rig.speed : 0;
+          // balloons: bob and sway, stream back with speed (and in the air)
+          const back = Math.min(1.4, Math.abs(spd) * 0.045 + (rig.pos.y > 0.6 ? 0.3 : 0));
+          L.balloons.forEach((q, i) => {
+            const sway = Math.sin(t * 1.3 + q.ph) * 0.12;
+            q.b.position.set(q.ox + sway, L.tie.y + q.oy - back * 0.45, L.tie.z - 0.2 - back * (1.2 + i * 0.15));
+            q.b.rotation.set(Math.sin(t * 0.9 + q.ph) * 0.1 - back * 0.3, Math.PI + Math.sin(t * 0.7 + q.ph) * 0.4, sway);
+            L.strPos.set([L.tie.x, L.tie.y, L.tie.z, q.b.position.x, q.b.position.y - q.b.scale.y * 1.2, q.b.position.z], i * 6);
+          });
+          L.strings.geometry.attributes.position.needsUpdate = true;
+          // the charm swings with her turns
+          L.charm.rotation.set(Math.sin(t * 2.1) * 0.06, 0, (driving ? -rig.steer * 0.9 : 0) + Math.sin(t * 1.7) * 0.08);
+          // the heart on the road shows at night, ahead of her headlights
+          L.roadHeart.material.opacity = driving && rig.pos.y < 0.6 ? 0.55 * clamp((uNight.value - 0.3) / 0.5, 0, 1) : 0;
+          // and a trail of little hearts when she's moving
+          if (driving && Math.abs(spd) > 4) {
+            L.trailT -= dt;
+            if (L.trailT <= 0) {
+              L.trailT = 0.2;
+              const h2 = loveTrail.find((q) => q.t >= 1);
+              if (h2) {
+                h2.t = 0;
+                h2.x = rig.pos.x - Math.sin(rig.yaw) * 2.8 + (Math.random() - 0.5) * 0.8;
+                h2.y = rig.pos.y + 1.0;
+                h2.z = rig.pos.z - Math.cos(rig.yaw) * 2.8 + (Math.random() - 0.5) * 0.8;
+                h2.sp.visible = true;
+              }
+            }
+          }
+        }
+        for (const q of loveTrail) {
+          if (q.t >= 1) continue;
+          q.t += dt / 1.4;
+          if (q.t >= 1) {
+            q.sp.visible = false;
+            continue;
+          }
+          const s = 0.45 + q.t * 0.35;
+          q.sp.scale.set(s, s, 1);
+          q.sp.position.set(q.x, q.y + q.t * 1.6, q.z);
+          q.sp.material.opacity = Math.sin(q.t * Math.PI) * 0.9;
+        }
+      }
+
       // A drivable car rig. Two exist: her violet VIP car, and the "street car" —
       // whichever parked car she gets into becomes this rig (same shape, its paint).
       function buildCarRig(paint, vip, pos, yaw) {
@@ -9846,6 +10047,7 @@
           c.add(w.pivot);
           rig.wheels.push(w);
         }
+        addLove(rig);
         // 🚀 the jet package, Tesla-Roadster style: two burners out of the
         // exhausts and four down-jets under the wheels, which fold flat to fly
         {
@@ -15669,6 +15871,7 @@
         updateFootsteps();
         updateJetSound();
         updateCakeWay(dt, t);
+        updateLove(dt, t);
       }
 
       // ============================================================================
