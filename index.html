@@ -3682,7 +3682,10 @@
 
         // sun key light
         keyLight.color.copy(C_KEY_NOON).lerp(C_KEY_WARM, lowSun);
-        keyLight.intensity = 1.25 * dayF * (1 - 0.5 * storm);
+        // (×1.7 by day: three's lights divide by π, and at the old 1.25 every
+        // pale paint went a dull grey-beige — which, next to all the rose, the
+        // eye reads as green)
+        keyLight.intensity = 2.1 * dayF * (1 - 0.5 * storm);
         keyLight.position.copy(camera.position).addScaledVector(sun, 300);
         keyLight.target.position.copy(camera.position);
 
@@ -3693,7 +3696,7 @@
         moonFill.target.position.copy(camera.position);
 
         // sky/ground ambient
-        hemi.intensity = lerp(1.2, 0.75, dayF) * (1 - 0.2 * storm); // bright, soft nights
+        hemi.intensity = lerp(1.2, 1.25, dayF) * (1 - 0.2 * storm); // bright, soft nights
         hemi.color.copy(C_SKY_NIGHT).lerp(C_SKY_DAY, dayF);
         hemi.groundColor.copy(C_GND_NIGHT).lerp(C_GND_DAY, dayF);
 
@@ -9951,27 +9954,6 @@
           d.rotation.y = (sx * Math.PI) / 2;
           c.add(d);
         }
-        // three heart balloons on ribbons, tied to the boot
-        const tie = new THREE.Vector3(0, CAR_TOP(-2.0) + 0.02, -1.98);
-        const balloons = [];
-        const strPos = new Float32Array(3 * 2 * 3);
-        const strings = new THREE.LineSegments(
-          new THREE.BufferGeometry().setAttribute("position", new THREE.BufferAttribute(strPos, 3)),
-          new THREE.LineBasicMaterial({ color: 0xffe0ec }),
-        );
-        strings.frustumCulled = false;
-        c.add(strings);
-        [
-          [-0.4, 1.7, 0, LOVE_RED, 0.3],
-          [0.35, 2.05, 1.3, LOVE_PINK, 0.27],
-          [0.0, 2.45, 2.6, LOVE_RED, 0.33],
-        ].forEach(([ox, oy, ph, mat, s]) => {
-          const b = new THREE.Mesh(LOVE_HEART_GEO, mat);
-          b.scale.setScalar(s);
-          b.castShadow = true;
-          c.add(b);
-          balloons.push({ b, ox, oy, ph });
-        });
         // a heart charm on a thread from the mirror, inside the windscreen
         const charm = new THREE.Group();
         charm.position.set(0, 1.33, 0.52);
@@ -10001,7 +9983,7 @@
         );
         roadHeart.position.set(0, 0.06, 8);
         c.add(roadHeart);
-        rig.love = { balloons, strings, strPos, tie, charm, roadHeart, trailT: 0 };
+        rig.love = { charm, roadHeart, trailT: 0 };
       }
       // little hearts float up behind the car while she drives
       const loveTrail = [];
@@ -10018,15 +10000,6 @@
           if (!L || (rig === streetCar && !streetCar.active)) continue;
           const driving = vehMode === "car" && drv === rig;
           const spd = driving ? rig.speed : 0;
-          // balloons: bob and sway, stream back with speed (and in the air)
-          const back = Math.min(1.4, Math.abs(spd) * 0.045 + (rig.pos.y > 0.6 ? 0.3 : 0));
-          L.balloons.forEach((q, i) => {
-            const sway = Math.sin(t * 1.3 + q.ph) * 0.12;
-            q.b.position.set(q.ox + sway, L.tie.y + q.oy - back * 0.45, L.tie.z - 0.2 - back * (1.2 + i * 0.15));
-            q.b.rotation.set(Math.sin(t * 0.9 + q.ph) * 0.1 - back * 0.3, Math.PI + Math.sin(t * 0.7 + q.ph) * 0.4, sway);
-            L.strPos.set([L.tie.x, L.tie.y, L.tie.z, q.b.position.x, q.b.position.y - q.b.scale.y * 1.2, q.b.position.z], i * 6);
-          });
-          L.strings.geometry.attributes.position.needsUpdate = true;
           // the charm swings with her turns
           L.charm.rotation.set(Math.sin(t * 2.1) * 0.06, 0, (driving ? -rig.steer * 0.9 : 0) + Math.sin(t * 1.7) * 0.08);
           // the heart on the road shows at night, ahead of her headlights
@@ -13227,13 +13200,15 @@
         resortRoot.add(im);
         return im;
       };
-      const WOOD = RM(0xc8945f, { roughness: 0.85, emissive: 0x2a1608, emissiveIntensity: 0.35 });
-      const WOOD_D = RM(0x9a6a44, { roughness: 0.85, emissive: 0x1a0c04, emissiveIntensity: 0.3 });
-      const PEARL_R = RM(0xfbeef2, { emissive: 0x3a2430, emissiveIntensity: 0.35 });
-      const PINK_R = RM(0xff7aa8, { emissive: 0x5a1030, emissiveIntensity: 0.5 });
-      const WHITE_R = RM(0xffffff, { emissive: 0x3a3034, emissiveIntensity: 0.35 });
-      const THATCH = RM(0xdcb27e, { roughness: 0.95, emissive: 0x2a1a08, emissiveIntensity: 0.4 });
-      const STONE_R = RM(0xf2e2d6, { roughness: 0.9, emissive: 0x2a2018, emissiveIntensity: 0.4 });
+      // (the pale paints glow a little in their own warm colour, so they stay
+      // white, cream and honey — never a dull olive — in shade and on phones)
+      const WOOD = RM(0xd29a62, { roughness: 0.85, emissive: 0x4a2410, emissiveIntensity: 0.45 });
+      const WOOD_D = RM(0xa06c46, { roughness: 0.85, emissive: 0x2e1408, emissiveIntensity: 0.4 });
+      const PEARL_R = RM(0xfff4f7, { metalness: 0, emissive: 0xb8949e, emissiveIntensity: 0.5 });
+      const PINK_R = RM(0xff7aa8, { metalness: 0, emissive: 0xa02456, emissiveIntensity: 0.55 });
+      const WHITE_R = RM(0xffffff, { metalness: 0, emissive: 0xc0b0b6, emissiveIntensity: 0.5 });
+      const THATCH = RM(0xf0c48e, { roughness: 0.95, metalness: 0, emissive: 0x6a3a18, emissiveIntensity: 0.5 });
+      const STONE_R = RM(0xf6e6dc, { roughness: 0.9, emissive: 0x7a5e54, emissiveIntensity: 0.45 });
       const GLOW_WARM = RM(0x3a2010, { emissive: 0xffc27a, emissiveIntensity: 1.6 });
       const NEON_R = (c, i = 2.2) => RM(0x200810, { emissive: c, emissiveIntensity: i });
       // a sign board: the Arabic name on top (drawn right-to-left, on its own), the
@@ -13753,10 +13728,28 @@
             REST.tables.push([tx, tz]);
             ti++;
           }
-        const sg = textPlane("مطعم روز", "🍽️ ROSE RESTAURANT", 7, 1.8, "#3a1238", "#fff2f8", "#ffd166");
-        sg.position.set(REST.x, DECK_Y + 5.4, REST.z - REST.hw + 0.2);
-        sg.rotation.y = Math.PI;
-        resortRoot.add(sg);
+        // the name: a glowing arch over the boardwalk where she arrives (out in
+        // the open, clear of the roof), fairy bulbs along it, a neon heart on top
+        {
+          const AZ = REST.z - REST.hw - 2.2,
+            top = DECK_Y + 3.9;
+          for (const sx of [-1, 1]) {
+            rcyl(0.11, 0.13, top - DECK_Y, REST.x + sx * 2.35, (DECK_Y + top) / 2, AZ, WOOD_D, 8);
+            rmesh(new THREE.SphereGeometry(0.17, 10, 8), GLOW_WARM, REST.x + sx * 2.35, top + 0.12, AZ);
+          }
+          rbox(4.9, 0.16, 0.16, REST.x, top - 0.02, AZ, WOOD_D);
+          for (const ry of [0, Math.PI]) {
+            const sg = textPlane("مطعم روز", "🍽️ ROSE RESTAURANT", 4.3, 1.15, "#3a1238", "#fff2f8", "#ffd166");
+            sg.position.set(REST.x, top - 0.72, AZ + (ry ? 0.03 : -0.03));
+            sg.rotation.y = ry ? 0 : Math.PI;
+            resortRoot.add(sg);
+          }
+          const bulbs = [];
+          for (let k = 0; k <= 12; k++) bulbs.push(matAt(REST.x - 2.25 + (k / 12) * 4.5, top + 0.1, AZ));
+          resortIM(new THREE.SphereGeometry(0.07, 8, 6), GLOW_WARM, bulbs);
+          const heart = rmesh(LOVE_HEART_GEO, NEON_R(0xff4f8f, 2.4), REST.x, top + 0.55, AZ);
+          heart.scale.setScalar(0.32);
+        }
         RESORT_SPOTS.push({
           x: REST.x,
           z: REST.z,
