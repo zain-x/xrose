@@ -7263,6 +7263,7 @@
         }
         if (roseOn) vol = Math.max(vol, 0.42); // ♪ the calm song, softly, all over the island
         if (bdaySong) vol = Math.max(vol, 0.9); // 🎂 « Happy Birthday », after the candles
+        if (radioQuiet()) vol = 0; // 📻 the radio is playing — the piano falls silent
         if (hallCtx) {
           const want = vinylPlaying && !pianoOpen ? 0 : vol;
           hallBus.gain.setTargetAtTime(want, hallCtx.currentTime, 0.4);
@@ -10225,7 +10226,7 @@
             vehMode === "car"
               ? Math.abs(drv.speed) > 0.4
               : plane.speed > 0.6 || plane.throttle > 0.04;
-          const want = !moving
+          const want = !moving || radioQuiet()
             ? 0
             : vehMode === "car"
               ? 0.028 + Math.min(0.02, Math.abs(drv.speed) * 0.001)
@@ -10309,6 +10310,11 @@
       }
 
       // ---- the sound: four players, mixed (and AM-filtered) through WebAudio --------
+      // while Rose FM plays in a car or the plane, it has the stage to itself:
+      // no engine, no jets, no indicator ticks, no hall piano, no fireworks
+      function radioQuiet() {
+        return radio.on && !radio.paused;
+      }
       const rfSong = new Audio();
       const rfFx = new Audio();
       const rfStatic = new Audio();
@@ -11025,7 +11031,7 @@
       let tickBuf = null;
       function indicatorTick(on) {
         const ctx = hallCtx;
-        if (!ctx || ctx.state !== "running") return;
+        if (!ctx || ctx.state !== "running" || radioQuiet()) return;
         if (!tickBuf) {
           const n = Math.floor(ctx.sampleRate * 0.02);
           tickBuf = ctx.createBuffer(1, n, ctx.sampleRate);
@@ -14223,7 +14229,7 @@
       let fwNoise = null;
       function fwSound(kind, x, y, z) {
         const ctx = hallCtx;
-        if (!ctx || ctx.state !== "running") return;
+        if (!ctx || ctx.state !== "running" || radioQuiet()) return;
         if (!fwNoise) {
           const n = ctx.sampleRate * 3;
           fwNoise = ctx.createBuffer(1, n, ctx.sampleRate);
@@ -15647,7 +15653,7 @@
           jetSrc.start();
         }
         const th = vehMode === "car" && drv.flames ? drv.thrust : 0;
-        jetGain.gain.setTargetAtTime(k * (0.006 + 0.01 * th), ctx.currentTime, 0.25);
+        jetGain.gain.setTargetAtTime(radioQuiet() ? 0 : k * (0.006 + 0.01 * th), ctx.currentTime, 0.25);
         jetLP.frequency.setTargetAtTime(450 + 1500 * th, ctx.currentTime, 0.3);
       }
 
