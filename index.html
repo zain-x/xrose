@@ -15215,11 +15215,13 @@
         metalness: 0,
       });
       const LEGGING_MAT = new THREE.MeshStandardMaterial({
-        color: 0xffc2d6, // soft blush tights
-        roughness: 0.8,
+        // rosy pink tights — a clearly pink base (the old pale blush could read
+        // sallow/green on phones) and a stronger warm glow under any light
+        color: 0xff9fc0,
+        roughness: 0.75,
         metalness: 0,
-        emissive: 0x6a2a40, // a warm inner glow keeps them blush in any light
-        emissiveIntensity: 0.4,
+        emissive: 0x8a2448,
+        emissiveIntensity: 0.55,
       });
 
       // 🦸‍♀️ her super-suit fabric — swapped onto the top when she transforms
