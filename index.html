@@ -17479,9 +17479,9 @@
         activate: () => openReasons(),
       });
 
-      // 🌠 the wishing star floats just beside Rosmantic Music's door, near the
-      // piano — a few steps from the start (its light beam & radar dot show it)
-      const WISH_AT = P(HALL.cx + 8.5, HALL.z1 + 5.5);
+      // 🌠 the wishing star floats over the glowing circle in the middle of Rose
+      // Park, where the two paths cross (its light beam & radar dot show it)
+      const WISH_AT = P(PARK.x, PARK.z);
       const star = buildStar(WISH_AT);
       addSurprise({
         id: "wish",
