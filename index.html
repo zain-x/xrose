@@ -9446,7 +9446,8 @@
         t.colorSpace = THREE.SRGBColorSpace;
         return new THREE.MeshStandardMaterial({ map: t, emissiveMap: t, emissive: 0xffffff, emissiveIntensity: 0.25, roughness: 0.5 });
       })();
-      const AMBER_MAT = new THREE.MeshStandardMaterial({ color: 0x3a2000, emissive: 0xffa22a, emissiveIntensity: 1.4 });
+      // amber indicators: dim at rest (parked cars), her rides blink their own copies
+      const AMBER_MAT = new THREE.MeshStandardMaterial({ color: 0x3a2000, emissive: 0xffa22a, emissiveIntensity: 0.25 });
       const CALIPER_MAT = new THREE.MeshStandardMaterial({ color: 0xe0203a, roughness: 0.4, metalness: 0.3, emissive: 0x3a0610, emissiveIntensity: 0.4 });
       const DISC_MAT = new THREE.MeshStandardMaterial({ color: 0xb4b0bc, roughness: 0.35, metalness: 0.85 });
       const INTERIOR_MAT = new THREE.MeshStandardMaterial({ color: 0x7a5068, roughness: 0.8, emissive: 0x2a1020, emissiveIntensity: 0.4 });
@@ -9500,7 +9501,7 @@
       const carModels = {};
       function carModel(q) {
         if (carModels[q]) return carModels[q];
-        const P = { paint: [], glass: [], trim: [], chrome: [], head: [], drl: [], tail: [], amber: [], plate: [], interior: [] };
+        const P = { paint: [], glass: [], trim: [], chrome: [], head: [], drl: [], tail: [], amber: [], rev: [], plate: [], interior: [] };
         const put = (k, g, uv = false) => P[k].push(carPN(g, uv));
         const B = (w, h, d) => new THREE.BoxGeometry(w, h, d);
         // ---- the body & the glasshouse
@@ -9569,7 +9570,7 @@
           for (const dx of [-0.12, 0.12]) put("tail", carFlush(B(0.25, 0.085, 0.08), sx * (0.6 + dx), ty, -1, 0.08, 0.01));
           const wz = -2.06;
           put("tail", carAt(B(0.04, 0.075, 0.3), sx * (carSideX(wz, ty) - 0.01), ty, wz));
-          put("chrome", carFlush(B(0.11, 0.035, 0.03), sx * 0.42, 0.79, -1, 0.03, 0.006)); // reverse lights
+          put("rev", carFlush(B(0.11, 0.035, 0.03), sx * 0.42, 0.79, -1, 0.03, 0.006)); // reverse lights
           put("amber", carFlush(B(0.12, 0.03, 0.03), sx * 0.72, 0.79, -1, 0.03, 0.006));
           put("tail", carFlush(B(0.16, 0.035, 0.03), sx * 0.7, 0.42, -1, 0.03, 0.006)); // reflectors
           // twin exhausts with dark mouths
@@ -9632,6 +9633,11 @@
         }
         const out = {};
         for (const k in P) out[k] = P[k].length ? mergeGeometries(P[k]) : null;
+        // the indicators split by side, so each side can blink on its own
+        // (car-local +x is her left: the nose points +z)
+        const sideOf = (g) => (g.computeBoundingBox(), g.boundingBox.min.x + g.boundingBox.max.x > 0 ? "L" : "R");
+        out.amberL = mergeGeometries(P.amber.filter((g) => sideOf(g) === "L"));
+        out.amberR = mergeGeometries(P.amber.filter((g) => sideOf(g) === "R"));
         // the parked cars carry their wheels inside the same merged parts
         if (!q) {
           const W = carWheelGeos(false);
@@ -9696,6 +9702,15 @@
           vip,
           headMat: headlightMat.clone(),
           tailMat: taillightMat.clone(),
+          // her own indicators & reverse lights (off until she turns / backs up)
+          ambL: AMBER_MAT.clone(),
+          ambR: AMBER_MAT.clone(),
+          revMat: new THREE.MeshStandardMaterial({ color: 0x3a3440, emissive: 0xf2f4ff, emissiveIntensity: 0.12 }),
+          turnDir: 0,
+          turnHold: 0,
+          blink: 0,
+          blinkIdle: 0,
+          blinkOn: false,
         };
         const c = rig.g;
         const add = (geo, mat) => {
@@ -9710,7 +9725,9 @@
         add(M.glass, GLASS_CLEAR).castShadow = false;
         add(M.trim, TRIM_DARK);
         add(M.chrome, CHROME);
-        add(M.amber, AMBER_MAT);
+        add(M.amberL, rig.ambL);
+        add(M.amberR, rig.ambR);
+        add(M.rev, rig.revMat);
         add(M.plate, PLATE_MAT);
         add(M.interior, INTERIOR_MAT);
         add(M.head, rig.headMat);
@@ -10829,6 +10846,31 @@
         );
       }
 
+      // the indicator's soft tick-tock (a tiny filtered click, very quiet)
+      let tickBuf = null;
+      function indicatorTick(on) {
+        const ctx = hallCtx;
+        if (!ctx || ctx.state !== "running") return;
+        if (!tickBuf) {
+          const n = Math.floor(ctx.sampleRate * 0.02);
+          tickBuf = ctx.createBuffer(1, n, ctx.sampleRate);
+          const d = tickBuf.getChannelData(0);
+          for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 6);
+        }
+        const src = ctx.createBufferSource();
+        src.buffer = tickBuf;
+        const f = ctx.createBiquadFilter();
+        f.type = "bandpass";
+        f.frequency.value = on ? 2400 : 1700;
+        f.Q.value = 3;
+        const g = ctx.createGain();
+        g.gain.value = 0.05;
+        src.connect(f);
+        f.connect(g);
+        g.connect(ctx.destination);
+        src.start();
+      }
+
       // ---- driving the car -----------------------------------------------------------
       function carCollide() {
         const p = drv.pos;
@@ -10944,6 +10986,32 @@
         }
         drv.tail.material.emissiveIntensity =
           brk && drv.speed > 0.5 ? 3.4 : 0.9;
+        if (drv.ambL) {
+          // ⬜ reversing: the reverse lights come on, a cool bright white
+          const back = drv.speed < -0.3 || (brk && drv.speed <= 0.5 && !thr);
+          drv.revMat.emissiveIntensity += ((back ? 3.2 : 0.12) - drv.revMat.emissiveIntensity) * Math.min(1, dt * 12);
+          // 🔶 indicators: only once she has been turning a while — a quick nudge
+          // of the wheel doesn't set them off; they stop soon after she straightens
+          const dir = Math.abs(steerIn) > 0.3 ? Math.sign(steerIn) : 0;
+          if (dir && dir === drv.turnDir) drv.turnHold += dt;
+          else {
+            drv.turnDir = dir;
+            drv.turnHold = 0;
+          }
+          if (dir && drv.turnHold > 0.7 && drv.blink !== dir) {
+            drv.blink = dir;
+            drv.blinkT0 = nowS();
+          }
+          drv.blinkIdle = dir ? 0 : drv.blinkIdle + dt;
+          if (drv.blink && drv.blinkIdle > 0.6) drv.blink = 0;
+          const on = !!drv.blink && ((nowS() - drv.blinkT0) * 1.5) % 1 < 0.5; // 1.5 blinks a second
+          if (on !== drv.blinkOn) {
+            drv.blinkOn = on;
+            if (drv.blink) indicatorTick(on);
+          }
+          drv.ambL.emissiveIntensity = drv.blink === 1 && on ? 2.8 : 0.12;
+          drv.ambR.emissiveIntensity = drv.blink === -1 && on ? 2.8 : 0.12;
+        }
         for (const L of drv.lamps) L.intensity = 2.4 + 4.2 * uNight.value;
         drv.headMat.emissiveIntensity = 0.4 + 1.8 * uNight.value;
 
@@ -11410,7 +11478,7 @@
       const fleetBodyGeo = FM.paint;
       const fleetGlassGeo = FM.glass;
       const fleetDarkGeo = mergeNI([FM.trim, FM.wheelsDark]); // trim, tyres, rims, discs
-      const fleetChromeGeo = mergeNI([FM.chrome, FM.wheelsChrome]); // spokes, lips, handles, exhausts
+      const fleetChromeGeo = mergeNI([FM.chrome, FM.rev, FM.wheelsChrome]); // spokes, lips, handles, exhausts, reverse lights
       const fleetHeadGeo = mergeNI([FM.head, FM.drl]);
       const fleetTailGeo = FM.tail; // lamps, light bar, high brake light, reflectors
       const FLEET_PAINT = new THREE.MeshStandardMaterial({
