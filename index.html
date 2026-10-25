@@ -9988,8 +9988,9 @@
         rig.love = { charm, roadHeart, trailT: 0 };
       }
       // little hearts float up behind the car while she drives
-      const loveTrail = [];
-      for (let i = 0; i < 16; i++) {
+      const loveTrail = [],
+        _lv = new THREE.Vector3();
+      for (let i = 0; i < 28; i++) {
         const sp = emojiSprite(i % 2 ? "💗" : "💕");
         sp.material.depthTest = true;
         sp.visible = false;
@@ -10017,8 +10018,26 @@
                 h2.x = rig.pos.x - Math.sin(rig.yaw) * 2.8 + (Math.random() - 0.5) * 0.8;
                 h2.y = rig.pos.y + 1.0;
                 h2.z = rig.pos.z - Math.cos(rig.yaw) * 2.8 + (Math.random() - 0.5) * 0.8;
+                h2.k = 1;
                 h2.sp.visible = true;
               }
+            }
+          }
+        }
+        // the Rose Plane leaves a trail of big hearts behind her tail
+        if (vehMode === "plane" && plane.speed > 12) {
+          plane.trailT = (plane.trailT || 0) - dt;
+          if (plane.trailT <= 0) {
+            plane.trailT = 0.09;
+            const h2 = loveTrail.find((q) => q.t >= 1);
+            if (h2) {
+              plane.g.localToWorld(_lv.set((Math.random() - 0.5) * 1.2, 0.3 + (Math.random() - 0.5) * 0.6, -5.4));
+              h2.t = 0;
+              h2.x = _lv.x;
+              h2.y = _lv.y;
+              h2.z = _lv.z;
+              h2.k = 2.4;
+              h2.sp.visible = true;
             }
           }
         }
@@ -10029,9 +10048,9 @@
             q.sp.visible = false;
             continue;
           }
-          const s = 0.45 + q.t * 0.35;
+          const s = (0.45 + q.t * 0.35) * (q.k || 1);
           q.sp.scale.set(s, s, 1);
-          q.sp.position.set(q.x, q.y + q.t * 1.6, q.z);
+          q.sp.position.set(q.x, q.y + q.t * 1.6 * (q.k || 1), q.z);
           q.sp.material.opacity = Math.sin(q.t * Math.PI) * 0.9;
         }
       }
@@ -10182,7 +10201,8 @@
       let drv = car; // the car she is driving (or drove last)
       const driving = (rig) => vehMode === "car" && drv === rig;
 
-      // ---- the plane — white with rose-red trim (nose = +Z locally) --------------
+      // ---- the Rose Plane — a sleek modern sport plane in pearl white, rose pink
+      // and gold, hearts on her flanks, « I ♥ U ROSE » under the wings (nose = +Z)
       const PLANE_GEAR = 1.6; // wheel-contact height below the fuselage origin
       const plane = {
         g: new THREE.Group(),
@@ -10200,173 +10220,352 @@
         propDisc: null,
         strobeMat: null,
       };
+      const PLANE_PINK = new THREE.MeshStandardMaterial({ color: 0xff4f93, roughness: 0.3, metalness: 0.1, emissive: 0xc02a68, emissiveIntensity: 0.45 });
+      const PLANE_GOLD = new THREE.MeshStandardMaterial({ color: 0xffc861, roughness: 0.25, metalness: 0.8, emissive: 0x7a5014, emissiveIntensity: 0.5 });
+      const PLANE_GLASS = new THREE.MeshStandardMaterial({ color: 0x6b4f9f, roughness: 0.06, metalness: 0.35, emissive: 0x2c1648, emissiveIntensity: 0.6 });
+      const PLANE_BLADE = new THREE.MeshStandardMaterial({ color: 0x5a5068, roughness: 0.35, metalness: 0.3 });
+      // a heart path on a 2D canvas, centred on (x, y), point-down, ~2s wide
+      const canvasHeart = (g, x, y, s, rot = 0) => {
+        g.save();
+        g.translate(x, y);
+        g.rotate(rot);
+        g.scale(s / 16, s / 16);
+        g.beginPath();
+        g.moveTo(0, 8);
+        g.bezierCurveTo(-16, -6, -9, -20, 0, -11);
+        g.bezierCurveTo(9, -20, 16, -6, 0, 8);
+        g.restore();
+      };
+      // her flank paint: u runs round the body (0 belly, ¼ left flank (+x), ½ top,
+      // ¾ right flank), v runs tail → nose (canvas top = nose)
+      const PLANE_LIVERY = (() => {
+        const W = 1024,
+          H = 512,
+          cv = document.createElement("canvas");
+        cv.width = W;
+        cv.height = H;
+        const g = cv.getContext("2d");
+        g.fillStyle = "#ffffff";
+        g.fillRect(0, 0, W, H);
+        // a soft blush belly
+        const bel = g.createLinearGradient(0, 0, W, 0);
+        for (const [u, a] of [[0, 0.55], [0.14, 0], [0.86, 0], [1, 0.55]]) bel.addColorStop(u, `rgba(255,160,200,${a})`);
+        g.fillStyle = bel;
+        g.fillRect(0, 0, W, H);
+        // the rose-pink nose cowl, with a gold ring behind it
+        g.fillStyle = "#ff4f93";
+        g.fillRect(0, 0, W, H * 0.085);
+        g.fillStyle = "#ffc861";
+        g.fillRect(0, H * 0.085, W, H * 0.018);
+        // a pink swoosh down each flank, sweeping up toward the tail, gold pinstripe above
+        for (const side of [0.25, 0.75]) {
+          const up = side < 0.5 ? 1 : -1; // toward the top of the body (u = ½)
+          const band = (off, wid, col) => {
+            g.beginPath();
+            for (let k = 0; k <= 40; k++) {
+              const v = k / 40,
+                y = H * (0.12 + v * 0.88),
+                u = side + up * (off + 0.11 * v * v);
+              k ? g.lineTo(u * W, y) : g.moveTo(u * W, y);
+            }
+            g.strokeStyle = col;
+            g.lineWidth = wid;
+            g.lineCap = "round";
+            g.stroke();
+          };
+          band(-0.01, 30, "#ff4f93");
+          band(0.03, 7, "#ffc861");
+          band(-0.045, 5, "#ff9cc4");
+          // a scatter of little hearts toward the tail, upright on the flank
+          for (let k = 0; k < 9; k++) {
+            const v = 0.62 + (k % 3) * 0.12 + Math.floor(k / 3) * 0.035,
+              u = side + up * (0.07 + (k % 3) * 0.035 + 0.11 * v * v * 0.4);
+            canvasHeart(g, u * W, H * v, 9 + (k % 3) * 4, up > 0 ? Math.PI / 2 : -Math.PI / 2);
+            g.fillStyle = ["#ff4f93", "#ff8fb8", "#ffc861"][k % 3];
+            g.fill();
+          }
+        }
+        const t = new THREE.CanvasTexture(cv);
+        t.colorSpace = THREE.SRGBColorSpace;
+        t.anisotropy = 8;
+        return t;
+      })();
+      const PLANE_BODY = new THREE.MeshStandardMaterial({
+        map: PLANE_LIVERY,
+        roughness: 0.35,
+        metalness: 0,
+        emissive: 0xd8ccd2,
+        emissiveMap: PLANE_LIVERY,
+        emissiveIntensity: 0.72,
+      });
+      // a decal: a canvas drawn by fn, on a flat plane
+      const planeDecal = (w, h, cw, ch, fn) => {
+        const cv = document.createElement("canvas");
+        cv.width = cw;
+        cv.height = ch;
+        const g = cv.getContext("2d");
+        fn(g, cw, ch);
+        const t = new THREE.CanvasTexture(cv);
+        t.colorSpace = THREE.SRGBColorSpace;
+        t.anisotropy = 8;
+        return new THREE.Mesh(
+          new THREE.PlaneGeometry(w, h),
+          new THREE.MeshBasicMaterial({ map: t, transparent: true, toneMapped: false, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }),
+        );
+      };
+      // « I ♥ U » / « ROSE » in big rose letters, white-edged so they read from far below
+      const loveWords = (text) => (g, w, h) => {
+        g.textAlign = "center";
+        g.textBaseline = "middle";
+        g.font = `900 ${Math.round(h * 0.78)}px "Segoe UI", Tahoma, Arial, sans-serif`;
+        g.lineJoin = "round";
+        g.lineWidth = h * 0.12;
+        g.strokeStyle = "#ffffff";
+        g.strokeText(text, w / 2, h * 0.54);
+        g.fillStyle = "#ff2f7d";
+        g.fillText(text, w / 2, h * 0.54);
+      };
       {
         const p = plane.g;
-        const fus = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.34, 0.44, 4.6, 14),
-          FUSELAGE_WHITE,
-        );
-        fus.rotation.x = Math.PI / 2;
+        // the body: one smooth teardrop, lathed and gently oval, the tail cone
+        // sweeping up the way modern planes do
+        const R_KEYS = [[-4.7, 0.05], [-4.0, 0.16], [-3.0, 0.3], [-2.0, 0.42], [-1.0, 0.5], [0.2, 0.54], [1.2, 0.53], [2.0, 0.48], [2.6, 0.4], [2.95, 0.31]];
+        const rAt = (z) => {
+          for (let k = 1; k < R_KEYS.length; k++)
+            if (z <= R_KEYS[k][0]) {
+              const [z0, r0] = R_KEYS[k - 1],
+                [z1, r1] = R_KEYS[k];
+              const f = (z - z0) / (z1 - z0);
+              return r0 + (r1 - r0) * (0.5 - 0.5 * Math.cos(f * Math.PI));
+            }
+          return R_KEYS[R_KEYS.length - 1][1];
+        };
+        const prof = [];
+        for (let k = 0; k <= 48; k++) {
+          const z = -4.7 + (k / 48) * (2.95 + 4.7);
+          prof.push(new THREE.Vector2(rAt(z), z));
+        }
+        const bodyGeo = new THREE.LatheGeometry(prof, 36).rotateX(Math.PI / 2);
+        bodyGeo.scale(0.92, 1.08, 1);
+        const bp = bodyGeo.attributes.position;
+        for (let i = 0; i < bp.count; i++) {
+          const z = bp.getZ(i);
+          if (z < -1) bp.setY(i, bp.getY(i) + 0.14 * Math.pow((-1 - z) / 3.7, 1.5));
+        }
+        const fus = new THREE.Mesh(bodyGeo, PLANE_BODY);
         fus.castShadow = true;
         p.add(fus);
-        const nose = new THREE.Mesh(
-          new THREE.ConeGeometry(0.34, 0.9, 14),
-          FUSELAGE_WHITE,
-        );
-        nose.rotation.x = Math.PI / 2;
-        nose.position.z = 2.72;
-        p.add(nose);
-        const tail = new THREE.Mesh(
-          new THREE.ConeGeometry(0.44, 1.9, 14),
-          FUSELAGE_WHITE,
-        );
-        tail.rotation.x = -Math.PI / 2;
-        tail.position.z = -3.2;
-        p.add(tail);
-        const cowl = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.4, 0.42, 0.5, 14),
-          PAINT_RED,
-        );
-        cowl.rotation.x = Math.PI / 2;
-        cowl.position.z = 2.42;
-        p.add(cowl);
-        const canopy = new THREE.Mesh(
-          new THREE.SphereGeometry(0.5, 14, 12),
-          GLASS_DARK,
-        );
-        canopy.scale.set(0.78, 0.6, 1.5);
-        canopy.position.set(0, 0.36, 0.85);
+        // a sleek bubble canopy, rose-violet tinted, a gold strip down its spine
+        const canopy = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), PLANE_GLASS);
+        canopy.scale.set(0.42, 0.34, 1.3);
+        canopy.position.set(0, 0.42, 0.85);
         p.add(canopy);
-        mkBox(p, 9.6, 0.13, 1.6, 0, -0.02, 0.4, FUSELAGE_WHITE); // wings
-        mkBox(p, 0.8, 0.14, 1.61, 4.42, -0.02, 0.4, PAINT_RED); // red wingtips
-        mkBox(p, 0.8, 0.14, 1.61, -4.42, -0.02, 0.4, PAINT_RED);
-        mkBox(p, 3.4, 0.1, 0.95, 0, 0.12, -3.45, FUSELAGE_WHITE); // tailplane
-        mkBox(p, 0.55, 0.11, 0.96, 1.44, 0.12, -3.45, PAINT_RED);
-        mkBox(p, 0.55, 0.11, 0.96, -1.44, 0.12, -3.45, PAINT_RED);
-        mkBox(p, 0.1, 1.5, 1.15, 0, 0.85, -3.4, PAINT_RED); // fin
+        const spine = new THREE.Mesh(new THREE.TorusGeometry(1, 0.025, 6, 40, Math.PI), PLANE_GOLD);
+        spine.rotation.y = Math.PI / 2;
+        spine.scale.set(1.3, 0.35, 1);
+        spine.position.set(0, 0.42, 0.85);
+        p.add(spine);
+        // the wings: tapered, swept a touch, a little dihedral, winglets at the tips
         for (const s of [-1, 1]) {
-          // 🌹 painted on both sides of the tail
-          const rose = new THREE.Mesh(
-            new THREE.PlaneGeometry(0.85, 0.85),
-            new THREE.MeshBasicMaterial({
-              map: emojiTex("🌹"),
-              transparent: true,
-              side: THREE.DoubleSide,
-              toneMapped: false,
-            }),
+          const wg = new THREE.Group();
+          wg.position.set(0, -0.2, 0);
+          wg.rotation.z = s * 0.06;
+          const sh = new THREE.Shape();
+          sh.moveTo(s * 0.3, -1.35);
+          sh.lineTo(s * 4.9, -0.8);
+          sh.lineTo(s * 4.9, 0.13);
+          sh.lineTo(s * 0.3, 0.45);
+          sh.closePath();
+          const wGeo = new THREE.ExtrudeGeometry(sh, { depth: 0.12, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.04, bevelSegments: 2 });
+          wGeo.rotateX(-Math.PI / 2).translate(0, -0.06, 0);
+          const wing = new THREE.Mesh(wGeo, FUSELAGE_WHITE);
+          wing.castShadow = true;
+          wg.add(wing);
+          // a pink leading-edge stripe and a gold one behind it
+          const le = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.03, 0.09), PLANE_PINK);
+          le.position.set(s * 2.62, 0.095, 1.08);
+          le.rotation.y = s * 0.12;
+          wg.add(le);
+          // the winglet: a swept pink fin rising from the tip, gold-edged
+          const wl = new THREE.Shape();
+          wl.moveTo(0.95, 0);
+          wl.lineTo(-0.1, 0);
+          wl.lineTo(-0.2, 0.6);
+          wl.lineTo(0.25, 0.6);
+          wl.closePath();
+          const wlGeo = new THREE.ExtrudeGeometry(wl, { depth: 0.05, bevelEnabled: false }).rotateY(-Math.PI / 2);
+          const winglet = new THREE.Mesh(wlGeo, PLANE_PINK);
+          winglet.position.set(s * 4.92 + 0.025, 0.05, -0.12);
+          winglet.rotation.z = -s * 0.18;
+          wg.add(winglet);
+          const wlEdge = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.04, 0.45), PLANE_GOLD);
+          wlEdge.position.set(s * 5.02, 0.66, -0.1);
+          wg.add(wlEdge);
+          // nav light at each tip: red on her left (+x), green on her right
+          const nav = new THREE.Mesh(
+            new THREE.SphereGeometry(0.09, 8, 6),
+            new THREE.MeshStandardMaterial({ color: 0x220000, emissive: s > 0 ? 0xff2050 : 0x2fff7a, emissiveIntensity: 2.2 }),
           );
-          rose.position.set(s * 0.07, 0.95, -3.35);
-          rose.rotation.y = (s * Math.PI) / 2;
-          p.add(rose);
+          nav.position.set(s * 4.96, 0.02, 0.62);
+          wg.add(nav);
+          // a big pink heart on top of each wing
+          const heartTop = planeDecal(1.0, 1.0, 256, 256, (g, w, h) => {
+            canvasHeart(g, w / 2, h * 0.56, w * 0.42);
+            g.fillStyle = "#ff4f93";
+            g.fill();
+            g.lineWidth = 10;
+            g.strokeStyle = "#ffc861";
+            g.stroke();
+          });
+          heartTop.geometry.rotateX(-Math.PI / 2);
+          heartTop.position.set(s * 3.6, 0.1, 0.42);
+          wg.add(heartTop);
+          // 💗 under the wings, for everyone below: « I ♥ U » (her left wing as
+          // seen from below) … « ROSE »
+          const words = planeDecal(3.9, 0.95, 1024, 250, loveWords(s < 0 ? "I ♥ U" : "ROSE"));
+          words.geometry.rotateX(Math.PI / 2);
+          words.position.set(s * 2.65, -0.105, 0.36);
+          wg.add(words);
+          p.add(wg);
         }
-        // her name painted on both sides of the nose — this plane is « Rose »
-        const nameTex = makeLabel(
-          [{ t: "Rose Plane ♥", font: EN(78), color: LC.white }],
-          "rgba(255,110,165,0.95)",
-        );
+        // the tail: a swept pink fin and a T-tail on top
+        {
+          const fin = new THREE.Shape();
+          fin.moveTo(-3.0, 0.15);
+          fin.lineTo(-4.72, 0.15);
+          fin.lineTo(-5.0, 1.78);
+          fin.lineTo(-4.3, 1.78);
+          fin.closePath();
+          const finGeo = new THREE.ExtrudeGeometry(fin, { depth: 0.09, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.03, bevelSegments: 1 }).rotateY(-Math.PI / 2).translate(0.045, 0, 0);
+          const finM = new THREE.Mesh(finGeo, PLANE_PINK);
+          finM.castShadow = true;
+          p.add(finM);
+          const tp = new THREE.Shape();
+          tp.moveTo(0, 4.15);
+          tp.lineTo(1.75, 4.55);
+          tp.lineTo(1.75, 5.02);
+          tp.lineTo(-1.75, 5.02);
+          tp.lineTo(-1.75, 4.55);
+          tp.closePath();
+          const tpGeo = new THREE.ExtrudeGeometry(tp, { depth: 0.07, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.03, bevelSegments: 1 });
+          tpGeo.rotateX(-Math.PI / 2).translate(0, 1.76, 0);
+          const tpM = new THREE.Mesh(tpGeo, FUSELAGE_WHITE);
+          tpM.castShadow = true;
+          p.add(tpM);
+          for (const s of [-1, 1]) {
+            const tip = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.1, 0.5), PLANE_PINK);
+            tip.position.set(s * 1.55, 1.82, -4.78);
+            p.add(tip);
+            // 🌹 and a white heart on both sides of the fin
+            const rose = new THREE.Mesh(
+              new THREE.PlaneGeometry(0.7, 0.7),
+              new THREE.MeshBasicMaterial({ map: emojiTex("🌹"), transparent: true, toneMapped: false, depthWrite: false }),
+            );
+            rose.position.set(s * 0.085, 1.0, -4.3);
+            rose.rotation.y = (s * Math.PI) / 2;
+            p.add(rose);
+          }
+          // a gold leading edge up the fin
+          const fe = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 2.0, 6), PLANE_GOLD);
+          fe.rotation.x = -Math.atan2(1.3, 1.56);
+          fe.position.set(0, 0.98, -3.65);
+          p.add(fe);
+        }
+        // her name on both sides, behind the wing
+        const nameTex = makeLabel([{ t: "Rose Plane ♥", font: EN(78), color: LC.white }], "rgba(255,110,165,0.95)");
         for (const s of [-1, 1]) {
           const nm = new THREE.Mesh(
-            new THREE.PlaneGeometry(1.9, 0.95),
-            new THREE.MeshBasicMaterial({
-              map: nameTex,
-              transparent: true,
-              toneMapped: false,
-              side: THREE.DoubleSide,
-              depthWrite: false,
-            }),
+            new THREE.PlaneGeometry(1.5, 0.75),
+            new THREE.MeshBasicMaterial({ map: nameTex, transparent: true, toneMapped: false, depthWrite: false }),
           );
-          nm.position.set(s * 0.46, 0.12, 1.35);
+          nm.position.set(s * 0.45, 0.0, -1.55);
           nm.rotation.y = (s * Math.PI) / 2;
           p.add(nm);
         }
-        // wingtip nav lights (red left / green right) + tail strobe
-        const bulb = new THREE.SphereGeometry(0.09, 6, 5);
-        const navL = new THREE.Mesh(
-          bulb,
-          new THREE.MeshStandardMaterial({
-            color: 0x220000,
-            emissive: 0xff2020,
-            emissiveIntensity: 2,
-          }),
-        );
-        navL.position.set(-4.78, 0.05, 0.4);
-        p.add(navL);
-        const navR = new THREE.Mesh(
-          bulb,
-          new THREE.MeshStandardMaterial({
-            color: 0x002200,
-            emissive: 0x2fff5a,
-            emissiveIntensity: 2,
-          }),
-        );
-        navR.position.set(4.78, 0.05, 0.4);
-        p.add(navR);
-        plane.strobeMat = new THREE.MeshStandardMaterial({
-          color: 0xdddddd,
-          emissive: 0xffffff,
-          emissiveIntensity: 0.3,
-        });
-        const strobe = new THREE.Mesh(bulb, plane.strobeMat);
-        strobe.position.set(0, 1.65, -3.4);
+        // a rose-pink glow strip along the belly
+        const strip = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.03, 3.6), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 0.35, 0.85) }));
+        strip.position.set(0, -0.585, 0.1);
+        p.add(strip);
+        // the tail strobe
+        plane.strobeMat = new THREE.MeshStandardMaterial({ color: 0xdddddd, emissive: 0xffffff, emissiveIntensity: 0.3 });
+        const strobe = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), plane.strobeMat);
+        strobe.position.set(0, 1.9, -4.75);
         p.add(strobe);
-        // propeller + blur disc
+        // three-blade composite prop with pink tips, under a pointed pink-and-gold spinner
         plane.prop = new THREE.Group();
-        plane.prop.position.z = 3.22;
-        const spinner = new THREE.Mesh(
-          new THREE.ConeGeometry(0.15, 0.34, 10),
-          PAINT_RED,
-        );
+        plane.prop.position.z = 2.98;
+        const spinner = new THREE.Mesh(new THREE.ConeGeometry(0.34, 0.62, 20), PLANE_PINK);
         spinner.rotation.x = Math.PI / 2;
-        spinner.position.z = 0.12;
+        spinner.position.z = 0.3;
         plane.prop.add(spinner);
-        for (const a of [0, Math.PI / 2]) {
-          const blade = new THREE.Mesh(
-            new THREE.BoxGeometry(0.13, 1.8, 0.05),
-            TRIM_DARK,
-          );
-          blade.rotation.z = a;
-          plane.prop.add(blade);
+        const tipG = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8), PLANE_GOLD);
+        tipG.position.z = 0.6;
+        plane.prop.add(tipG);
+        for (let k = 0; k < 3; k++) {
+          const arm = new THREE.Group();
+          arm.rotation.z = (k / 3) * Math.PI * 2;
+          const blade = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.66, 0.035).translate(0, 0.5, 0), PLANE_BLADE);
+          blade.rotation.y = 0.3;
+          const btip = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.12, 0.04).translate(0, 0.89, 0), PLANE_PINK);
+          btip.rotation.y = 0.3;
+          arm.add(blade, btip);
+          arm.position.z = 0.15;
+          plane.prop.add(arm);
         }
         p.add(plane.prop);
         plane.propDisc = new THREE.Mesh(
-          new THREE.CircleGeometry(0.95, 24),
-          new THREE.MeshBasicMaterial({
-            color: 0xffd9e6,
-            transparent: true,
-            opacity: 0,
-            depthWrite: false,
-            side: THREE.DoubleSide,
-          }),
+          new THREE.CircleGeometry(0.97, 32),
+          new THREE.MeshBasicMaterial({ color: 0xffd9e6, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }),
         );
-        plane.propDisc.position.z = 3.24;
+        plane.propDisc.position.z = 3.14;
         p.add(plane.propDisc);
-        // tricycle landing gear
+        // tricycle gear: slim legs, wheels in pink teardrop fairings
         for (const [gx, gz] of [
           [0, 1.5],
           [1.05, -0.35],
           [-1.05, -0.35],
         ]) {
-          const strut = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.05, 0.05, 0.62, 8),
-            TRIM_DARK,
-          );
-          strut.position.set(gx, -0.72, gz);
-          p.add(strut);
+          const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.62, 8), TRIM_DARK);
+          if (gx) {
+            leg.position.set(gx * 0.82, -0.6, gz);
+            leg.rotation.z = Math.sign(gx) * 0.55;
+          } else leg.position.set(0, -0.72, gz);
+          p.add(leg);
           const spin = new THREE.Group();
-          const t = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.19, 0.19, 0.15, 12),
-            TIRE,
-          );
+          const t = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.19, 0.15, 14), TIRE);
           t.rotation.z = Math.PI / 2;
           spin.add(t);
           spin.position.set(gx, -0.96, gz);
           p.add(spin);
           plane.wheels.push(spin);
+          const pant = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 10), PLANE_PINK);
+          pant.scale.set(0.12, 0.17, 0.42);
+          pant.position.set(gx, -0.9, gz - 0.04);
+          p.add(pant);
         }
         p.scale.setScalar(1.4);
         p.position.copy(plane.pos);
         p.rotation.set(0, plane.yaw, 0);
         scene.add(p);
+      }
+      // 💗 « I ♥ U Rose », painted on the runway right under where the plane waits
+      // (it reads from the terminal side)
+      {
+        const words = planeDecal(13, 3.2, 1024, 252, (g, w, h) => {
+          g.textAlign = "center";
+          g.textBaseline = "middle";
+          g.font = `italic 700 ${Math.round(h * 0.62)}px Georgia, "Palatino Linotype", serif`;
+          g.lineJoin = "round";
+          g.lineWidth = h * 0.1;
+          g.strokeStyle = "rgba(255,255,255,0.95)";
+          g.strokeText("I ♥ U Rose", w / 2, h * 0.52);
+          g.fillStyle = "#ff2f7d";
+          g.fillText("I ♥ U Rose", w / 2, h * 0.52);
+        });
+        words.geometry.rotateX(-Math.PI / 2);
+        words.position.set(plane.pos.x, 0.16, RUNWAY_Z + 3.2);
+        words.renderOrder = 1;
+        scene.add(words);
       }
 
       // ---- finding them: beams + floating icons (hidden while riding) ------------
