@@ -3953,6 +3953,7 @@
         if (!isTouch) canvas.requestPointerLock();
         track("🌹 Entered Rose Dream Land");
         if (BDAY_TODAY) setTimeout(bdayWelcome, 1500); // 🎂 it's her day
+        cineBegin(); // 🍿 the park cinema's episode starts now (on this tap)
       }
 
       // ---- phone controls: joystick, touch-look, fly buttons --------------------
@@ -8027,6 +8028,7 @@
         {
           const g = new THREE.Group();
           g.position.set(-152, 0, 74);
+          g.scale.setScalar(1.6); // a real outdoor cinema: the big screen is ~29 m wide
           g.rotation.y = Math.PI / 2 - 0.35; // faces the playground across the lawn
           // the big screen rides high on two tall poles; under it, five smaller
           // screens side by side, each in a rose frame, all of them playing
@@ -8114,7 +8116,7 @@
             (x > -170 && x < -118 && z > -6 && z < 30) || // pitch + goals
             (x > -98 && x < -62 && z > 0 && z < 24) || // court + hoops
             Math.hypot(x + 99, z - 70) < 19 || // playground
-            (x > -168 && x < -136 && z > 62 && z < 92) || // cinema
+            (x > -174 && x < -130 && z > 50 && z < 98) || // cinema
             Math.hypot(x + 156, z) < 14 || // mood garden
             Math.hypot(x - PARK0.x, z - PARK0.z) < 6; // the glowing cross
           const X0 = PARK0.x - PARK.w / 2 + 1.5,
@@ -9043,7 +9045,7 @@
       // five at a time, each screen moving on to a fresh one every ~16 s (never
       // two screens on the same gif)
       const CINEMA_POOL = [
-        'new/rose-love.gif', 'new/patrick-i-love-you.gif', 'new/sb-love-eyes.gif', 'new/squidward-heart.gif', 'new/sb-hearts.gif',
+        'new/113.gif', 'new/rose-love.gif', 'new/patrick-i-love-you.gif', 'new/sb-love-eyes.gif', 'new/squidward-heart.gif', 'new/sb-hearts.gif',
         'new/14.gif', 'new/15.gif', 'new/122.gif', 'new/1445.gif', 'new/12.gif', 'new/picgifs-spongebob-squarepants-6121731.gif',
       ].map((f) => '../assets/' + f);
       const cinemaQueue = CINEMA_POOL.slice(5);
@@ -15274,12 +15276,12 @@
       // ---- 🍿 the park cinema plays real SpongeBob episodes on its big screen ------
       // Each episode is cut into ~4-minute parts (at quiet scene changes, and
       // between the two stories of a double episode), small H.264 files that load
-      // only when she's near. No button: as she comes close a random episode
-      // starts by itself (never the same one twice in a row), its voice getting
-      // louder as she nears the screen; when it ends, another one follows. The
-      // parts play back to back through two <video> elements (the next one loads
-      // while this one plays); it pauses when she leaves the park and picks up
-      // when she's back. Before the first show the big screen plays its gif.
+      // as they play. No button: the big screen runs a random episode from the
+      // moment she enters the city (never the same one twice in a row), its voice
+      // getting louder as she nears the screen; when it ends, another follows.
+      // The parts play back to back through two <video> elements (the next one
+      // loads while this one plays); it pauses only when she's far across the
+      // map, and picks up when she's back.
       const EPISODES = [{"id": "sp_s2_14", "label": "Season 2 · Episode 14", "parts": [212.2, 233.9, 233.7]}, {"id": "sp_s2_33", "label": "Season 2 · Episode 33", "parts": [269.7, 188.3, 227.1]}, {"id": "sp_s3_06", "label": "Season 3 · Episode 6", "parts": [251.8, 211.0, 235.8, 232.0, 237.2, 235.3]}, {"id": "sp_s3_08", "label": "Season 3 · Episode 8", "parts": [237.1, 234.0, 242.4, 221.7, 242.6, 230.9]}];
       const nextEpisode = shuffleDeck("rose-cinema-deck", EPISODES.length);
       const cine = {
@@ -15333,7 +15335,7 @@
       // fit the screen to the episode's shape (some are 4:3, some 3:2)
       function cineFit() {
         const v = cine.vids[cine.cur];
-        const a = v.videoWidth && v.videoHeight ? v.videoWidth / v.videoHeight : 1.5;
+        const a = v.videoWidth > 0 && v.videoHeight > 0 ? v.videoWidth / v.videoHeight : 1.5;
         CINEMA.screen.scale.set(Math.min(1, (12.2 * a) / 18.4), 1, 1);
       }
       function cineShowScreen(on) {
@@ -15410,6 +15412,17 @@
         // and the part after it starts loading in the free player
         if (cine.part + 1 < E.parts.length) cineLoad(i, cine.ep, cine.part + 1);
       }
+      // the show begins on her first tap: both players are started inside it, so
+      // phones let them play with sound from then on
+      function cineBegin() {
+        if (cine.on) return;
+        cineAudio();
+        cineStartEpisode(nextEpisode());
+        const b = cine.vids[1];
+        if (!cine.gains.length) b.volume = 0;
+        const p = b.play();
+        if (p && p.then) p.then(() => cine.cur !== 1 && b.pause()).catch(() => {});
+      }
       // is an episode playing loud enough that the piano should step back?
       function cinemaLoud() {
         return cine.loud;
@@ -15420,15 +15433,15 @@
         const d = Math.hypot(fp.x - CINE_SCREEN.x, fp.z - CINE_SCREEN.z);
         // she's coming into the park: the show starts by itself
         if (!cine.on) {
-          if (d < 95) cineStartEpisode(nextEpisode());
+          cineStartEpisode(nextEpisode());
           return;
         }
         const v = cine.vids[cine.cur];
         // she wandered off: the show pauses (and picks up when she's back)
-        if (d > 140 && !v.paused) {
+        if (d > 600 && !v.paused) {
           v.pause();
           cine.away = true;
-        } else if (d < 120 && cine.away) {
+        } else if (d < 550 && cine.away) {
           cine.away = false;
           cinePlay(cine.cur);
         }
