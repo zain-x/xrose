@@ -1564,6 +1564,33 @@
 
     <script type="module">
       import * as THREE from "three";
+
+      // 🔄 always the newest version: GitHub Pages lets a browser keep this page
+      // for 10 minutes (phones often longer), so a fresh copy is fetched on load;
+      // if it differs and she hasn't entered yet, the page reloads (once) to it
+      {
+        const mine = (document.querySelector('script[type="module"]:not([src])') || {}).textContent || "";
+        fetch(location.pathname + "?fresh=" + Date.now(), { cache: "no-store" })
+          .then((r) => (r.ok ? r.text() : ""))
+          .then((txt) => {
+            if (!txt || mine.length < 1000) return;
+            const doc = new DOMParser().parseFromString(txt, "text/html");
+            const fresh = (doc.querySelector('script[type="module"]:not([src])') || {}).textContent || "";
+            if (fresh.length < 1000 || fresh === mine) return;
+            let last = 0;
+            try {
+              last = +sessionStorage.getItem("rose-fresh-reload") || 0;
+            } catch (e) {}
+            if (Date.now() - last < 120000 || document.getElementById("overlay").classList.contains("hidden")) return;
+            try {
+              sessionStorage.setItem("rose-fresh-reload", String(Date.now()));
+            } catch (e) {}
+            const u = new URL(location.href);
+            u.searchParams.set("v", Date.now().toString(36));
+            location.replace(u.toString());
+          })
+          .catch(() => {});
+      }
       import { Sky } from "three/addons/objects/Sky.js";
       import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
       import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
@@ -8027,9 +8054,10 @@
         // ---- 🎬 outdoor cinema — big screen on the lawn (fed by the gif system) --
         {
           const g = new THREE.Group();
-          g.position.set(-152, 0, 74);
+          // right beside the football pitch: along its south side, facing it like a
+          // stadium screen (the stands' benches north of the pitch look across at it)
+          g.position.set(-144, 0, -14);
           g.scale.setScalar(1.6); // a real outdoor cinema: the big screen is ~29 m wide
-          g.rotation.y = Math.PI / 2 - 0.35; // faces the playground across the lawn
           // the big screen rides high on two tall poles; under it, five smaller
           // screens side by side, each in a rose frame, all of them playing
           const FRAME_MAT = new THREE.MeshStandardMaterial({ color: 0x6a4a5a, roughness: 0.6, metalness: 0.3 });
@@ -8093,17 +8121,16 @@
           marquee.position.set(0, 20.6, 0);
           g.add(marquee);
           parkRoot.add(g);
-          // benches facing the screen (they pour into the shared instanced mesh)
+          // two more benches on the stands' side, facing the screen across the
+          // pitch (they pour into the shared instanced mesh)
           for (const [bx, bz] of [
-            [-143, 70],
-            [-141, 76],
-            [-136, 68],
-            [-134, 74],
+            [-157, 32],
+            [-166, 30],
           ])
             benchSpots.push({
               x: bx + PDX,
               z: bz + PDZ,
-              rot: Math.atan2(-152 - bx, 74 - bz),
+              rot: Math.atan2(-144 - bx, -14 - bz),
             });
         }
 
@@ -8116,7 +8143,7 @@
             (x > -170 && x < -118 && z > -6 && z < 30) || // pitch + goals
             (x > -98 && x < -62 && z > 0 && z < 24) || // court + hoops
             Math.hypot(x + 99, z - 70) < 19 || // playground
-            (x > -174 && x < -130 && z > 50 && z < 98) || // cinema
+            (x > -174 && x < -114 && z > -22 && z < -6) || // cinema
             Math.hypot(x + 156, z) < 14 || // mood garden
             Math.hypot(x - PARK0.x, z - PARK0.z) < 6; // the glowing cross
           const X0 = PARK0.x - PARK.w / 2 + 1.5,
@@ -8212,11 +8239,11 @@
         // rose bushes: a loose ring around the park + a few by the paths
         for (let i = 0; i < 26; i++) {
           const a = (i / 26) * Math.PI * 2;
-          plantBush(
-            PARK.x + Math.cos(a) * (PARK.w / 2 - 5 - (i % 3) * 3),
-            PARK.z + Math.sin(a) * (PARK.d / 2 - 5 - ((i + 1) % 3) * 3),
-            1.2 + ((i * 7) % 10) / 9,
-          );
+          const bx = PARK.x + Math.cos(a) * (PARK.w / 2 - 5 - (i % 3) * 3),
+            bz = PARK.z + Math.sin(a) * (PARK.d / 2 - 5 - ((i + 1) % 3) * 3);
+          // (none in the cinema)
+          if (bx - PDX > -176 && bx - PDX < -112 && bz - PDZ > -24 && bz - PDZ < -4) continue;
+          plantBush(bx, bz, 1.2 + ((i * 7) % 10) / 9);
         }
         for (const [bx, bz] of [
           [-121, 20],
@@ -15298,7 +15325,7 @@
         away: false,
       };
       // the big screen's spot in the world (park → world coords)
-      const CINE_SCREEN = { x: -152 + PDX, z: 74 + PDZ };
+      const CINE_SCREEN = { x: -144 + PDX, z: -14 + PDZ };
       const partURL = (ep, k) => `../assets/vid/${EPISODES[ep].id}/${String(k + 1).padStart(2, "0")}.mp4`;
       for (let i = 0; i < 2; i++) {
         const v = document.createElement("video");
@@ -15446,7 +15473,7 @@
           cinePlay(cine.cur);
         }
         // the sound: full on the benches, fading out across the park
-        cine.vol = radioQuiet() ? 0 : clamp(1 - (d - 22) / 70, 0, 1) * 0.95;
+        cine.vol = radioQuiet() ? 0 : clamp(1 - (d - 30) / 85, 0, 1) * 0.95; // (clear from the stands across the pitch)
         cine.loud = cine.vol > 0.25 && !v.paused;
         if (cine.gains.length) {
           cine.gains.forEach((g, i) => g.gain.setTargetAtTime(i === cine.cur ? cine.vol : 0, hallCtx.currentTime, 0.15));
