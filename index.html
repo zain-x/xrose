@@ -7637,7 +7637,28 @@
       // the cinema screen's texture — filled with gif frames by the poster system
       const parkScreenTex = new THREE.Texture();
       parkScreenTex.colorSpace = THREE.SRGBColorSpace;
-      const CINEMA = { screen: null }; // the big screen (it also plays episodes, see 🍿)
+      const CINEMA = { screen: null }; // the SpongeBob cinema's screen (episodes, see 🍿)
+      const CINE_POSTER = (() => {
+        const cv = document.createElement("canvas");
+        cv.width = 768;
+        cv.height = 512;
+        const g = cv.getContext("2d");
+        const gr = g.createLinearGradient(0, 0, 0, 512);
+        gr.addColorStop(0, "#2a0c2e");
+        gr.addColorStop(1, "#0c1a3a");
+        g.fillStyle = gr;
+        g.fillRect(0, 0, 768, 512);
+        g.textAlign = "center";
+        g.textBaseline = "middle";
+        g.font = '160px "Segoe UI Emoji", "Apple Color Emoji", sans-serif';
+        g.fillText("🍿", 384, 200);
+        g.font = '700 64px "Segoe UI", Tahoma, Arial, sans-serif';
+        g.fillStyle = "#ffd166";
+        g.fillText("SpongeBob", 384, 380);
+        const t = new THREE.CanvasTexture(cv);
+        t.colorSpace = THREE.SRGBColorSpace;
+        return t;
+      })();
       // …and the row of five smaller screens under it: each its own canvas, the
       // gif drawn in letterboxed (never stretched) on a deep rose backdrop
       const CINEMA_ROW = [];
@@ -8054,10 +8075,8 @@
         // ---- 🎬 outdoor cinema — big screen on the lawn (fed by the gif system) --
         {
           const g = new THREE.Group();
-          // right beside the football pitch: along its south side, facing it like a
-          // stadium screen (the stands' benches north of the pitch look across at it)
-          g.position.set(-144, 0, -14);
-          g.scale.setScalar(1.6); // a real outdoor cinema: the big screen is ~29 m wide
+          g.position.set(-152, 0, 74);
+          g.rotation.y = Math.PI / 2 - 0.35; // faces the playground across the lawn
           // the big screen rides high on two tall poles; under it, five smaller
           // screens side by side, each in a rose frame, all of them playing
           const FRAME_MAT = new THREE.MeshStandardMaterial({ color: 0x6a4a5a, roughness: 0.6, metalness: 0.3 });
@@ -8079,7 +8098,6 @@
           );
           screen.position.set(0, 11.6, 0.18);
           g.add(screen);
-          CINEMA.screen = screen;
           // a beam across, the row of screens hanging from it
           const beam = new THREE.Mesh(new THREE.BoxGeometry(24.6, 0.32, 0.36), FRAME_MAT);
           beam.position.set(0, 4.75, -0.1);
@@ -8121,17 +8139,86 @@
           marquee.position.set(0, 20.6, 0);
           g.add(marquee);
           parkRoot.add(g);
-          // two more benches on the stands' side, facing the screen across the
-          // pitch (they pour into the shared instanced mesh)
+          // benches facing the screen (they pour into the shared instanced mesh)
           for (const [bx, bz] of [
-            [-157, 32],
-            [-166, 30],
+            [-143, 70],
+            [-141, 76],
+            [-136, 68],
+            [-134, 74],
           ])
             benchSpots.push({
               x: bx + PDX,
               z: bz + PDZ,
-              rot: Math.atan2(-144 - bx, -14 - bz),
+              rot: Math.atan2(-152 - bx, 74 - bz),
             });
+        }
+
+        // ---- 🍿 the SpongeBob cinema: its own giant screen right at the west end of
+        // the football pitch, behind the goal, facing down the pitch toward the park
+        // gate — the episodes play on it (see 🍿 further down)
+        {
+          const g = new THREE.Group();
+          g.position.set(-173, 0, 12);
+          g.rotation.y = Math.PI / 2; // faces east, down the pitch
+          const DARK = new THREE.MeshStandardMaterial({ color: 0x3a2a36, roughness: 0.6, metalness: 0.35 });
+          const ROSE_TRIM = new THREE.MeshStandardMaterial({ color: 0xff5d9e, roughness: 0.35, metalness: 0.2, emissive: 0xc02a68, emissiveIntensity: 0.6 });
+          for (const s of [-1, 1]) {
+            const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.4, 23, 12), CAFE_DARK);
+            pole.position.set(s * 15.3, 11.5, -0.5);
+            g.add(pole);
+          }
+          const frame = new THREE.Mesh(new THREE.BoxGeometry(29.6, 20.2, 0.5), DARK);
+          frame.position.set(0, 12.33, -0.3);
+          g.add(frame);
+          // the rose trim round the screen
+          for (const [w, hh, x, y] of [[29.8, 0.3, 0, 22.5], [29.8, 0.3, 0, 2.15], [0.3, 20.6, -14.9, 12.33], [0.3, 20.6, 14.9, 12.33]]) {
+            const t = new THREE.Mesh(new THREE.BoxGeometry(w, hh, 0.2), ROSE_TRIM);
+            t.position.set(x, y, 0.05);
+            g.add(t);
+          }
+          const screen = new THREE.Mesh(
+            new THREE.PlaneGeometry(28, 18.67),
+            new THREE.MeshBasicMaterial({ map: CINE_POSTER, toneMapped: false }),
+          );
+          screen.position.set(0, 12.33, 0.01);
+          g.add(screen);
+          CINEMA.screen = screen;
+          // a low stage under it, and fairy bulbs along the top and the bottom
+          const stage = new THREE.Mesh(new THREE.BoxGeometry(31, 0.5, 3.4), DARK);
+          stage.position.set(0, 0.25, 0.6);
+          g.add(stage);
+          {
+            const bulbs = [];
+            for (let k = 0; k <= 36; k++) {
+              bulbs.push(new THREE.Matrix4().makeTranslation(-14.6 + (k / 36) * 29.2, 22.85, 0.15));
+              bulbs.push(new THREE.Matrix4().makeTranslation(-14.6 + (k / 36) * 29.2, 1.8, 0.15));
+            }
+            const bIM = new THREE.InstancedMesh(new THREE.SphereGeometry(0.16, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }), bulbs.length);
+            const pal = [0xff7ab0, 0xffd166, 0xffffff, 0xc58bff];
+            bulbs.forEach((m, i) => {
+              bIM.setMatrixAt(i, m);
+              bIM.setColorAt(i, tmpColor.setHex(pal[i % 4]).multiplyScalar(2));
+            });
+            g.add(bIM);
+          }
+          const marquee = new THREE.Sprite(
+            new THREE.SpriteMaterial({
+              map: makeLabel([{ t: "🍿 سينما روز", font: AR(56), color: LC.blush }], "rgba(255,157,194,0.9)"),
+              transparent: true,
+              depthWrite: false,
+              opacity: 0.95,
+            }),
+          );
+          marquee.scale.set(22, 11, 1);
+          marquee.position.set(0, 27, 0);
+          g.add(marquee);
+          parkRoot.add(g);
+          // two benches by the pitch corners, facing the screen
+          for (const [bx, bz] of [
+            [-158, 31],
+            [-158, -7],
+          ])
+            benchSpots.push({ x: bx + PDX, z: bz + PDZ, rot: Math.atan2(-173 - bx, 12 - bz) });
         }
 
         // ---- 🌱 the lawn comes alive: thousands of grass tufts and little flowers,
@@ -8143,7 +8230,8 @@
             (x > -170 && x < -118 && z > -6 && z < 30) || // pitch + goals
             (x > -98 && x < -62 && z > 0 && z < 24) || // court + hoops
             Math.hypot(x + 99, z - 70) < 19 || // playground
-            (x > -174 && x < -114 && z > -22 && z < -6) || // cinema
+            (x > -168 && x < -136 && z > 62 && z < 92) || // cinema
+            (x > -181 && x < -165 && z > -6 && z < 30) || // the SpongeBob screen
             Math.hypot(x + 156, z) < 14 || // mood garden
             Math.hypot(x - PARK0.x, z - PARK0.z) < 6; // the glowing cross
           const X0 = PARK0.x - PARK.w / 2 + 1.5,
@@ -8242,7 +8330,7 @@
           const bx = PARK.x + Math.cos(a) * (PARK.w / 2 - 5 - (i % 3) * 3),
             bz = PARK.z + Math.sin(a) * (PARK.d / 2 - 5 - ((i + 1) % 3) * 3);
           // (none in the cinema)
-          if (bx - PDX > -176 && bx - PDX < -112 && bz - PDZ > -24 && bz - PDZ < -4) continue;
+          if (bx - PDX > -182 && bx - PDX < -164 && bz - PDZ > -8 && bz - PDZ < 32) continue;
           plantBush(bx, bz, 1.2 + ((i * 7) % 10) / 9);
         }
         for (const [bx, bz] of [
@@ -9072,7 +9160,7 @@
       // five at a time, each screen moving on to a fresh one every ~16 s (never
       // two screens on the same gif)
       const CINEMA_POOL = [
-        'new/113.gif', 'new/rose-love.gif', 'new/patrick-i-love-you.gif', 'new/sb-love-eyes.gif', 'new/squidward-heart.gif', 'new/sb-hearts.gif',
+        'new/rose-love.gif', 'new/patrick-i-love-you.gif', 'new/sb-love-eyes.gif', 'new/squidward-heart.gif', 'new/sb-hearts.gif',
         'new/14.gif', 'new/15.gif', 'new/122.gif', 'new/1445.gif', 'new/12.gif', 'new/picgifs-spongebob-squarepants-6121731.gif',
       ].map((f) => '../assets/' + f);
       const cinemaQueue = CINEMA_POOL.slice(5);
@@ -15325,7 +15413,7 @@
         away: false,
       };
       // the big screen's spot in the world (park → world coords)
-      const CINE_SCREEN = { x: -144 + PDX, z: -14 + PDZ };
+      const CINE_SCREEN = { x: -173 + PDX, z: 12 + PDZ };
       const partURL = (ep, k) => `../assets/vid/${EPISODES[ep].id}/${String(k + 1).padStart(2, "0")}.mp4`;
       for (let i = 0; i < 2; i++) {
         const v = document.createElement("video");
@@ -15363,10 +15451,10 @@
       function cineFit() {
         const v = cine.vids[cine.cur];
         const a = v.videoWidth > 0 && v.videoHeight > 0 ? v.videoWidth / v.videoHeight : 1.5;
-        CINEMA.screen.scale.set(Math.min(1, (12.2 * a) / 18.4), 1, 1);
+        CINEMA.screen.scale.set(Math.min(1, (18.67 * a) / 28), 1, 1);
       }
       function cineShowScreen(on) {
-        CINEMA.screen.material.map = on ? cine.texs[cine.cur] : parkScreenTex;
+        CINEMA.screen.material.map = on ? cine.texs[cine.cur] : CINE_POSTER;
         if (!on) CINEMA.screen.scale.set(1, 1, 1);
         else cineFit();
       }
@@ -15473,7 +15561,7 @@
           cinePlay(cine.cur);
         }
         // the sound: full on the benches, fading out across the park
-        cine.vol = radioQuiet() ? 0 : clamp(1 - (d - 30) / 85, 0, 1) * 0.95; // (clear from the stands across the pitch)
+        cine.vol = radioQuiet() ? 0 : clamp(1 - (d - 30) / 85, 0, 1) * 0.62; // (clear from the stands across the pitch)
         cine.loud = cine.vol > 0.25 && !v.paused;
         if (cine.gains.length) {
           cine.gains.forEach((g, i) => g.gain.setTargetAtTime(i === cine.cur ? cine.vol : 0, hallCtx.currentTime, 0.15));
@@ -15797,18 +15885,9 @@
         track("✨ Her name in the stars");
       }
       function updateNameSky(dt, t) {
-        // she looks up into a night sky… and the stars find her
-        if (!nameSky.visible) {
-          if (started && uNight.value > 0.75 && nowS() > NAME.next && !uiPaused) {
-            camera.getWorldDirection(_bv);
-            NAME.look = _bv.y > 0.22 ? NAME.look + dt : 0;
-            if (NAME.look > 1.4) {
-              NAME.look = 0;
-              nameInStars(0, undefined, clamp(Math.asin(_bv.y) + 0.2, 0.4, 1.0));
-            }
-          }
-          return;
-        }
+        // (it shows at its moments only — after the cake's fireworks, at the villa,
+        // at the lighthouse — never just because the camera looked up)
+        if (!nameSky.visible) return;
         NAME.t += dt;
         nameSky.position.copy(camera.position);
         const T = NAME.t;
