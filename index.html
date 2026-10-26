@@ -7634,9 +7634,6 @@
         );
       };
 
-      // the cinema screen's texture — filled with gif frames by the poster system
-      const parkScreenTex = new THREE.Texture();
-      parkScreenTex.colorSpace = THREE.SRGBColorSpace;
       const CINEMA = { screen: null }; // the SpongeBob cinema's screen (episodes, see 🍿)
       const CINE_POSTER = (() => {
         const cv = document.createElement("canvas");
@@ -7659,20 +7656,6 @@
         t.colorSpace = THREE.SRGBColorSpace;
         return t;
       })();
-      // …and the row of five smaller screens under it: each its own canvas, the
-      // gif drawn in letterboxed (never stretched) on a deep rose backdrop
-      const CINEMA_ROW = [];
-      for (let k = 0; k < 5; k++) {
-        const cv = document.createElement("canvas");
-        cv.width = 384;
-        cv.height = 256;
-        const g = cv.getContext("2d");
-        g.fillStyle = "#2a0c1e";
-        g.fillRect(0, 0, 384, 256);
-        const tex = new THREE.CanvasTexture(cv);
-        tex.colorSpace = THREE.SRGBColorSpace;
-        CINEMA_ROW.push({ cv, g, tex });
-      }
       {
         // ---- the wide lawn + glowing cross paths ---------------------------------
         const lawn = new THREE.Mesh(grassPlane(PARK.w, PARK.d), GRASS_MAT);
@@ -8072,87 +8055,6 @@
           parkRoot.add(g);
         }
 
-        // ---- 🎬 outdoor cinema — big screen on the lawn (fed by the gif system) --
-        {
-          const g = new THREE.Group();
-          g.position.set(-152, 0, 74);
-          g.rotation.y = Math.PI / 2 - 0.35; // faces the playground across the lawn
-          // the big screen rides high on two tall poles; under it, five smaller
-          // screens side by side, each in a rose frame, all of them playing
-          const FRAME_MAT = new THREE.MeshStandardMaterial({ color: 0x6a4a5a, roughness: 0.6, metalness: 0.3 });
-          const ROSE_FRAME = new THREE.MeshStandardMaterial({ color: 0xff5d9e, roughness: 0.35, metalness: 0.2, emissive: 0xc02a68, emissiveIntensity: 0.6 });
-          for (const s of [-1, 1]) {
-            const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.26, 18.6, 10), CAFE_DARK);
-            pole.position.set(s * 12.1, 9.3, -0.25);
-            g.add(pole);
-          }
-          const frame = new THREE.Mesh(new THREE.BoxGeometry(19.6, 13.4, 0.3), FRAME_MAT);
-          frame.position.y = 11.6;
-          g.add(frame);
-          const screen = new THREE.Mesh(
-            new THREE.PlaneGeometry(18.4, 12.2),
-            new THREE.MeshBasicMaterial({
-              map: parkScreenTex,
-              toneMapped: false,
-            }),
-          );
-          screen.position.set(0, 11.6, 0.18);
-          g.add(screen);
-          // a beam across, the row of screens hanging from it
-          const beam = new THREE.Mesh(new THREE.BoxGeometry(24.6, 0.32, 0.36), FRAME_MAT);
-          beam.position.set(0, 4.75, -0.1);
-          g.add(beam);
-          CINEMA_ROW.forEach((sc, k) => {
-            const x = (k - 2) * 4.75;
-            const fr = new THREE.Mesh(new THREE.BoxGeometry(4.55, 3.1, 0.22), ROSE_FRAME);
-            fr.position.set(x, 2.95, 0);
-            g.add(fr);
-            const m = new THREE.Mesh(new THREE.PlaneGeometry(4.25, 2.83), new THREE.MeshBasicMaterial({ map: sc.tex, toneMapped: false }));
-            m.position.set(x, 2.95, 0.12);
-            g.add(m);
-          });
-          // fairy bulbs along the top of the big frame and under the row
-          {
-            const bulbs = [];
-            for (let k = 0; k <= 24; k++) bulbs.push(new THREE.Matrix4().makeTranslation(-9.6 + (k / 24) * 19.2, 18.42, 0.1));
-            for (let k = 0; k <= 30; k++) bulbs.push(new THREE.Matrix4().makeTranslation(-11.8 + (k / 30) * 23.6, 1.25, 0.12));
-            const bIM = new THREE.InstancedMesh(new THREE.SphereGeometry(0.11, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }), bulbs.length);
-            const pal = [0xff7ab0, 0xffd166, 0xffffff, 0xc58bff];
-            bulbs.forEach((m, i) => {
-              bIM.setMatrixAt(i, m);
-              bIM.setColorAt(i, tmpColor.setHex(pal[i % 4]).multiplyScalar(2));
-            });
-            g.add(bIM);
-          }
-          const marquee = new THREE.Sprite(
-            new THREE.SpriteMaterial({
-              map: makeLabel(
-                [{ t: "🎬 سينما الحديقة", font: AR(56), color: LC.blush }],
-                "rgba(255,157,194,0.9)",
-              ),
-              transparent: true,
-              depthWrite: false,
-              opacity: 0.95,
-            }),
-          );
-          marquee.scale.set(16, 8, 1);
-          marquee.position.set(0, 20.6, 0);
-          g.add(marquee);
-          parkRoot.add(g);
-          // benches facing the screen (they pour into the shared instanced mesh)
-          for (const [bx, bz] of [
-            [-143, 70],
-            [-141, 76],
-            [-136, 68],
-            [-134, 74],
-          ])
-            benchSpots.push({
-              x: bx + PDX,
-              z: bz + PDZ,
-              rot: Math.atan2(-152 - bx, 74 - bz),
-            });
-        }
-
         // ---- 🍿 the SpongeBob cinema: its own giant screen right at the west end of
         // the football pitch, behind the goal, facing down the pitch toward the park
         // gate — the episodes play on it (see 🍿 further down)
@@ -8230,7 +8132,6 @@
             (x > -170 && x < -118 && z > -6 && z < 30) || // pitch + goals
             (x > -98 && x < -62 && z > 0 && z < 24) || // court + hoops
             Math.hypot(x + 99, z - 70) < 19 || // playground
-            (x > -168 && x < -136 && z > 62 && z < 92) || // cinema
             (x > -181 && x < -165 && z > -6 && z < 30) || // the SpongeBob screen
             Math.hypot(x + 156, z) < 14 || // mood garden
             Math.hypot(x - PARK0.x, z - PARK0.z) < 6; // the glowing cross
@@ -9135,85 +9036,10 @@
         }
         gifPosters.push(rec);
       });
-      // 🎬 the park's outdoor cinema screen plays one of the NEW gifs (all friends
-      // together) — same decode/cycle machinery, texture built with the park above.
-      {
-        const rec = { tex: parkScreenTex, frames: null, idx: 0, acc: 0 };
-        const CINEMA_GIF = '../assets/new/113.gif';
-        const fallbackStatic = () => {
-          const img = new Image();
-          img.onload = () => { parkScreenTex.image = img; parkScreenTex.needsUpdate = true; };
-          img.src = CINEMA_GIF;
-        };
-        if (window.ImageDecoder) {
-          decodeGifOnce(CINEMA_GIF).then((frames) => {
-            if (!frames || !frames.length) { fallbackStatic(); return; }
-            rec.frames = frames;
-            parkScreenTex.image = frames[0].cv; parkScreenTex.needsUpdate = true;
-          }).catch(fallbackStatic);
-        } else {
-          fallbackStatic();
-        }
-        gifPosters.push(rec);
-      }
-      // the row under the big screen: SpongeBob & friends, and five love gifs —
-      // five at a time, each screen moving on to a fresh one every ~16 s (never
-      // two screens on the same gif)
-      const CINEMA_POOL = [
-        'new/rose-love.gif', 'new/patrick-i-love-you.gif', 'new/sb-love-eyes.gif', 'new/squidward-heart.gif', 'new/sb-hearts.gif',
-        'new/14.gif', 'new/15.gif', 'new/122.gif', 'new/1445.gif', 'new/12.gif', 'new/picgifs-spongebob-squarepants-6121731.gif',
-      ].map((f) => '../assets/' + f);
-      const cinemaQueue = CINEMA_POOL.slice(5);
-      const cinemaRow = CINEMA_ROW.map((sc, k) => {
-        const rec = { tex: sc.tex, frames: null, idx: 0, acc: 0, url: null, swapAt: 16 + k * 3.2, t: 0 };
-        // contain-fit the frame on the rose backdrop
-        rec.draw = (src) => {
-          const W = sc.cv.width, H = sc.cv.height;
-          const s = Math.min(W / src.width, H / src.height);
-          const w = src.width * s, hh = src.height * s;
-          sc.g.fillStyle = '#2a0c1e';
-          sc.g.fillRect(0, 0, W, H);
-          sc.g.drawImage(src, (W - w) / 2, (H - hh) / 2, w, hh);
-        };
-        return rec;
-      });
-      function cinemaShow(rec, url) {
-        rec.url = url;
-        const fallbackStatic = () => {
-          const img = new Image();
-          img.onload = () => { if (rec.url !== url) return; rec.frames = null; rec.draw(img); rec.tex.needsUpdate = true; };
-          img.src = url;
-        };
-        if (!window.ImageDecoder) return fallbackStatic();
-        decodeGifOnce(url).then((frames) => {
-          if (rec.url !== url) return;
-          if (!frames || !frames.length) return fallbackStatic();
-          rec.frames = frames;
-          rec.idx = 0;
-          rec.acc = 0;
-          rec.draw(frames[0].cv);
-          rec.tex.needsUpdate = true;
-        }).catch(fallbackStatic);
-      }
-      cinemaRow.forEach((rec, k) => {
-        cinemaShow(rec, CINEMA_POOL[k]);
-        gifPosters.push(rec);
-      });
-      function updateCinemaRow(dt) {
-        for (const rec of cinemaRow) {
-          rec.t += dt;
-          if (rec.t < rec.swapAt) continue;
-          rec.t = 0;
-          rec.swapAt = 16;
-          cinemaQueue.push(rec.url);
-          cinemaShow(rec, cinemaQueue.shift());
-        }
-      }
       let _gifLast = 0;
       function updateGifPosters() {
         const now = performance.now();
         const dt = _gifLast ? now - _gifLast : 0; _gifLast = now;
-        updateCinemaRow(Math.min(dt, 200) / 1000);
         for (const r of gifPosters) {
           if (!r.frames) continue;
           r.acc += dt;
@@ -9223,11 +9049,7 @@
             r.idx = (r.idx + 1) % r.frames.length;
             advanced = true;
           }
-          if (advanced) {
-            if (r.draw) r.draw(r.frames[r.idx].cv);
-            else r.tex.image = r.frames[r.idx].cv;
-            r.tex.needsUpdate = true;
-          }
+          if (advanced) { r.tex.image = r.frames[r.idx].cv; r.tex.needsUpdate = true; }
         }
       }
 
