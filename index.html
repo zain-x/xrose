@@ -7304,6 +7304,7 @@
         if (roseOn) vol = Math.max(vol, 0.42); // ♪ the calm song, softly, all over the island
         if (bdaySong) vol = Math.max(vol, 0.9); // 🎂 « Happy Birthday », after the candles
         if (radioQuiet()) vol = 0; // 📻 the radio is playing — the piano falls silent
+        if (cinemaLoud()) vol *= 0.15; // 🍿 an episode is on at the park cinema
         if (hallCtx) {
           const want = vinylPlaying && !pianoOpen ? 0 : vol;
           hallBus.gain.setTargetAtTime(want, hallCtx.currentTime, 0.4);
@@ -7608,6 +7609,7 @@
       // the cinema screen's texture — filled with gif frames by the poster system
       const parkScreenTex = new THREE.Texture();
       parkScreenTex.colorSpace = THREE.SRGBColorSpace;
+      const CINEMA = { screen: null }; // the big screen (it also plays episodes, see 🍿)
       // …and the row of five smaller screens under it: each its own canvas, the
       // gif drawn in letterboxed (never stretched) on a deep rose backdrop
       const CINEMA_ROW = [];
@@ -8047,6 +8049,7 @@
           );
           screen.position.set(0, 11.6, 0.18);
           g.add(screen);
+          CINEMA.screen = screen;
           // a beam across, the row of screens hanging from it
           const beam = new THREE.Mesh(new THREE.BoxGeometry(24.6, 0.32, 0.36), FRAME_MAT);
           beam.position.set(0, 4.75, -0.1);
@@ -15268,6 +15271,177 @@
         },
       });
 
+      // ---- 🍿 the park cinema plays real SpongeBob episodes on its big screen ------
+      // Each episode is cut into ~4-minute parts (at quiet scene changes, and
+      // between the two stories of a double episode), small H.264 files that load
+      // only when she's near. No button: as she comes close a random episode
+      // starts by itself (never the same one twice in a row), its voice getting
+      // louder as she nears the screen; when it ends, another one follows. The
+      // parts play back to back through two <video> elements (the next one loads
+      // while this one plays); it pauses when she leaves the park and picks up
+      // when she's back. Before the first show the big screen plays its gif.
+      const EPISODES = [{"id": "sp_s2_14", "label": "Season 2 · Episode 14", "parts": [212.2, 233.9, 233.7]}, {"id": "sp_s2_33", "label": "Season 2 · Episode 33", "parts": [269.7, 188.3, 227.1]}, {"id": "sp_s3_06", "label": "Season 3 · Episode 6", "parts": [251.8, 211.0, 235.8, 232.0, 237.2, 235.3]}, {"id": "sp_s3_08", "label": "Season 3 · Episode 8", "parts": [237.1, 234.0, 242.4, 221.7, 242.6, 230.9]}];
+      const nextEpisode = shuffleDeck("rose-cinema-deck", EPISODES.length);
+      const cine = {
+        on: false, // a show is running (it may be paused while she's away)
+        needTap: false, // the phone wants a tap before it plays sound
+        ep: -1,
+        part: 0,
+        cur: 0, // which of the two players is on screen
+        vids: [],
+        texs: [],
+        gains: [],
+        vol: 0,
+        loud: false,
+        away: false,
+      };
+      // the big screen's spot in the world (park → world coords)
+      const CINE_SCREEN = { x: -152 + PDX, z: 74 + PDZ };
+      const partURL = (ep, k) => `../assets/vid/${EPISODES[ep].id}/${String(k + 1).padStart(2, "0")}.mp4`;
+      for (let i = 0; i < 2; i++) {
+        const v = document.createElement("video");
+        v.playsInline = true;
+        v.setAttribute("playsinline", "");
+        v.setAttribute("webkit-playsinline", "");
+        v.preload = "auto";
+        v.addEventListener("ended", () => cineEnded(i));
+        v.addEventListener("loadedmetadata", () => i === cine.cur && cineFit());
+        const tex = new THREE.VideoTexture(v);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        cine.vids.push(v);
+        cine.texs.push(tex);
+      }
+      // the sound goes through the shared audio context (so it can fade with
+      // distance on every phone — iPhones ignore a video's own volume)
+      function cineAudio() {
+        if (cine.gains.length) return;
+        initHallAudio();
+        if (!hallCtx) return;
+        if (hallCtx.state !== "running") hallCtx.resume();
+        try {
+          for (const v of cine.vids) {
+            const g = hallCtx.createGain();
+            g.gain.value = 0;
+            hallCtx.createMediaElementSource(v).connect(g);
+            g.connect(hallCtx.destination);
+            cine.gains.push(g);
+          }
+        } catch (e) {
+          cine.gains = [];
+        }
+      }
+      // fit the screen to the episode's shape (some are 4:3, some 3:2)
+      function cineFit() {
+        const v = cine.vids[cine.cur];
+        const a = v.videoWidth && v.videoHeight ? v.videoWidth / v.videoHeight : 1.5;
+        CINEMA.screen.scale.set(Math.min(1, (12.2 * a) / 18.4), 1, 1);
+      }
+      function cineShowScreen(on) {
+        CINEMA.screen.material.map = on ? cine.texs[cine.cur] : parkScreenTex;
+        if (!on) CINEMA.screen.scale.set(1, 1, 1);
+        else cineFit();
+      }
+      // load part k of the episode into player i (without playing it yet)
+      function cineLoad(i, ep, k) {
+        const v = cine.vids[i];
+        v.dataset.ep = ep;
+        v.dataset.part = k;
+        v.src = partURL(ep, k);
+        v.load();
+      }
+      function cinePlay(i) {
+        const v = cine.vids[i];
+        const p = v.play();
+        if (p && p.catch)
+          p.catch((err) => {
+            if (!err || err.name !== "NotAllowedError" || v.muted) return;
+            v.muted = true;
+            cine.needTap = true;
+            const p2 = v.play();
+            if (p2 && p2.catch) p2.catch(() => {});
+          });
+      }
+      // her next tap / key anywhere wakes the sound (phones only allow sound after one)
+      for (const ev of ["pointerdown", "touchend", "keydown"])
+        addEventListener(
+          ev,
+          () => {
+            if (!cine.on) return;
+            if (hallCtx && hallCtx.state !== "running") hallCtx.resume();
+            if (!cine.needTap) return;
+            cine.needTap = false;
+            for (const v of cine.vids) v.muted = false;
+            if (!cine.away) cinePlay(cine.cur);
+          },
+          true,
+        );
+      function cineStartEpisode(ep) {
+        cineAudio();
+        cine.on = true;
+        cine.away = false;
+        cine.ep = ep;
+        cine.part = 0;
+        for (const v of cine.vids) v.pause();
+        cine.cur = 0;
+        cineLoad(0, ep, 0);
+        cinePlay(0);
+        // the next part waits ready in the other player
+        if (EPISODES[ep].parts.length > 1) cineLoad(1, ep, 1);
+        cineShowScreen(true);
+        if (Math.hypot(focusPos().x - CINE_SCREEN.x, focusPos().z - CINE_SCREEN.z) < 70)
+          bdayCaption("🍿 SpongeBob SquarePants", EPISODES[ep].label, 4);
+        track(`🍿 Cinema: started episode ${EPISODES[ep].id}`);
+      }
+      function cineEnded(i) {
+        if (!cine.on || i !== cine.cur) return;
+        const E = EPISODES[cine.ep];
+        if (cine.part + 1 >= E.parts.length) {
+          // the episode is over → another random one
+          cineStartEpisode(nextEpisode());
+          return;
+        }
+        cine.part++;
+        const o = 1 - i;
+        const v = cine.vids[o];
+        if (+v.dataset.ep !== cine.ep || +v.dataset.part !== cine.part) cineLoad(o, cine.ep, cine.part);
+        cine.cur = o;
+        cinePlay(o);
+        cineShowScreen(true);
+        // and the part after it starts loading in the free player
+        if (cine.part + 1 < E.parts.length) cineLoad(i, cine.ep, cine.part + 1);
+      }
+      // is an episode playing loud enough that the piano should step back?
+      function cinemaLoud() {
+        return cine.loud;
+      }
+      function updateCinema() {
+        if (!started) return;
+        const fp = focusPos();
+        const d = Math.hypot(fp.x - CINE_SCREEN.x, fp.z - CINE_SCREEN.z);
+        // she's coming into the park: the show starts by itself
+        if (!cine.on) {
+          if (d < 95) cineStartEpisode(nextEpisode());
+          return;
+        }
+        const v = cine.vids[cine.cur];
+        // she wandered off: the show pauses (and picks up when she's back)
+        if (d > 140 && !v.paused) {
+          v.pause();
+          cine.away = true;
+        } else if (d < 120 && cine.away) {
+          cine.away = false;
+          cinePlay(cine.cur);
+        }
+        // the sound: full on the benches, fading out across the park
+        cine.vol = radioQuiet() ? 0 : clamp(1 - (d - 22) / 70, 0, 1) * 0.95;
+        cine.loud = cine.vol > 0.25 && !v.paused;
+        if (cine.gains.length) {
+          cine.gains.forEach((g, i) => g.gain.setTargetAtTime(i === cine.cur ? cine.vol : 0, hallCtx.currentTime, 0.15));
+        } else {
+          cine.vids.forEach((x, i) => (x.volume = i === cine.cur ? cine.vol : 0));
+        }
+      }
+
       // ---- 🏮 sky lanterns from the beach beside the pier -----------------------------
       const LANT_STAND = { x: PIER.x - 8, z: PIER.z0 };
       const LANT_N = 200;
@@ -16214,6 +16388,7 @@
         updateJetSound();
         updateCakeWay(dt, t);
         updateLove(dt, t);
+        updateCinema();
       }
 
       // ============================================================================

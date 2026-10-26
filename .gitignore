@@ -1,0 +1,3 @@
+# the full-size original episodes stay local; only the compressed parts
+# (assets/vid/<episode>/NN.mp4) go to GitHub
+assets/vid/*.mp4
