@@ -5110,6 +5110,8 @@
       // ────────────────────────────────────────────────────────────────────────────
       const decorRoot = new THREE.Group();
       scene.add(decorRoot);
+      // ⛱️ every umbrella a car or the plane can knock over (see «⛱️ knocked over»)
+      const UMBRELLAS = [];
       const lotC = (g) => g * TILE + TILE / 2;
 
       const STONE_MAT = new THREE.MeshStandardMaterial({
@@ -5592,14 +5594,26 @@
           new THREE.CylinderGeometry(0.06, 0.06, 2.9, 6),
           CAFE_DARK,
         );
-        parPole.position.set(3.4, 1.45, D / 2 + 3.2);
-        g.add(parPole);
+        parPole.position.y = 1.45;
         const parTop = new THREE.Mesh(
           new THREE.ConeGeometry(2.1, 0.85, 8),
           makeAwningMat(cfg.accent),
         );
-        parTop.position.set(3.4, 3.05, D / 2 + 3.2);
-        g.add(parTop);
+        parTop.position.y = 3.05;
+        const par = new THREE.Group();
+        const pp = wpt(3.4, D / 2 + 3.2);
+        par.position.set(pp.x, 0, pp.z);
+        par.rotation.y = yaw;
+        par.add(parPole, parTop);
+        par.updateMatrix();
+        par.matrixAutoUpdate = false;
+        decorRoot.add(par);
+        UMBRELLAS.push(
+          umbrellaOf(par.matrix, 2.625, 2.1, 3.48, (m) => {
+            par.matrix.copy(m);
+            par.matrixWorldNeedsUpdate = true;
+          }),
+        );
         decorRoot.add(g);
         // flower planters framing the entrance (world coords for the pooled bushes)
         for (const lx of [-(W / 2 + 1.3), W / 2 + 1.3]) {
@@ -10472,42 +10486,42 @@
           const fin = new THREE.Shape();
           fin.moveTo(-3.0, 0.15);
           fin.lineTo(-4.72, 0.15);
-          fin.lineTo(-5.0, 1.78);
-          fin.lineTo(-4.3, 1.78);
+          fin.lineTo(-4.9, 1.22);
+          fin.lineTo(-4.15, 1.22);
           fin.closePath();
           const finGeo = new THREE.ExtrudeGeometry(fin, { depth: 0.09, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.03, bevelSegments: 1 }).rotateY(-Math.PI / 2).translate(0.045, 0, 0);
           const finM = new THREE.Mesh(finGeo, PLANE_PINK);
           finM.castShadow = true;
           p.add(finM);
           const tp = new THREE.Shape();
-          tp.moveTo(0, 4.15);
-          tp.lineTo(1.75, 4.55);
-          tp.lineTo(1.75, 5.02);
-          tp.lineTo(-1.75, 5.02);
-          tp.lineTo(-1.75, 4.55);
+          tp.moveTo(0, 4.07);
+          tp.lineTo(1.75, 4.47);
+          tp.lineTo(1.75, 4.94);
+          tp.lineTo(-1.75, 4.94);
+          tp.lineTo(-1.75, 4.47);
           tp.closePath();
           const tpGeo = new THREE.ExtrudeGeometry(tp, { depth: 0.07, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.03, bevelSegments: 1 });
-          tpGeo.rotateX(-Math.PI / 2).translate(0, 1.76, 0);
+          tpGeo.rotateX(-Math.PI / 2).translate(0, 1.2, 0);
           const tpM = new THREE.Mesh(tpGeo, FUSELAGE_WHITE);
           tpM.castShadow = true;
           p.add(tpM);
           for (const s of [-1, 1]) {
             const tip = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.1, 0.5), PLANE_PINK);
-            tip.position.set(s * 1.55, 1.82, -4.78);
+            tip.position.set(s * 1.55, 1.26, -4.7);
             p.add(tip);
             // 🌹 and a white heart on both sides of the fin
             const rose = new THREE.Mesh(
-              new THREE.PlaneGeometry(0.7, 0.7),
+              new THREE.PlaneGeometry(0.6, 0.6),
               new THREE.MeshBasicMaterial({ map: emojiTex("🌹"), transparent: true, toneMapped: false, depthWrite: false }),
             );
-            rose.position.set(s * 0.085, 1.0, -4.3);
+            rose.position.set(s * 0.085, 0.72, -4.22);
             rose.rotation.y = (s * Math.PI) / 2;
             p.add(rose);
           }
           // a gold leading edge up the fin
-          const fe = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 2.0, 6), PLANE_GOLD);
-          fe.rotation.x = -Math.atan2(1.3, 1.56);
-          fe.position.set(0, 0.98, -3.65);
+          const fe = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.52, 6), PLANE_GOLD);
+          fe.rotation.x = -Math.atan2(1.15, 1.07);
+          fe.position.set(0, 0.685, -3.575);
           p.add(fe);
         }
         // her name on both sides, behind the wing
@@ -10528,7 +10542,7 @@
         // the tail strobe
         plane.strobeMat = new THREE.MeshStandardMaterial({ color: 0xdddddd, emissive: 0xffffff, emissiveIntensity: 0.3 });
         const strobe = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), plane.strobeMat);
-        strobe.position.set(0, 1.9, -4.75);
+        strobe.position.set(0, 1.34, -4.67);
         p.add(strobe);
         // three-blade composite prop with pink tips, under a pointed pink-and-gold spinner
         plane.prop = new THREE.Group();
@@ -12048,6 +12062,7 @@
           plane.g.rotation.set(-plane.pitch, plane.yaw, plane.roll, "YXZ");
         }
 
+        updateUmbrellas(dt);
         // beams + floating icons only while parked
         const carParked = !driving(car);
         carBeam.visible = carParked;
@@ -13096,7 +13111,7 @@
         // beach umbrellas: a pole and a candy-coloured canopy
         const umbPole = new THREE.CylinderGeometry(0.05, 0.05, 2.6, 6);
         umbPole.translate(0, 1.3, 0);
-        isleIM(umbPole, new THREE.MeshStandardMaterial({ color: 0xf4efe8 }), umbrellas);
+        const umbP = isleIM(umbPole, new THREE.MeshStandardMaterial({ color: 0xf4efe8 }), umbrellas);
         const canopy = new THREE.ConeGeometry(1.9, 0.7, 12, 1, true);
         canopy.translate(0, 2.65, 0);
         const umb = isleIM(
@@ -13105,6 +13120,7 @@
           umbrellas,
         );
         uCols.forEach((c, i) => umb.setColorAt(i, tmpColor.setHex(c)));
+        addUmbrellas(umbrellas, [umbP, umb]);
         // the promenade's lamps — the same posts as the streets'
         isleIM(poleGeo, lampPoleMat, lamps);
         isleIM(headGeo, lampHeadMat, lamps);
@@ -13814,11 +13830,206 @@
         resortIM(PALM_CROWN_GEO, PALM_LEAF_MAT, palms, true);
         const pole = new THREE.CylinderGeometry(0.05, 0.05, 2.6, 6);
         pole.translate(0, 1.3, 0);
-        resortIM(pole, RM(0xf4efe8), umbMats);
+        const up = resortIM(pole, RM(0xf4efe8), umbMats);
         const canopy = new THREE.ConeGeometry(1.9, 0.7, 12, 1, true);
         canopy.translate(0, 2.65, 0);
         const um = resortIM(canopy, RM(0xffffff, { roughness: 0.6, side: THREE.DoubleSide }), umbMats);
         umbCols.forEach((c, i) => um.setColorAt(i, tmpColor.setHex(c)));
+        addUmbrellas(umbMats, [up, um]);
+      }
+
+      // ---- ⛱️ knocked over: drive the car or the plane into an umbrella and it goes
+      // tumbling onto the sand (stood back up once she's long gone)
+      // one umbrella: its standing matrix m (base on the ground), the canopy's rim
+      // height & radius, its top; write(m) puts a new matrix on it
+      function umbrellaOf(m, rimY, rimR, topY, write) {
+        const x = m.elements[12],
+          z = m.elements[14];
+        return {
+          x,
+          z,
+          m0: m.clone(),
+          l0: m.clone().setPosition(0, 0, 0),
+          rimY,
+          rimR,
+          topY,
+          rest: Math.atan2(rimY, rimR) + 0.05, // lying on its pole's foot and the canopy's rim
+          write,
+          st: 0, // 0 standing · 1 tumbling · 2 down
+          t: 0,
+          px: x,
+          py: 0,
+          pz: z,
+          vx: 0,
+          vy: 0,
+          vz: 0,
+          th: 0,
+          om: 0,
+          ax: 0,
+          az: 1,
+          spin: 0,
+          spinV: 0,
+        };
+      }
+      // the instanced beach umbrellas: pole + canopy share one matrix per umbrella
+      function addUmbrellas(list, ims) {
+        list.forEach((m, i) =>
+          UMBRELLAS.push(
+            umbrellaOf(m, 2.3, 1.9, 3.0, (mm) => {
+              for (const im of ims) {
+                im.setMatrixAt(i, mm);
+                im.instanceMatrix.needsUpdate = true;
+              }
+            }),
+          ),
+        );
+      }
+      const _uM = new THREE.Matrix4(),
+        _uR = new THREE.Matrix4(),
+        _uA = new THREE.Vector3();
+      // the car and the plane as boxes in their own frame (m from the vehicle's
+      // origin): [half-width, back, front, bottom, top]
+      const CAR_HIT = [[1.05, -2.3, 2.3, 0, 1.45]];
+      const PLANE_HIT = [
+        [0.85, -6.6, 5.0, -1.6, 0.85], // body, prop & wheels
+        [7.0, -1.9, 0.65, -0.5, 0.65], // wings & winglets
+        [0.15, -7.0, -4.2, 0, 1.75], // the fin
+        [2.45, -6.95, -5.65, 1.6, 1.85], // the T-tail
+      ];
+      // anything standing in the vehicle's way goes over, thrown the way it's going
+      function knockUmbrellas(p, yaw, speed, parts) {
+        const sp = Math.abs(speed);
+        if (sp < 2) return 0;
+        const fx = Math.sin(yaw),
+          fz = Math.cos(yaw),
+          sg = Math.sign(speed);
+        let n = 0;
+        for (const u of UMBRELLAS) {
+          if (u.st) continue;
+          const dx = u.x - p.x,
+            dz = u.z - p.z;
+          if (Math.abs(dx) > 12 || Math.abs(dz) > 12) continue;
+          const lz = dx * fx + dz * fz,
+            lx = Math.abs(dx * fz - dz * fx);
+          let hit = false;
+          for (const [hw, z0, z1, y0, y1] of parts) {
+            const b = p.y + y0,
+              t = p.y + y1;
+            if (b > u.topY || t < 0) continue;
+            // the pole, from the sand to the top — or the canopy's wide disc
+            const r = t > u.rimY ? u.rimR : 0.1;
+            if (lx < hw + r && lz > z0 - r && lz < z1 + r) {
+              hit = true;
+              break;
+            }
+          }
+          if (!hit) continue;
+          const dl = Math.hypot(dx, dz) || 1;
+          let ax = fx * sg + (dx / dl) * 0.6,
+            az = fz * sg + (dz / dl) * 0.6;
+          const al = Math.hypot(ax, az) || 1;
+          ax /= al;
+          az /= al;
+          const vh = clamp(sp * 0.55, 3, 16);
+          Object.assign(u, {
+            st: 1,
+            px: u.x,
+            py: 0,
+            pz: u.z,
+            vx: ax * vh,
+            vz: az * vh,
+            vy: clamp(1.5 + sp * 0.12, 2, 7),
+            th: 0,
+            om: 1.5 + sp * 0.12,
+            ax,
+            az,
+            spin: 0,
+            spinV: (Math.random() - 0.5) * (3 + sp * 0.2),
+          });
+          n++;
+        }
+        if (n) umbrellaThud(sp);
+        return n;
+      }
+      let umbNoise = null,
+        umbThudT = -9;
+      // a soft canvas « whump » and a little ⛱️ puff on the screen
+      function umbrellaThud(sp) {
+        if (nowS() - umbThudT < 0.15) return;
+        umbThudT = nowS();
+        screenBurst(["⛱️", "💨"], 3);
+        const ctx = hallCtx;
+        if (!ctx || ctx.state !== "running") return;
+        if (!umbNoise) {
+          const n = Math.floor(ctx.sampleRate * 0.3);
+          umbNoise = ctx.createBuffer(1, n, ctx.sampleRate);
+          const d = umbNoise.getChannelData(0);
+          for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 2.5);
+        }
+        const now = ctx.currentTime;
+        const src = ctx.createBufferSource();
+        src.buffer = umbNoise;
+        src.playbackRate.value = 0.8 + Math.random() * 0.25;
+        const f = ctx.createBiquadFilter();
+        f.type = "lowpass";
+        f.frequency.value = 520;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, now);
+        g.gain.exponentialRampToValueAtTime(0.05 + 0.04 * clamp(sp / 30, 0, 1), now + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.0001, now + 0.26);
+        src.connect(f);
+        f.connect(g);
+        g.connect(ctx.destination);
+        src.start(now);
+        src.stop(now + 0.3);
+      }
+      function updateUmbrellas(dt) {
+        if (vehMode === "car" && !drv.boat && knockUmbrellas(drv.pos, drv.yaw, drv.speed, CAR_HIT)) drv.speed *= 0.96;
+        knockUmbrellas(plane.pos, plane.yaw, plane.speed, PLANE_HIT);
+        const now = nowS();
+        for (const u of UMBRELLAS) {
+          if (u.st === 2) {
+            // put back up quietly, a while later, when she's far away
+            if (now - u.t > 40) {
+              const f = focusPos();
+              if (Math.hypot(f.x - u.x, f.z - u.z) > 90) {
+                u.st = 0;
+                u.write(u.m0);
+              }
+            }
+            continue;
+          }
+          if (u.st !== 1) continue;
+          // thrown: flies, lands, bounces a little and slides to a stop on the sand
+          u.vy -= 22 * dt;
+          u.px += u.vx * dt;
+          u.pz += u.vz * dt;
+          u.py += u.vy * dt;
+          if (u.py <= 0) {
+            u.py = 0;
+            u.vy = u.vy < -3 ? -u.vy * 0.25 : 0;
+            const k = Math.max(0, 1 - 6 * dt);
+            u.vx *= k;
+            u.vz *= k;
+            u.spinV *= k;
+          }
+          // …tipping over toward where it was pushed, till it lies on its rim
+          u.om += 9 * dt;
+          u.th += u.om * dt;
+          if (u.th >= u.rest) {
+            u.th = u.rest;
+            u.om = u.om > 1.5 ? -u.om * 0.3 : 0;
+          }
+          u.spin += u.spinV * dt;
+          _uA.set(u.az, 0, -u.ax); // up × the push: tips the top toward it
+          _uM.makeRotationY(u.spin).multiply(u.l0);
+          _uM.premultiply(_uR.makeRotationAxis(_uA, u.th)).setPosition(u.px, u.py, u.pz);
+          u.write(_uM);
+          if (!u.py && !u.vy && !u.om && Math.hypot(u.vx, u.vz) < 0.05) {
+            u.st = 2;
+            u.t = now;
+          }
+        }
       }
 
       // ---- 🌅 two hammocks, each slung between two palms
