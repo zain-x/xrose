@@ -439,6 +439,46 @@
         }
       }
 
+      /* 🧭 the way to her cake — shown only until she first opens it */
+      #cake-way {
+        position: fixed;
+        top: 48px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 12;
+        display: none;
+        align-items: center;
+        gap: 7px;
+        padding: 5px 13px 5px 8px;
+        border-radius: 18px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #fff2f8;
+        white-space: nowrap;
+        pointer-events: none;
+        background: linear-gradient(135deg, rgba(150, 30, 90, 0.62), rgba(90, 40, 150, 0.55));
+        border: 1px solid rgba(255, 170, 210, 0.55);
+        box-shadow: 0 0 14px rgba(255, 80, 150, 0.35);
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+      }
+      #cake-way.on {
+        display: flex;
+      }
+      #cake-way svg {
+        width: 22px;
+        height: 22px;
+        fill: #ffd166;
+        filter: drop-shadow(0 0 4px rgba(255, 120, 170, 0.9));
+      }
+      #cake-way b {
+        color: #ffd6e8;
+      }
+      @media (max-width: 640px) {
+        #cake-way {
+          top: 84px; /* under the 📍 where-pill */
+        }
+      }
+
       /* ─────────── 🎂 the birthday finale: captions & the blow-the-candles card ─────────── */
       #bcap {
         position: fixed;
@@ -1470,6 +1510,7 @@
     <div id="where" dir="rtl"><span class="w-i"></span><b></b><span class="w-s"></span></div>
     <div id="prompt"></div>
     <div id="bcap"></div>
+    <div id="cake-way"><svg viewBox="0 0 24 24"><path d="M12 2 20.5 21 12 16.2 3.5 21Z" /></svg><span>🎂 Your cake</span><b></b></div>
     <div id="blow">
       <div class="b-t">🎂 Make a wish, Rose…</div>
       <div class="b-s" id="blow-s">…then blow out the candles!</div>
@@ -15286,6 +15327,7 @@
         if (CAKE.blowing && e.code === "Escape") endBlow(false);
       });
       function startBlow() {
+        cakeGuideDone();
         initHallAudio();
         if (hallCtx && hallCtx.state !== "running") hallCtx.resume();
         // stand her before the cake, facing it, the candles in view
@@ -16354,6 +16396,60 @@
         CAKE_SPARK.col.set(c, i * 3);
         CAKE_SPARK.size[i] = 0.22 + Math.random() * 0.18;
       }
+      // ---- 🧭 the way to her cake, the first time only: an arrow at the top of the
+      // screen (to the pier's arch first, then down the pier), a rose beam over the
+      // cake and a 🎂 above it — gone for good once she opens the cake (this device
+      // remembers it)
+      const CAKE_GUIDE = { on: true, el: document.getElementById("cake-way"), beam: null, mark: null, ang: 0, txt: "" };
+      CAKE_GUIDE.arrow = CAKE_GUIDE.el.querySelector("svg");
+      CAKE_GUIDE.dist = CAKE_GUIDE.el.querySelector("b");
+      try {
+        CAKE_GUIDE.on = localStorage.getItem("rose-cake-found") !== "1";
+      } catch (e) {}
+      if (CAKE_GUIDE.on) {
+        CAKE_GUIDE.beam = makeBeam(CAKE, 0xff5d9e);
+        CAKE_GUIDE.mark = emojiSprite("🎂");
+        CAKE_GUIDE.mark.scale.set(7, 7, 1);
+        surpriseRoot.add(CAKE_GUIDE.mark);
+      }
+      function cakeGuideDone() {
+        if (!CAKE_GUIDE.on) return;
+        CAKE_GUIDE.on = false;
+        try {
+          localStorage.setItem("rose-cake-found", "1");
+        } catch (e) {}
+        CAKE_GUIDE.el.classList.remove("on");
+        CAKE_GUIDE.beam.removeFromParent();
+        CAKE_GUIDE.mark.removeFromParent();
+      }
+      const _cgF = new THREE.Vector3();
+      function updateCakeGuide(dt, t) {
+        if (!CAKE_GUIDE.on) return;
+        const p = focusPos();
+        const toCake = Math.hypot(p.x - CAKE.x, p.z - CAKE.z);
+        CAKE_GUIDE.mark.position.set(CAKE.x, 15 + Math.sin(t * 1.6) * 0.6, CAKE.z);
+        CAKE_GUIDE.beam.material.opacity = 0.14 + 0.06 * Math.sin(t * 2.2);
+        const show = started && !uiPaused && !CAKE.blowing && toCake > 16;
+        CAKE_GUIDE.el.classList.toggle("on", show);
+        if (!show) return;
+        // on land she's led to the arch where the pier starts, then down the pier
+        const ax = PIER.x,
+          az = PIER.z0 + 1;
+        const aD = Math.hypot(p.x - ax, p.z - az);
+        const viaArch = vehMode !== "plane" && p.y < 3 && coastDist(p.x, p.z) < 0 && aD > 6;
+        const tx = viaArch ? ax : CAKE.x,
+          tz = viaArch ? az : CAKE.z;
+        const dist = viaArch ? aD + Math.hypot(ax - CAKE.x, az - CAKE.z) : toCake;
+        // the arrow turns with the camera: straight up = straight ahead
+        camera.getWorldDirection(_cgF);
+        const dx = tx - p.x,
+          dz = tz - p.z;
+        const want = Math.atan2(dz * _cgF.x - dx * _cgF.z, dx * _cgF.x + dz * _cgF.z);
+        CAKE_GUIDE.ang = angLerp(CAKE_GUIDE.ang, want, Math.min(1, dt * 8));
+        CAKE_GUIDE.arrow.style.transform = `rotate(${CAKE_GUIDE.ang.toFixed(3)}rad)`;
+        const txt = dist > 950 ? (dist / 1000).toFixed(1) + " km" : Math.round(dist / 5) * 5 + " m";
+        if (txt !== CAKE_GUIDE.txt) CAKE_GUIDE.dist.textContent = CAKE_GUIDE.txt = txt;
+      }
       function updateCakeWay(dt, t) {
         const d = Math.hypot(focusPos().x - CAKE.x, focusPos().z - CAKE.z);
         // she's on her way: a welcome as she comes close, and the cake flares up
@@ -16539,6 +16635,7 @@
         updateFootsteps();
         updateJetSound();
         updateCakeWay(dt, t);
+        updateCakeGuide(dt, t);
         updateLove(dt, t);
         updateCinema();
       }
