@@ -15260,7 +15260,8 @@
         const SCRIPT = (px) => `italic 700 ${Math.round(px)}px Georgia, "Palatino Linotype", serif`;
         band(2.215, 0.23 + 0.45, 0.52, 2.6, "Happy Birthday Rose ♥", SCRIPT, "#c8104a");
         band(1.615, tops[0][0] + 0.4, 0.42, 1.7, "روز", (px) => `700 ${Math.round(px)}px "Segoe UI", Tahoma, sans-serif`, "#fff6fa");
-        // the candles: eight round the top tier, each with a living flame
+        // the candles: eight round the top tier, each with a living flame, and
+        // her age in front
         const [topY] = tops[2];
         const CANDLE_COLS = [0xff7ab0, 0xc58bff, 0xffd166, 0x7fd8ff];
         const cIM = new THREE.InstancedMesh(
@@ -15269,13 +15270,9 @@
           8,
         );
         const wicks = [];
-        for (let k = 0; k < 8; k++) {
-          const a = (k / 8) * 6.283 + 0.39;
-          const x = 0 + Math.sin(a) * 0.68,
-            z = 0 + Math.cos(a) * 0.68;
-          cIM.setMatrixAt(k, matAt(x, topY, z));
-          cIM.setColorAt(k, tmpColor.setHex(CANDLE_COLS[k % 4]));
-          wicks.push(matAt(x, topY + 0.5, z));
+        // a wick and a living flame on the top of a candle
+        const addFlame = (x, y, z) => {
+          wicks.push(matAt(x, y, z));
           const sp = new THREE.Sprite(
             new THREE.SpriteMaterial({ map: FLAME_TEX, transparent: true, depthWrite: false, fog: false, blending: THREE.AdditiveBlending }),
           );
@@ -15283,12 +15280,42 @@
             new THREE.SpriteMaterial({ map: HALO_TEX, color: 0xffb070, transparent: true, depthWrite: false, fog: false, blending: THREE.AdditiveBlending, opacity: 0.4 }),
           );
           halo.scale.set(0.8, 0.8, 1);
-          halo.position.set(x, topY + 0.66, z);
+          halo.position.set(x, y + 0.16, z);
           CG.add(sp, halo);
-          CAKE.flames.push({ sp, halo, x, y: topY + 0.52, z, lit: true, need: 1 });
+          CAKE.flames.push({ sp, halo, x, y: y + 0.02, z, lit: true, need: 1 });
+        };
+        for (let k = 0; k < 8; k++) {
+          const a = (k / 8) * 6.283 + 0.39;
+          const x = 0 + Math.sin(a) * 0.68,
+            z = 0 + Math.cos(a) * 0.68;
+          cIM.setMatrixAt(k, matAt(x, topY, z));
+          cIM.setColorAt(k, tmpColor.setHex(CANDLE_COLS[k % 4]));
+          addFlame(x, topY + 0.5, z);
         }
         CG.add(cIM);
-        const wIM = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.012, 0.012, 0.07, 4).translate(0, 0.035, 0), RM(0x2a2020), 8);
+        // her age: « 24 » in two gold number candles at the front of the top
+        // tier, each with its own flame (they blow out with the others). The
+        // digits are drawn 0.62 tall, centred on x = 0, standing on y = 0.
+        const two = new THREE.Shape().moveTo(-0.21, 0).lineTo(0.21, 0).lineTo(0.21, 0.12).lineTo(-0.03, 0.12);
+        const a0 = (-35 * Math.PI) / 180,
+          a1 = (160 * Math.PI) / 180;
+        two.absarc(0, 0.42, 0.2, a0, a1, false); // the round top, over to the left
+        two.absarc(0, 0.42, 0.085, a1, a0, true); // and back on the inside
+        two.lineTo(-0.21, 0.12).closePath();
+        const four = new THREE.Shape()
+          .moveTo(0.03, 0).lineTo(0.16, 0).lineTo(0.16, 0.14).lineTo(0.21, 0.14).lineTo(0.21, 0.26).lineTo(0.16, 0.26)
+          .lineTo(0.16, 0.62).lineTo(0.04, 0.62).lineTo(-0.21, 0.26).lineTo(-0.21, 0.14).lineTo(0.03, 0.14).closePath();
+        four.holes.push(new THREE.Path().moveTo(0.03, 0.26).lineTo(0.03, 0.394).lineTo(-0.063, 0.26).closePath());
+        const AGE_K = 0.7 / 0.62,
+          AGE_Z = 0.28,
+          AGE_Y = topY + 0.015;
+        const AGE_GOLD = RM(0xffd27a, { roughness: 0.28, metalness: 0.7, emissive: 0x8a5a14, emissiveIntensity: 0.6 });
+        for (const [shape, x, wx] of [[two, -0.26, 0], [four, 0.26, 0.1]]) {
+          const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.1, bevelEnabled: true, bevelThickness: 0.015, bevelSize: 0.012, bevelSegments: 2, curveSegments: 16 });
+          rmesh(geo.translate(0, 0, -0.05).scale(AGE_K, AGE_K, AGE_K), AGE_GOLD, x, AGE_Y, AGE_Z, CG);
+          addFlame(x + wx * AGE_K, AGE_Y + 0.632 * AGE_K, AGE_Z);
+        }
+        const wIM = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.012, 0.012, 0.07, 4).translate(0, 0.035, 0), RM(0x2a2020), wicks.length);
         wicks.forEach((m, i) => wIM.setMatrixAt(i, m));
         CG.add(wIM);
         // the topper: « Rose ♥ » in gold, on two little gold sticks
@@ -15311,9 +15338,9 @@
           }),
         );
         topper.scale.set(1.9, 0.74, 1);
-        topper.position.set(0, topY + 1.45, 0);
+        topper.position.set(0, topY + 1.6, 0);
         CG.add(topper);
-        for (const sx of [-0.3, 0.3]) rcyl(0.018, 0.018, 1.1, 0 + sx, topY + 0.55, 0, GOLD, 6, CG);
+        for (const sx of [-0.3, 0.3]) rcyl(0.018, 0.018, 1.25, 0 + sx, topY + 0.625, 0, GOLD, 6, CG);
         // puffs of smoke when a candle goes out
         for (let k = 0; k < 28; k++) {
           const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: SMOKE_TEX, transparent: true, depthWrite: false, opacity: 0 }));
