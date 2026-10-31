@@ -745,6 +745,14 @@
         grid-template-columns: 40px 1fr;
         gap: 5px 8px;
         padding: 7px 9px;
+        transition: top 0.3s ease;
+      }
+      /* the 🧭 cake arrow (first visit only) sits where the radio does on a
+         phone, so while it's up the radio steps down under it */
+      @media (max-width: 640px) {
+        body.touch.cake-way-on #radio {
+          top: 128px;
+        }
       }
       body.touch #radio .rf-disc {
         width: 40px;
@@ -8931,9 +8939,9 @@
       }
 
       // ---- collectible red kisses 💋 (in the roads & above the buildings) ----
-      // Small world-anchored kisses she flies through; collect 101 for a real one.
+      // Small world-anchored kisses she flies through; collect 25 for a real one.
       const kissRoot = new THREE.Group(); scene.add(kissRoot);
-      const KISS_RANGE = 120, KISS_GOAL = 25;
+      const KISS_RANGE = 120, KISS_GOAL = 25, KISS_N = 120;
       const kisses = [];
       let kissCount = 0, kissDone = false;
       const kissCountEl = document.getElementById('kiss-count');
@@ -8963,11 +8971,20 @@
         }
         k.phase = Math.random() * 6.283;
       }
-      for (let i = 0; i < 50; i++) {
-        const sp = emojiSprite('💋'); sp.scale.set(2.2, 2.2, 1);   // small
-        sp.material.depthTest = true;   // buildings hide kisses that are behind them
-        kissRoot.add(sp);
-        const k = { sp }; seedKiss(k); kisses.push(k);
+      // all of them are ONE instanced little card that always faces the camera
+      // (so a lot more kisses cost the same single draw)
+      const kissMesh = new THREE.InstancedMesh(
+        new THREE.PlaneGeometry(2.2, 2.2),   // small
+        new THREE.MeshBasicMaterial({ map: emojiTex('💋'), transparent: true, depthWrite: false, fog: false }),
+        KISS_N,
+      );
+      kissMesh.frustumCulled = false;   // they're spread all around her
+      kissMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      kissRoot.add(kissMesh);
+      const _kM = new THREE.Matrix4(), _kQ = new THREE.Quaternion(), _kP = new THREE.Vector3(), _kS = new THREE.Vector3(1, 1, 1);
+      for (let i = 0; i < KISS_N; i++) {
+        const k = {}; seedKiss(k); kisses.push(k);
+        kissMesh.setMatrixAt(i, _kM.compose(_kP.set(k.bx, k.by, k.bz), _kQ, _kS));
       }
       function kissReward() {
         const el = document.getElementById('kissreward'), card = document.getElementById('kissreward-card');
@@ -8982,16 +8999,19 @@
         track(`💋 Collected ${KISS_GOAL} kisses → ${KISS_GOAL} instant + 1 real`);
       }
       function updateKisses(t) {
-        if (!started || uiPaused) return;
+        if (!started) return;
         const cam = camera.position;
         const fp = focusPos();
         // on foot she reaches ~3m; the car sweeps wider; the Rose plane
         // catches kisses across her whole wingspan 💋✈️
         const grabR = vehMode === "plane" ? 12 : vehMode === "car" ? 6 : 3.4;
-        for (const k of kisses) {
-          k.sp.position.set(k.bx, k.by + Math.sin(t * 2 + k.phase) * 0.5, k.bz);
+        camera.getWorldQuaternion(_kQ);
+        for (let i = 0; i < kisses.length; i++) {
+          const k = kisses[i];
           const dx = k.bx - fp.x, dy = k.by - fp.y, dz = k.bz - fp.z;
-          if (dx * dx + dy * dy + dz * dz < grabR * grabR) {      // collected!
+          if (uiPaused) {
+            // (a panel is open: they only keep facing the camera)
+          } else if (dx * dx + dy * dy + dz * dz < grabR * grabR) {      // collected!
             if (!kissDone) {
               kissCount++; kissCountEl.textContent = kissCount;
               screenBurst(['💋', '💗'], 5);
@@ -9001,7 +9021,10 @@
           } else if (Math.hypot(k.bx - cam.x, k.bz - cam.z) > KISS_RANGE * 1.5 || k.by < cam.y - 150 || k.by > cam.y + 170) {
             seedKiss(k);                                          // drifted off → recycle near her
           }
+          _kP.set(k.bx, k.by + Math.sin(t * 2 + k.phase) * 0.5, k.bz);
+          kissMesh.setMatrixAt(i, _kM.compose(_kP, _kQ, _kS));
         }
+        kissMesh.instanceMatrix.needsUpdate = true;
       }
 
       // ---- animated GIF posters pinned to buildings (one each, always playing) ----
@@ -16438,6 +16461,7 @@
           localStorage.setItem("rose-cake-found", "1");
         } catch (e) {}
         CAKE_GUIDE.el.classList.remove("on");
+        document.body.classList.remove("cake-way-on");
         CAKE_GUIDE.beam.removeFromParent();
         CAKE_GUIDE.mark.removeFromParent();
       }
@@ -16450,6 +16474,7 @@
         CAKE_GUIDE.beam.material.opacity = 0.14 + 0.06 * Math.sin(t * 2.2);
         const show = started && !uiPaused && !CAKE.blowing && toCake > 16;
         CAKE_GUIDE.el.classList.toggle("on", show);
+        document.body.classList.toggle("cake-way-on", show);
         if (!show) return;
         // on land she's led to the arch where the pier starts, then down the pier
         const ax = PIER.x,
