@@ -3668,7 +3668,12 @@
             const gx = baseX + ox,
               gz = baseZ + oz;
             L.position.set(gx * TILE + LAMP_OFF, 6.4, gz * TILE + LAMP_OFF);
-            L.intensity = noLamp(gx, gz) ? 0 : 6 * reach * uNight.value;
+            // a lamp fades with her distance (full within 19 m, dark by 32 m): the
+            // four lights move on to the next lamps as she walks, and this way the
+            // ones they leave are already dark - the street lighting never pops
+            const d = Math.hypot(L.position.x - camera.position.x, L.position.z - camera.position.z);
+            const w = Math.min(1, Math.max(0, (TILE - d) / (TILE * 0.4)));
+            L.intensity = noLamp(gx, gz) ? 0 : 6 * reach * uNight.value * w;
           }
         }
       }
@@ -3862,9 +3867,15 @@
       // computer can't keep up. Everything bright (neon piping, signs, lamps,
       // car lights) gets a soft halo bleeding into the night air.
       let composer = null,
+        bloomPass = null,
         bloomOn = false,
+        bloomK = 1, // the glow's strength: 1, then down to 0 as it fades away
         slowChecks = 0,
-        prHold = 0; // after dropping pixels, wait a while before sharpening again
+        fastChecks = 0,
+        prHold = 0, // after dropping pixels, wait a while before sharpening again
+        prCap = PR_MAX, // and never climb back to a sharpness that stuttered
+        wantPR = PR_MAX; // the sharpness to switch to at the top of the next frame
+      const BLOOM_STR = 0.55;
       if (!isTouch) {
         const rt = new THREE.WebGLRenderTarget(
           innerWidth * curPR,
@@ -3875,19 +3886,21 @@
         composer.setPixelRatio(curPR);
         composer.setSize(innerWidth, innerHeight);
         composer.addPass(new RenderPass(scene, camera));
-        composer.addPass(
-          new UnrealBloomPass(
-            new THREE.Vector2(innerWidth / 2, innerHeight / 2),
-            0.55, // strength
-            0.42, // radius
-            0.82, // threshold - only genuinely bright things glow
-          ),
+        bloomPass = new UnrealBloomPass(
+          new THREE.Vector2(innerWidth / 2, innerHeight / 2),
+          BLOOM_STR,
+          0.42, // radius
+          0.82, // threshold - only genuinely bright things glow
         );
+        composer.addPass(bloomPass);
         composer.addPass(new OutputPass()); // tone mapping + sRGB, like the plain path
         bloomOn = true;
       }
 
-      // 📉 adaptive resolution: setPixelRatio re-sizes the drawing buffer itself
+      // 📉 adaptive resolution: setPixelRatio re-sizes the drawing buffer itself -
+      // which also wipes it. So it's only ever called at the top of a frame, right
+      // before that frame is drawn (called after the draw, as it used to be, the
+      // screen showed one empty frame each time: a flicker)
       function applyPR(pr) {
         curPR = pr;
         renderer.setPixelRatio(pr);
@@ -3898,6 +3911,13 @@
       function animate() {
         requestAnimationFrame(animate);
         const dt = Math.min(clock.getDelta(), 0.05);
+        if (wantPR !== curPR) applyPR(wantPR);
+        if (bloomOn && bloomK < 1) {
+          // the glow fades away over two seconds instead of vanishing at once
+          bloomK = Math.max(0, bloomK - dt * 0.5);
+          bloomPass.strength = BLOOM_STR * bloomK;
+          if (bloomK <= 0) bloomOn = false;
+        }
 
         if (vehMode === "car") updateCar(dt);
         else if (vehMode === "plane") updatePlane(dt);
@@ -3948,14 +3968,22 @@
           // below a smooth 60 → drop the glow first, then render fewer pixels;
           // smooth again for a good while → sharpen back up, a little at a time
           slowChecks = fps < 45 && starTime > 8 ? slowChecks + 1 : 0;
-          if (bloomOn && slowChecks >= 3) {
-            bloomOn = false;
+          fastChecks = fps > 57 ? fastChecks + 1 : 0;
+          if (bloomOn && bloomK >= 1 && slowChecks >= 3) {
+            bloomK = 0.999; // (starts the glow's fade)
             slowChecks = 0;
+          } else if (bloomOn && bloomK < 1) {
+            // (the glow is still going: judge the pixels once it has gone)
           } else if (fps < 48 && starTime > 8 && curPR > PR_MIN) {
-            applyPR(Math.max(PR_MIN, curPR - 0.1));
+            prCap = Math.round(Math.max(PR_MIN, curPR - 0.05) * 100) / 100;
+            wantPR = Math.round(Math.max(PR_MIN, curPR - 0.1) * 100) / 100;
             prHold = starTime + 12;
-          } else if (fps > 57 && starTime > prHold && curPR < PR_MAX)
-            applyPR(Math.min(PR_MAX, curPR + 0.05));
+            fastChecks = 0;
+          } else if (fastChecks >= 6 && starTime > prHold && curPR < prCap) {
+            // smooth for three whole seconds → one small step sharper, up to the cap
+            wantPR = Math.round(Math.min(prCap, curPR + 0.05) * 100) / 100;
+            fastChecks = 0;
+          }
           // DOM writes are costly - refresh the stats line twice a second only
           statsEl.textContent =
             `${fps} fps · ${clockLabel()} · alt ${camera.position.y.toFixed(0)}m · ` +
@@ -4035,6 +4063,9 @@
       function enterCity() {
         if (started) return;
         started = true;
+        try {
+          localStorage.setItem("rose-first-start", "1"); // (next time: the city)
+        } catch (e) {}
         overlay.classList.add("hidden");
         document.getElementById("touch").classList.add("on");
         // music does NOT auto-start - it only plays when she taps the ♪ button
@@ -4308,7 +4339,6 @@
       // happiness → courage sections - pulled straight from dailyMessages.
       const LOVE_YOU = dailyMessages.slice(10, 121);
       let hasGoldenKey = false;
-      let hasPurpleKey = false;
       const MOODS = [
         { key: "مبسوطة", e: "😊" },
         { key: "مرتاحة", e: "😌" },
@@ -4493,29 +4523,6 @@
         openPanel(`<span class="emoji-head">🔑</span><h2>المفتاح الذهبي</h2>
     <p class="big-msg">Golden Key found!</p>`);
         track("🔑 Got the golden key");
-      }
-      function openLockedSecret() {
-        openPanel(`<svg width="62" height="62" viewBox="0 0 24 24" style="display:block;margin:0 auto 10px">
-      <path d="M7 10V8a5 5 0 0 1 10 0v2" stroke="#b988ff" stroke-width="2.2" fill="none" stroke-linecap="round"/>
-      <rect x="5" y="10" width="14" height="10" rx="2.6" fill="#9b5cff"/>
-      <circle cx="12" cy="14.4" r="1.7" fill="#36105f"/>
-      <rect x="11.2" y="14.4" width="1.6" height="3.6" rx="0.8" fill="#36105f"/>
-    </svg>
-    <p class="big-msg">🔑 Purple key needed</p>`);
-        screenBurst(["💜", "🔒", "✨"]);
-        track("🔒 Tried the secret (locked)");
-      }
-      function collectPurpleKey(s) {
-        if (hasPurpleKey) return;
-        hasPurpleKey = true;
-        s.gone = true;
-        s.obj.visible = false;
-        s.marker.visible = false;
-        s.beam.visible = false;
-        screenBurst(["🔑", "✨", "💜", "🌟"]);
-        openPanel(`<span class="emoji-head">🔑</span><h2>المفتاح البنفسجي</h2>
-    <p class="big-msg">Purple Key found!</p>`);
-        track("🔑 Got the purple key");
       }
       function openMood() {
         openPanel(`<span class="emoji-head">🌈</span><h2>كيف مزاجك اليوم؟</h2>
@@ -4812,46 +4819,6 @@
         sprite.material.map = emojiTex(emoji);
         sprite.material.needsUpdate = true;
       }
-      // A hand-drawn PURPLE padlock (so the secret's lock isn't the gold emoji).
-      function makeLockTexture() {
-        const s = 200,
-          c = document.createElement("canvas");
-        c.width = c.height = s;
-        const g = c.getContext("2d");
-        const cx = s / 2;
-        g.lineWidth = 22;
-        g.strokeStyle = "#b988ff";
-        g.lineCap = "round";
-        g.beginPath();
-        g.arc(cx, s * 0.4, 34, Math.PI, 0);
-        g.stroke();
-        g.beginPath();
-        g.moveTo(cx - 34, s * 0.4);
-        g.lineTo(cx - 34, s * 0.52);
-        g.moveTo(cx + 34, s * 0.4);
-        g.lineTo(cx + 34, s * 0.52);
-        g.stroke();
-        const bx = s * 0.26,
-          by = s * 0.5,
-          bw = s * 0.48,
-          bh = s * 0.4,
-          r = 18;
-        g.fillStyle = "#9b5cff";
-        g.beginPath();
-        g.moveTo(bx + r, by);
-        g.arcTo(bx + bw, by, bx + bw, by + bh, r);
-        g.arcTo(bx + bw, by + bh, bx, by + bh, r);
-        g.arcTo(bx, by + bh, bx, by, r);
-        g.arcTo(bx, by, bx + bw, by, r);
-        g.closePath();
-        g.fill();
-        g.fillStyle = "#36105f";
-        g.beginPath();
-        g.arc(cx, by + bh * 0.42, 12, 0, 7);
-        g.fill();
-        g.fillRect(cx - 5, by + bh * 0.42, 10, 22);
-        return new THREE.CanvasTexture(c);
-      }
       function makeBeam(pos, color) {
         const g = new THREE.CylinderGeometry(0.85, 0.85, 260, 10, 1, true);
         g.translate(0, 130, 0);
@@ -5089,9 +5056,6 @@
       }
       function buildGoldenKey(pos) {
         return buildKeyShape(pos, GOLD);
-      }
-      function buildPurpleKey(pos) {
-        return buildKeyShape(pos, PURPLE);
       }
       // Roof finder - reproduces buildChunk's height/jitter so a surprise sits on a real rooftop.
       function buildingTop(gx, gz) {
@@ -8972,10 +8936,11 @@
         k.phase = Math.random() * 6.283;
       }
       // all of them are ONE instanced little card that always faces the camera
-      // (so a lot more kisses cost the same single draw)
+      // (so a lot more kisses cost the same single draw); solid where the lips
+      // are, so two kisses in a row never swap places on screen
       const kissMesh = new THREE.InstancedMesh(
         new THREE.PlaneGeometry(2.2, 2.2),   // small
-        new THREE.MeshBasicMaterial({ map: emojiTex('💋'), transparent: true, depthWrite: false, fog: false }),
+        new THREE.MeshBasicMaterial({ map: emojiTex('💋'), transparent: true, alphaTest: 0.5, fog: false }),
         KISS_N,
       );
       kissMesh.frustumCulled = false;   // they're spread all around her
@@ -9151,7 +9116,9 @@
       // 🚗🛩️  RIDE MODE - a real red car & a plane she can find and actually drive
       // The car sleeps at the kerb of the first road south of spawn (red beam);
       // the plane waits on the runway of ROSE AIRFIELD, a real airfield carved
-      // out of the city to the east (blue beam). Walk up close and press F -
+      // out of the city: it starts right across the street from مقهى روز, a
+      // short walk east of the start, and runs to the east coast (blue beam).
+      // Walk up close and press F -
       // or tap the prompt / the 🚗 button on phones.
       // ============================================================================
 
@@ -9182,17 +9149,18 @@
       }
       // Hoisted so the very first towerSpec() call already respects the clearing.
       function inAirport(gx, gz) {
-        return gx >= 5 && gx <= 11 && gz >= -1 && gz <= 1;
+        return gx >= 2 && gx <= 11 && gz >= -1 && gz <= 1; // (AIR_X is their middle)
       }
 
       // ---- Rose Airfield grounds: apron field, painted runway, lights, sign -----
       const RUNWAY_Z = 0.5 * TILE; // runway centreline (z, metres)
-      const AIR_X = 8.5 * TILE; // centre of the airfield clearing (x, metres)
-      const RW_LEN = 7 * TILE - 10; // runway length
+      const AIR_X = 7 * TILE; // centre of the airfield clearing (x, metres): lots 2…11
+      const AIR_LOTS = 10; // its length in lots - from the café's street to the coast
+      const RW_LEN = AIR_LOTS * TILE - 10; // runway length
       {
         // 🌱 a real grass airfield - the runway, taxiway, apron and the buildings'
         // pads are paved; everything else is mown grass with tufts
-        const field = new THREE.Mesh(grassPlane(7 * TILE + 2, 3 * TILE + 2), GRASS_MAT);
+        const field = new THREE.Mesh(grassPlane(AIR_LOTS * TILE + 2, 3 * TILE + 2), GRASS_MAT);
         field.rotation.x = -Math.PI / 2;
         field.position.set(AIR_X, 0.06, RUNWAY_Z);
         field.receiveShadow = true;
@@ -9462,9 +9430,9 @@
           (Math.abs(x - WS_X) < 1.5 && Math.abs(z - WS_Z) < 1.5) ||
           [-1, 1].some((e) => Math.abs(x - (AIR_X + e * (RW_LEN / 2 - 30))) < 1 && z > RUNWAY_Z - 17 && z < RUNWAY_Z - 11);
         const tufts = [];
-        const FW = 7 * TILE - 2,
+        const FW = AIR_LOTS * TILE - 2,
           FD = 3 * TILE - 2;
-        for (let i = 0; i < 3000 && tufts.length < (isTouch ? 900 : 1400); i++) {
+        for (let i = 0; i < 4500 && tufts.length < (isTouch ? 900 : 1400); i++) {
           const x = AIR_X - FW / 2 + hash(i, 1, 400) * FW,
             z = RUNWAY_Z - FD / 2 + hash(i, 2, 400) * FD;
           if (paved(x, z)) continue;
@@ -15465,6 +15433,17 @@
         [26.4, () => volley(8, 200)],
         [29.5, () => nameInStars(0, 0, 0.55)],
       ];
+      // 💌 after the fireworks her birthday letter opens by itself - the one the
+      // secret heart in the city keeps (there's no key to find any more; the
+      // heart is marked found as well)
+      function letterAfterShow() {
+        const s = surprises.find((q) => q.id === "secret");
+        if (s) {
+          setEmoji(s.marker, "💖");
+          markDiscovered("secret");
+        }
+        openSecret();
+      }
       function updateCake(dt, t) {
         // the flames flicker - and bow away from her while she blows
         CAKE.lean += (CAKE.blow - CAKE.lean) * Math.min(1, dt * 10);
@@ -15508,7 +15487,10 @@
           const prev = CAKE.showT;
           CAKE.showT += dt;
           for (const [at, fn] of SHOW) if (prev < at && CAKE.showT >= at) fn();
-          if (CAKE.showT > 34) CAKE.show = false;
+          if (CAKE.showT > 34) {
+            CAKE.show = false;
+            letterAfterShow();
+          }
         } else if (!CAKE.blowing && !allLit() && Math.hypot(girl.pos.x - CAKE.x, girl.pos.z - CAKE.z) > 30) relightCandles();
         if (bdaySong && nowS() > bdayUntil) {
           bdaySong = false;
@@ -16787,6 +16769,19 @@
         body: null,
         cape: null,
       };
+      // 🎂 her very first visit starts on the sand in front of the birthday pier,
+      // facing the cake at its end - every visit after that starts in the city
+      // as usual (this device remembers; one that already found the cake starts
+      // in the city too)
+      let firstStart = false;
+      try {
+        firstStart = !localStorage.getItem("rose-first-start") && localStorage.getItem("rose-cake-found") !== "1";
+      } catch (e) {}
+      if (firstStart) {
+        girl.pos.set(PIER.x, 0, PIER.z0 + 5);
+        girl.yaw = Math.PI; // (her "south" is −z: straight down the pier)
+        yaw = 0;
+      }
       {
         const G = girl.g;
         const body = new THREE.Group();
@@ -18064,7 +18059,7 @@
           radarG.fillStyle = "rgba(120, 210, 150, 0.45)";
           radarG.fillRect(PARK.x - PARK.w / 2, PARK.z - PARK.d / 2, PARK.w, PARK.d);
           radarG.fillStyle = "rgba(160, 170, 200, 0.4)";
-          radarG.fillRect(5 * TILE, -TILE, 7 * TILE, 3 * TILE);
+          radarG.fillRect(2 * TILE, -TILE, 10 * TILE, 3 * TILE);
           radarG.strokeStyle = "rgba(255, 190, 220, 0.28)";
           radarG.lineWidth = ROAD_HW * 1.6;
           radarG.beginPath();
@@ -18244,8 +18239,7 @@
       const sec = buildSecret(P(0, 6 * TILE));
       addSurprise({
         id: "secret",
-        emoji: "🔒",
-        markerTex: makeLockTexture(),
+        emoji: "💌",
         label: SECRET_TITLE,
         color: 0x9b5cff,
         pos: P(0, 6 * TILE),
@@ -18257,10 +18251,6 @@
           sec.heart.scale.setScalar(2.4 * (1 + Math.sin(t * 1.3) * 0.06));
         },
         activate: (s) => {
-          if (!hasPurpleKey) {
-            openLockedSecret();
-            return false;
-          }
           setEmoji(s.marker, "💖");
           openSecret();
         },
@@ -18391,29 +18381,6 @@
           gkey.spin.rotation.z = Math.sin(t * 0.8) * 0.25;
         },
         activate: (s) => collectKey(s),
-      });
-
-      const ROOF_PK = pickRoof(-6, 5, 1);
-      const pkey = buildPurpleKey(
-        new THREE.Vector3(ROOF_PK.x, ROOF_PK.top, ROOF_PK.z),
-      );
-      addSurprise({
-        id: "purplekey",
-        emoji: "🔑",
-        label: "المفتاح البنفسجي",
-        color: 0x9b5cff,
-        counted: false,
-        obj: pkey.grp,
-        pos: new THREE.Vector3(ROOF_PK.x, ROOF_PK.top, ROOF_PK.z),
-        centerY: ROOF_PK.top + 10,
-        markerY: ROOF_PK.top + 18,
-        radius: 42,
-        update: (s, t) => {
-          if (s.gone) return;
-          pkey.spin.rotation.y = t * 1.3;
-          pkey.spin.rotation.z = Math.sin(t * 0.8) * 0.25;
-        },
-        activate: (s) => collectPurpleKey(s),
       });
 
       // --- the sealed envelope on its table inside مقهى روز ☕💌 ---
@@ -18565,19 +18532,23 @@
           .sort((a, b) => a[1] - b[1])
           .slice(0, LOCAL_POOL.length)
           .map((e) => e[0]);
-        const free = LOCAL_POOL.filter((q) => !want.includes(q.src));
+        // a light whose source is no longer wanted dims out where it is first;
+        // only a dark one moves on to a new source, fading in there - so no light
+        // ever jumps across the world or pops on and off
+        for (const q of LOCAL_POOL) q.on = !!q.src && want.includes(q.src);
         for (const s of want)
           if (!LOCAL_POOL.some((q) => q.src === s)) {
-            const q = free.pop();
+            const q = LOCAL_POOL.find((q) => !q.on && q.k <= 0);
+            if (!q) continue; // (one is still dimming: next frame)
             q.src = s;
-            q.k = 0;
+            q.on = true;
             q.L.position.copy(s.p);
             q.L.color.copy(s.color);
             q.L.distance = s.d;
             q.L.decay = s.decay;
           }
         for (const q of LOCAL_POOL) {
-          q.k = Math.min(1, q.k + dt * 2.5);
+          q.k = Math.min(1, Math.max(0, q.k + dt * (q.on ? 2.5 : -2.5)));
           q.L.intensity = q.src ? q.src.i * q.k : 0;
         }
       }
