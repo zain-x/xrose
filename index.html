@@ -3893,7 +3893,25 @@
           0.82, // threshold - only genuinely bright things glow
         );
         composer.addPass(bloomPass);
-        composer.addPass(new OutputPass()); // tone mapping + sRGB, like the plain path
+        // ☠️ one pixel brighter than a half-float can hold - the moon's glare on the
+        // glossy sea seen at a grazing angle, say - became an infinity. The glow's
+        // blurs smeared it into a huge black square (tone mapping an infinity gives
+        // "not a number", which the screen shows as black). So nothing past 32 ever
+        // enters the glow or reaches the screen, and what isn't a number is black
+        // on its own pixel only
+        const hp = bloomPass.materialHighPassFilter;
+        hp.fragmentShader = hp.fragmentShader.replace(
+          "vec4 texel = texture2D( tDiffuse, vUv );",
+          "vec4 texel = texture2D( tDiffuse, vUv ); if ( any( isnan( texel.rgb ) ) ) texel.rgb = vec3( 0.0 ); texel.rgb = clamp( texel.rgb, 0.0, 32.0 );",
+        );
+        hp.needsUpdate = true;
+        const outputPass = new OutputPass(); // tone mapping + sRGB, like the plain path
+        outputPass.material.fragmentShader = outputPass.material.fragmentShader.replace(
+          "gl_FragColor = texture2D( tDiffuse, vUv );",
+          "gl_FragColor = texture2D( tDiffuse, vUv ); gl_FragColor.rgb = clamp( gl_FragColor.rgb, 0.0, 32.0 );",
+        );
+        outputPass.material.needsUpdate = true;
+        composer.addPass(outputPass);
         bloomOn = true;
       }
 
