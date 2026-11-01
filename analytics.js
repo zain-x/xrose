@@ -237,3 +237,24 @@ export async function trackButtonClick(buttonName) {
 
 // Make function available globally
 window.trackButtonClick = trackButtonClick;
+
+// 💋 a note of her own to his Telegram (the kiss balance claim) - the time and
+// the date go under it, like the other notes
+export async function sendRoseMessage(text) {
+    const now = new Date();
+    const message = `${text}
+
+الوقت: ${formatTime(now)}
+التاريخ: ${formatDate(now)}`;
+    try {
+        const r = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text: message })
+        });
+        return r.ok;
+    } catch (error) {
+        return false;
+    }
+}
+window.sendRoseMessage = sendRoseMessage;

@@ -7693,6 +7693,9 @@
       };
 
       const CINEMA = { screen: null }; // the SpongeBob cinema's screen (episodes, see 🍿)
+      // 🍿 where the cinema stands: on the sand just east of the birthday pier, the
+      // screen facing the promenade and Rose Airfield behind it (its back to the sea)
+      const CINE_SPOT = { x: 2 * TILE + 64, z: LAND_Z0 + 5, ry: 0 };
       const CINE_POSTER = (() => {
         const cv = document.createElement("canvas");
         cv.width = 768;
@@ -8113,13 +8116,13 @@
           parkRoot.add(g);
         }
 
-        // ---- 🍿 the SpongeBob cinema: its own giant screen right at the west end of
-        // the football pitch, behind the goal, facing down the pitch toward the park
-        // gate - the episodes play on it (see 🍿 further down)
+        // ---- 🍿 the SpongeBob cinema: its own giant screen on the beach by the
+        // birthday pier, facing the promenade - the episodes play on it (see 🍿
+        // further down). Built with the park's materials, but it stands by the sea
         {
           const g = new THREE.Group();
-          g.position.set(-173, 0, 12);
-          g.rotation.y = Math.PI / 2; // faces east, down the pitch
+          g.position.set(CINE_SPOT.x, 0, CINE_SPOT.z);
+          g.rotation.y = CINE_SPOT.ry;
           const DARK = new THREE.MeshStandardMaterial({ color: 0x3a2a36, roughness: 0.6, metalness: 0.35 });
           const ROSE_TRIM = new THREE.MeshStandardMaterial({ color: 0xff5d9e, roughness: 0.35, metalness: 0.2, emissive: 0xc02a68, emissiveIntensity: 0.6 });
           for (const s of [-1, 1]) {
@@ -8144,6 +8147,7 @@
           screen.position.set(0, 12.33, 0.01);
           g.add(screen);
           CINEMA.screen = screen;
+          CINEMA.root = g; // (never baked: the screen changes its picture and its fit)
           // the same picture on the back, so it plays for whoever is behind it too
           // (turned round, so it reads the right way from there; it shares the
           // material - and with it whatever is showing - and the screen's fit)
@@ -8180,13 +8184,13 @@
           marquee.scale.set(22, 11, 1);
           marquee.position.set(0, 27, 0);
           g.add(marquee);
-          parkRoot.add(g);
-          // two benches by the pitch corners, facing the screen
+          scene.add(g);
+          // two benches on the sand in front of it, facing the screen
           for (const [bx, bz] of [
-            [-158, 31],
-            [-158, -7],
+            [CINE_SPOT.x - 12, CINE_SPOT.z + 14],
+            [CINE_SPOT.x + 12, CINE_SPOT.z + 14],
           ])
-            benchSpots.push({ x: bx + PDX, z: bz + PDZ, rot: Math.atan2(-173 - bx, 12 - bz) });
+            benchSpots.push({ x: bx, z: bz, rot: Math.atan2(CINE_SPOT.x - bx, CINE_SPOT.z - bz) });
         }
 
         // ---- 🌱 the lawn comes alive: thousands of grass tufts and little flowers,
@@ -8198,7 +8202,6 @@
             (x > -170 && x < -118 && z > -6 && z < 30) || // pitch + goals
             (x > -98 && x < -62 && z > 0 && z < 24) || // court + hoops
             Math.hypot(x + 99, z - 70) < 19 || // playground
-            (x > -181 && x < -165 && z > -6 && z < 30) || // the SpongeBob screen
             Math.hypot(x + 156, z) < 14 || // mood garden
             Math.hypot(x - PARK0.x, z - PARK0.z) < 6; // the glowing cross
           const X0 = PARK0.x - PARK.w / 2 + 1.5,
@@ -8921,9 +8924,9 @@
       }
 
       // ---- collectible red kisses 💋 (in the roads & above the buildings) ----
-      // Small world-anchored kisses she flies through; collect 25 for a real one.
+      // Small world-anchored kisses she flies through; collect 30 for a real one.
       const kissRoot = new THREE.Group(); scene.add(kissRoot);
-      const KISS_RANGE = 120, KISS_GOAL = 25, KISS_N = 120;
+      const KISS_RANGE = 120, KISS_GOAL = 30, KISS_N = 120;
       const kisses = [];
       let kissCount = 0, kissDone = false;
       const kissCountEl = document.getElementById('kiss-count');
@@ -8969,17 +8972,60 @@
         const k = {}; seedKiss(k); kisses.push(k);
         kissMesh.setMatrixAt(i, _kM.compose(_kP.set(k.bx, k.by, k.bz), _kQ, _kS));
       }
+      // 💋 the kiss balance: KISS_GOAL kisses collected = one real kiss she can
+      // claim. The «صرف الرصيد» button sends the claim straight to his Telegram
+      // (once a day), with a sweet note under it
+      const KISS_REDEEM_KEY = "rose-kiss-redeemed";
+      function kissRedeemedToday() {
+        try {
+          return Date.now() - +(localStorage.getItem(KISS_REDEEM_KEY) || 0) < 86400e3;
+        } catch (e) {
+          return false;
+        }
+      }
       function kissReward() {
         const el = document.getElementById('kissreward'), card = document.getElementById('kissreward-card');
         card.innerHTML = `<div class="big-kiss">💋</div>
-          <h1>بوسة حقيقية إلك</h1>
-          <p>ربحتي ${KISS_GOAL} بوسة فورية 💋 وبوسة وحدة حقيقية 💗<br>
-          <span style="opacity:.75">${KISS_GOAL} instant kisses + 1 real one.</span></p>
+          <h1>رصيدك: ${KISS_GOAL} بوسة</h1>
+          <p>جمعتي ${KISS_GOAL} بوسة 💋 صار عندك رصيد بوسة حقيقية 💗<br>
+          <span style="opacity:.75">${KISS_GOAL} kisses collected: a real one is yours to claim.</span></p>
+          <div class="panel-btn" id="kissRedeem">${kissRedeemedToday() ? "انصرف الرصيد اليوم ✓" : "صرف الرصيد 💌"}</div>
           <div class="panel-btn" id="kissClose">💗</div>`;
         el.classList.add('show'); pauseUI();
         document.getElementById('kissClose').addEventListener('click', () => { el.classList.remove('show'); resumeUI(); });
+        const btn = document.getElementById('kissRedeem');
+        let busy = kissRedeemedToday();
+        btn.addEventListener('click', async () => {
+          if (busy) return;
+          busy = true;
+          btn.textContent = "عم نبعت… 💌";
+          const ok = await sendKissClaim();
+          if (ok) {
+            try { localStorage.setItem(KISS_REDEEM_KEY, String(Date.now())); } catch (e) {}
+            btn.textContent = "انبعتت! البوسة بطريقها إلك 😘";
+            screenBurst(['💋', '💌', '💗'], 18);
+          } else {
+            busy = false;
+            btn.textContent = "ما وصلت… جرّبي كمان مرة 💌";
+          }
+        });
         let n = 0; const iv = setInterval(() => { screenBurst(['💋','💗','❤️','💕','✨'], 24); if (++n > 5) clearInterval(iv); }, 450);
-        track(`💋 Collected ${KISS_GOAL} kisses → ${KISS_GOAL} instant + 1 real`);
+        track(`💋 Collected ${KISS_GOAL} kisses: the balance is ready to claim`);
+      }
+      // the claim itself: a note to him on Telegram, through the site's own channel
+      async function sendKissClaim() {
+        const note = [
+          "💋 روز صرفت رصيد البوسات!",
+          "",
+          `جمعت ${KISS_GOAL} بوسة بمدينة روز 🌹 وضغطت «صرف الرصيد»…`,
+          "يعني بدها البوسة الحقيقية 💗",
+          "",
+          "«البوسة بتستناك… لا تتأخر عليها» 😘",
+        ].join("\n");
+        try {
+          if (window.sendRoseMessage) return !!(await window.sendRoseMessage(note));
+        } catch (e) {}
+        return false;
       }
       function updateKisses(t) {
         if (!started) return;
@@ -9134,8 +9180,8 @@
       // 🚗🛩️  RIDE MODE - a real red car & a plane she can find and actually drive
       // The car sleeps at the kerb of the first road south of spawn (red beam);
       // the plane waits on the runway of ROSE AIRFIELD, a real airfield carved
-      // out of the city: it starts right across the street from مقهى روز, a
-      // short walk east of the start, and runs to the east coast (blue beam).
+      // out of the city along the whole north coast, right behind the birthday
+      // pier: from the pier's arch it is just across the Corniche.
       // Walk up close and press F -
       // or tap the prompt / the 🚗 button on phones.
       // ============================================================================
@@ -9167,13 +9213,13 @@
       }
       // Hoisted so the very first towerSpec() call already respects the clearing.
       function inAirport(gx, gz) {
-        return gx >= 2 && gx <= 11 && gz >= -1 && gz <= 1; // (AIR_X is their middle)
+        return gx >= -8 && gx <= 11 && gz >= -10 && gz <= -8; // (AIR_X is their middle)
       }
 
       // ---- Rose Airfield grounds: apron field, painted runway, lights, sign -----
-      const RUNWAY_Z = 0.5 * TILE; // runway centreline (z, metres)
-      const AIR_X = 7 * TILE; // centre of the airfield clearing (x, metres): lots 2…11
-      const AIR_LOTS = 10; // its length in lots - from the café's street to the coast
+      const RUNWAY_Z = -8.5 * TILE; // runway centreline (z, metres): the lot row behind the Corniche
+      const AIR_X = 2 * TILE; // centre of the airfield clearing (x, metres) - the pier's own x
+      const AIR_LOTS = 20; // its length in lots - the whole north coast, west coast to east coast
       const RW_LEN = AIR_LOTS * TILE - 10; // runway length
       {
         // 🌱 a real grass airfield - the runway, taxiway, apron and the buildings'
@@ -9269,7 +9315,7 @@
           }),
         );
         sign.scale.set(30, 15, 1);
-        sign.position.set(AIR_X - RW_LEN / 2 + 15, 13, 2 * TILE - 5);
+        sign.position.set(AIR_X - RW_LEN / 2 + 15, 13, RUNWAY_Z + 1.5 * TILE - 5);
         scene.add(sign);
 
         // ✈️ the airport itself, north of the runway: a taxiway, a terminal,
@@ -10326,7 +10372,7 @@
       const PLANE_GEAR = 1.6; // wheel-contact height below the fuselage origin
       const plane = {
         g: new THREE.Group(),
-        pos: new THREE.Vector3(AIR_X - RW_LEN / 2 + 11, PLANE_GEAR, RUNWAY_Z),
+        pos: new THREE.Vector3(AIR_X - 20, PLANE_GEAR, RUNWAY_Z), // (behind the pier, most of the runway ahead)
         yaw: Math.PI / 2, // lined up with the runway, facing east
         pitch: 0,
         roll: 0,
@@ -13151,6 +13197,7 @@
         const clear = (x, z) =>
           Math.hypot(x - LIGHTHOUSE.x, z - LIGHTHOUSE.z) > 9 &&
           !(Math.abs(x - PIER.x) < 7 && z < CITY_Z0) &&
+          !(Math.abs(x - CINE_SPOT.x) < 19 && z < CITY_Z0 - 12) && // the beach cinema
           !(z > CITY_Z1 && x > RES_PEN.x0 - 10 && x < RES_PEN.x1 + 10); // Rose Resort's own beach
         let k = 0;
         alongSides(22, 15, (x, z) => {
@@ -15418,6 +15465,7 @@
         pitch = 0.8; // she looks up
         CAKE.show = true;
         CAKE.showT = -1.4;
+        CAKE.letterOpen = false;
       }
       // the « Happy Birthday » melody on the hall's grand piano, heard everywhere
       let bdaySong = false,
@@ -15440,6 +15488,7 @@
       const SHOW = [
         [0, () => volley(3, 120)],
         [2.4, () => showAt(0, 88, (x, y, z) => fwWord("ROSE", x, y, z, FW_COLS[0], 120))],
+        [3.0, () => letterAfterShow()], // (the first volley has just burst)
         [6.6, () => (showAt(-50, 72, (x, y, z) => fwHeart(x, y, z)), showAt(50, 72, (x, y, z) => fwHeart(x, y, z), 0.2))],
         [8.6, () => volley(4)],
         [11, () => showAt(0, 96, (x, y, z) => fwWord("HAPPY BIRTHDAY", x, y, z, FW_COLS[1], 160))],
@@ -15451,10 +15500,12 @@
         [26.4, () => volley(8, 200)],
         [29.5, () => nameInStars(0, 0, 0.55)],
       ];
-      // 💌 after the fireworks her birthday letter opens by itself - the one the
-      // secret heart in the city keeps (there's no key to find any more; the
-      // heart is marked found as well)
+      // 💌 as the first fireworks burst over the sea, her birthday letter opens by
+      // itself - the one the secret heart in the city keeps (there's no key to
+      // find any more; the heart is marked found as well). Once per show
       function letterAfterShow() {
+        if (CAKE.letterOpen) return;
+        CAKE.letterOpen = true;
         const s = surprises.find((q) => q.id === "secret");
         if (s) {
           setEmoji(s.marker, "💖");
@@ -15505,10 +15556,7 @@
           const prev = CAKE.showT;
           CAKE.showT += dt;
           for (const [at, fn] of SHOW) if (prev < at && CAKE.showT >= at) fn();
-          if (CAKE.showT > 34) {
-            CAKE.show = false;
-            letterAfterShow();
-          }
+          if (CAKE.showT > 34) CAKE.show = false;
         } else if (!CAKE.blowing && !allLit() && Math.hypot(girl.pos.x - CAKE.x, girl.pos.z - CAKE.z) > 30) relightCandles();
         if (bdaySong && nowS() > bdayUntil) {
           bdaySong = false;
@@ -15557,7 +15605,7 @@
         away: false,
       };
       // the big screen's spot in the world (park → world coords)
-      const CINE_SCREEN = { x: -173 + PDX, z: 12 + PDZ };
+      const CINE_SCREEN = { x: CINE_SPOT.x, z: CINE_SPOT.z };
       const partURL = (ep, k) => `../assets/vid/${EPISODES[ep].id}/${String(k + 1).padStart(2, "0")}.mp4`;
       for (let i = 0; i < 2; i++) {
         const v = document.createElement("video");
@@ -18077,7 +18125,7 @@
           radarG.fillStyle = "rgba(120, 210, 150, 0.45)";
           radarG.fillRect(PARK.x - PARK.w / 2, PARK.z - PARK.d / 2, PARK.w, PARK.d);
           radarG.fillStyle = "rgba(160, 170, 200, 0.4)";
-          radarG.fillRect(2 * TILE, -TILE, 10 * TILE, 3 * TILE);
+          radarG.fillRect(-8 * TILE, -10 * TILE, 20 * TILE, 3 * TILE);
           radarG.strokeStyle = "rgba(255, 190, 220, 0.28)";
           radarG.lineWidth = ROAD_HW * 1.6;
           radarG.beginPath();
@@ -18613,7 +18661,7 @@
       }
       {
         // every area of the world (not her, nor the cars - they change looks at will)
-        const skip = new Set([girl.g, car.g, streetCar.g]);
+        const skip = new Set([girl.g, car.g, streetCar.g, CINEMA.root]);
         for (const root of scene.children)
           if (root.isGroup && !skip.has(root))
             root.traverse((m) => {
