@@ -4070,22 +4070,38 @@
         }
         music.play().catch(() => {});
       }
-      // 🎧 inter.mp3 - the world's own background track: it starts with her and
-      // loops for ever, and just fades away while any other music plays (the ♪
-      // song, the hall's piano or vinyl, a ride's radio, the birthday song, the
-      // cinema) - and comes back when that's over
+      // 🎧 inter.mp3 - the world's own music: it starts on the tap that enters
+      // the world and loops for ever. It only fades away while other music is
+      // really heard (inside the music hall, the ♪ song, the vinyl, a ride's
+      // radio, the birthday song, right by the cinema) and comes back after
       const AMB_VOL = 0.45;
       const amb = new Audio("assets/inter.mp3");
       amb.loop = true;
       amb.preload = "auto";
-      amb.volume = 0;
-      let ambOn = false; // (set on the tap that enters the city - phones allow it there)
+      let ambOn = false, // (set on the tap that enters the world - phones allow it there)
+        ambV = 0, // how loud it is now
+        ambGain = null; // phones ignore an <audio>'s own volume - a gain node fades it
+      function ambAudio() {
+        if (ambGain) return;
+        initHallAudio();
+        if (!hallCtx) return;
+        if (hallCtx.state !== "running") hallCtx.resume();
+        try {
+          ambGain = hallCtx.createGain();
+          ambGain.gain.value = 0;
+          hallCtx.createMediaElementSource(amb).connect(ambGain);
+          ambGain.connect(hallCtx.destination);
+        } catch (e) {
+          ambGain = null;
+        }
+      }
       function updateAmbient(dt) {
         if (!ambOn) return;
-        const quiet = roseOn || songOn || (music && !music.paused) || radioQuiet() || cine.loud;
-        const to = quiet ? 0 : AMB_VOL;
-        amb.volume += (to - amb.volume) * Math.min(1, dt * (quiet ? 3 : 1.2));
-        if (quiet && amb.volume < 0.01) {
+        const quiet = hallWant > 0.01 || (music && !music.paused) || radioQuiet() || cine.loud;
+        ambV += ((quiet ? 0 : AMB_VOL) - ambV) * Math.min(1, dt * (quiet ? 3 : 1.2));
+        if (ambGain) ambGain.gain.value = ambV;
+        else amb.volume = ambV;
+        if (quiet && ambV < 0.01) {
           if (!amb.paused) amb.pause();
         } else if (amb.paused) amb.play().catch(() => {});
       }
@@ -4115,7 +4131,8 @@
         } catch (e) {}
         overlay.classList.add("hidden");
         document.getElementById("touch").classList.add("on");
-        ambOn = true; // 🎧 the background track starts on this tap and loops
+        ambOn = true; // 🎧 inter.mp3 starts on this tap and loops
+        ambAudio();
         amb.play().catch(() => {});
         // (the vinyl and the ♪ song still only play when she asks for them)
         initHallAudio(); // (created on this tap so the hall's piano may play later)
@@ -7399,7 +7416,8 @@
 
       // ---- per frame -------------------------------------------------------------
       let hallWasIn = false,
-        hallTw = 0;
+        hallTw = 0,
+        hallWant = 0; // how loud the hall's piano plays right now (0 = silent)
       function updateHall(dt, t) {
         const fp = focusPos();
         const inside = vehMode === "walk" && inHall(fp);
@@ -7411,19 +7429,16 @@
         hallWasIn = inside;
         // the live piano plays whenever the record isn't spinning
         const vinylPlaying = !!music && !music.paused;
-        // how loud the hall is where she stands (a little leaks out the door)
-        let vol = 0;
-        if (inside) vol = 1;
-        else {
-          const dd = Math.hypot(fp.x - HALL.cx, fp.z - HALL.z1);
-          if (dd < 30) vol = 0.4 * (1 - dd / 30);
-        }
+        // how loud the hall is where she stands: only inside (out in the streets
+        // the world's own music, inter.mp3, plays)
+        let vol = inside ? 1 : 0;
         if (roseOn) vol = Math.max(vol, 0.42); // ♪ the calm song, softly, all over the island
         if (bdaySong) vol = Math.max(vol, 0.9); // 🎂 « Happy Birthday », after the candles
         if (radioQuiet()) vol = 0; // 📻 the radio is playing - the piano falls silent
         if (cinemaLoud()) vol *= 0.15; // 🍿 an episode is on at the park cinema
+        hallWant = hallCtx && !(vinylPlaying && !pianoOpen) ? vol : 0;
         if (hallCtx) {
-          const want = vinylPlaying && !pianoOpen ? 0 : vol;
+          const want = hallWant;
           hallBus.gain.setTargetAtTime(want, hallCtx.currentTime, 0.4);
           if (hallCrackle)
             hallCrackle.gain.setTargetAtTime(vinylPlaying && inside ? 0.5 : 0, hallCtx.currentTime, 0.3);
@@ -10067,10 +10082,8 @@
         return { pivot, spin, front };
       }
       // ---- 💗 love details for her rides: « Rose ♥ » on both doors, heart hubcaps,
-      // three heart balloons tied to the boot (they sway and stream back as she
-      // drives), a heart charm hanging from the mirror, red roses on the back
-      // shelf, little hearts trailing behind, and a glowing heart on the road
-      // ahead at night
+      // a heart charm hanging from the mirror, red roses on the back shelf, and a
+      // glowing heart on the road ahead at night
       const LOVE_HEART_GEO = (() => {
         const g = new THREE.ExtrudeGeometry(heartShape(), { depth: 0.5, bevelEnabled: true, bevelThickness: 0.18, bevelSize: 0.16, bevelSegments: 3, curveSegments: 14 });
         g.center(); // (heartShape is already point-down, lobes up)
@@ -10180,9 +10193,9 @@
         );
         roadHeart.position.set(0, 0.06, 8);
         c.add(roadHeart);
-        rig.love = { charm, roadHeart, trailT: 0 };
+        rig.love = { charm, roadHeart };
       }
-      // little hearts float up behind the car while she drives
+      // the hearts that float up behind the Rose Plane's tail
       const loveTrail = [],
         _lv = new THREE.Vector3();
       for (let i = 0; i < 28; i++) {
@@ -10202,22 +10215,6 @@
           L.charm.rotation.set(Math.sin(t * 2.1) * 0.06, 0, (driving ? -rig.steer * 0.9 : 0) + Math.sin(t * 1.7) * 0.08);
           // the heart on the road shows at night, ahead of her headlights
           L.roadHeart.material.opacity = driving && rig.pos.y < 0.6 ? 0.55 * clamp((uNight.value - 0.3) / 0.5, 0, 1) : 0;
-          // and a trail of little hearts when she's moving
-          if (driving && Math.abs(spd) > 4) {
-            L.trailT -= dt;
-            if (L.trailT <= 0) {
-              L.trailT = 0.2;
-              const h2 = loveTrail.find((q) => q.t >= 1);
-              if (h2) {
-                h2.t = 0;
-                h2.x = rig.pos.x - Math.sin(rig.yaw) * 2.8 + (Math.random() - 0.5) * 0.8;
-                h2.y = rig.pos.y + 1.0;
-                h2.z = rig.pos.z - Math.cos(rig.yaw) * 2.8 + (Math.random() - 0.5) * 0.8;
-                h2.k = 1;
-                h2.sp.visible = true;
-              }
-            }
-          }
         }
         // the Rose Plane leaves a trail of big hearts behind her tail
         if (vehMode === "plane" && plane.speed > 12) {
