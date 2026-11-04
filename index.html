@@ -1447,9 +1447,46 @@
         line-height: 1.95;
         color: #f6d4e2;
       }
-      #kissreward .panel-btn {
-        margin-top: 20px;
-        font-size: 26px;
+      #kissreward .k-card {
+        position: relative;
+      }
+      #kissreward .k-opts {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        max-width: 300px;
+        margin: 14px auto 0;
+      }
+      #kissreward .k-opt {
+        cursor: pointer;
+        user-select: none;
+        font-size: 19px;
+        color: #fff;
+        padding: 11px 18px;
+        border-radius: 30px;
+        background: rgba(255, 90, 140, 0.22);
+        border: 1px solid rgba(255, 170, 200, 0.55);
+        transition:
+          background 0.2s,
+          box-shadow 0.2s,
+          opacity 0.2s,
+          transform 0.2s;
+      }
+      #kissreward .k-opt.on {
+        background: rgba(255, 90, 140, 0.8);
+        box-shadow: 0 0 22px rgba(255, 110, 170, 0.9);
+        transform: scale(1.04);
+      }
+      #kissreward .k-opt.on::after {
+        content: " ✓";
+      }
+      #kissreward .k-opts.picked .k-opt:not(.on) {
+        opacity: 0.45;
+      }
+      #kissreward p.k-how {
+        margin-top: 16px;
+        font-size: 15px;
+        line-height: 1.8;
       }
     </style>
   </head>
@@ -10189,74 +10226,44 @@
           _kM.compose(_kP.set(k.bx, k.by, k.bz), _kQ, _kS),
         );
       }
-      // 💋 the kiss balance: KISS_GOAL kisses collected = one real kiss she can
-      // claim. The «صرف الرصيد» button sends the claim straight to his Telegram
-      // (once a day), with a sweet note under it
-      const KISS_REDEEM_KEY = "rose-kiss-redeemed";
-      function kissRedeemedToday() {
-        try {
-          return (
-            Date.now() - +(localStorage.getItem(KISS_REDEEM_KEY) || 0) < 86400e3
-          );
-        } catch (e) {
-          return false;
-        }
-      }
+      // 💋 the kiss balance: KISS_GOAL kisses collected. The card shows the balance
+      // and three ways to spend it; she taps one (it lights up with a ✓), takes a
+      // screenshot and sends it to him - that's the claim
+      const KISS_OPTIONS = [
+        ["chat", "💬 30 بوسة بالشات"],
+        ["voice", "🎙️ 2 بوسة بالفويس"],
+        ["real", "💋 1 بوسة حقيقية"],
+      ];
       function kissReward() {
         const el = document.getElementById("kissreward"),
           card = document.getElementById("kissreward-card");
-        card.innerHTML = `<div class="big-kiss">💋</div>
+        card.innerHTML = `<div class="panel-close" id="kissClose">✕</div>
+          <div class="big-kiss">💋</div>
           <h1>رصيدك: ${KISS_GOAL} بوسة</h1>
-          <p>جمعتي ${KISS_GOAL} بوسة 💋 صار عندك رصيد بوسة حقيقية 💗<br>
-          <span style="opacity:.75">${KISS_GOAL} kisses collected: a real one is yours to claim.</span></p>
-          <div class="panel-btn" id="kissRedeem">${kissRedeemedToday() ? "انصرف الرصيد اليوم ✓" : "صرف الرصيد 💌"}</div>
-          <div class="panel-btn" id="kissClose">💗</div>`;
+          <div class="k-opts" id="kissOpts">${KISS_OPTIONS.map(([k, t]) => `<div class="k-opt" data-k="${k}">${t}</div>`).join("")}</div>
+          <p class="k-how">📸 لتصرفي رصيدك: اختاري شو بدك، خدي سكرين شوت للشاشة وابعتيلي ياها</p>`;
         el.classList.add("show");
         pauseUI();
-        document.getElementById("kissClose").addEventListener("click", () => {
+        const close = () => {
           el.classList.remove("show");
           resumeUI();
-        });
-        const btn = document.getElementById("kissRedeem");
-        let busy = kissRedeemedToday();
-        btn.addEventListener("click", async () => {
-          if (busy) return;
-          busy = true;
-          btn.textContent = "عم نبعت… 💌";
-          const ok = await sendKissClaim();
-          if (ok) {
-            try {
-              localStorage.setItem(KISS_REDEEM_KEY, String(Date.now()));
-            } catch (e) {}
-            btn.textContent = "انبعتت! البوسة بطريقها إلك 😘";
-            screenBurst(["💋", "💌", "💗"], 18);
-          } else {
-            busy = false;
-            btn.textContent = "ما وصلت… جرّبي كمان مرة 💌";
-          }
-        });
+        };
+        document.getElementById("kissClose").addEventListener("click", close);
+        const opts = document.getElementById("kissOpts");
+        for (const o of opts.querySelectorAll(".k-opt"))
+          o.addEventListener("click", () => {
+            for (const q of opts.querySelectorAll(".k-opt"))
+              q.classList.toggle("on", q === o);
+            opts.classList.add("picked");
+            screenBurst(["💋", "💗", "✨"], 12);
+            track(`💋 Kiss balance: she picked «${o.textContent}»`);
+          });
         let n = 0;
         const iv = setInterval(() => {
           screenBurst(["💋", "💗", "❤️", "💕", "✨"], 24);
           if (++n > 5) clearInterval(iv);
         }, 450);
-        track(
-          `💋 Collected ${KISS_GOAL} kisses: the balance is ready to claim`,
-        );
-      }
-      // the claim itself: a note to him on Telegram, through the site's own channel
-      async function sendKissClaim() {
-        const note = [
-          "💋 روز صرفت رصيد البوسات!",
-          "",
-          `جمعت ${KISS_GOAL} بوسة بعالم روز 🌹 وضغطت «صرف الرصيد»`,
-          "يعني بدها البوسة الحقيقية 💗",
-        ].join("\n");
-        try {
-          if (window.sendRoseMessage)
-            return !!(await window.sendRoseMessage(note));
-        } catch (e) {}
-        return false;
+        track(`💋 Collected ${KISS_GOAL} kisses: the balance card is open`);
       }
       function updateKisses(t) {
         if (!started) return;
@@ -15828,6 +15835,7 @@
             }
           }
       }
+      const PLANE_EDGE = 800; // how far out over the sea she may fly (land ends ~500 m out)
       function updatePlane(dt) {
         let pitchIn = 0,
           rollIn = 0,
@@ -15891,14 +15899,42 @@
           }
         } else {
           // airborne
+          // 🌊 the edge of Rose World: once she is PLANE_EDGE from the island's
+          // centre the plane banks round by itself and heads back to the island -
+          // she has the controls again as soon as its nose points home
+          const hx = LAND_CX - plane.pos.x,
+            hz = LAND_CZ - plane.pos.z;
+          if (!plane.homing && Math.hypot(hx, hz) > PLANE_EDGE) {
+            plane.homing = true;
+            bdayCaption("↩️ Rose World", "the plane turns back to the island", 3);
+            track("🛩️ Reached the edge of the world: turning back");
+          }
+          let homeTurn = 0;
+          if (plane.homing) {
+            let dyaw = Math.atan2(hx, hz) - plane.yaw; // (x += sin yaw, z += cos yaw)
+            dyaw = Math.atan2(Math.sin(dyaw), Math.cos(dyaw));
+            if (Math.abs(dyaw) < 0.12) plane.homing = false;
+            else {
+              homeTurn = Math.sign(dyaw);
+              rollIn = 0;
+              rudder = 0;
+            }
+          }
           plane.pitch += pitchIn * 1.05 * Math.max(authority, 0.25) * dt;
           if (!pitchIn) plane.pitch -= plane.pitch * 0.35 * dt;
           plane.pitch = Math.max(-1.15, Math.min(1.15, plane.pitch));
-          plane.roll += rollIn * 2.0 * dt;
-          if (!rollIn) plane.roll -= plane.roll * 1.7 * dt;
+          if (homeTurn)
+            plane.roll += (-homeTurn * 0.75 - plane.roll) * Math.min(1, dt * 2.5);
+          else {
+            plane.roll += rollIn * 2.0 * dt;
+            if (!rollIn) plane.roll -= plane.roll * 1.7 * dt;
+          }
           plane.roll = Math.max(-1.25, Math.min(1.25, plane.roll));
           plane.yaw +=
-            (-Math.sin(plane.roll) * 1.05 * authority + rudder * 0.4) * dt;
+            (-Math.sin(plane.roll) * 1.05 * authority +
+              rudder * 0.4 +
+              homeTurn * 0.25) *
+            dt;
 
           plane.speed +=
             (plane.throttle * (boost ? 17 : 13) -
