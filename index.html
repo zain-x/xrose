@@ -2610,27 +2610,51 @@
         vec3 sand = vec3(0.95, 0.80, 0.62) * (0.86 + 0.22 * rcNoise(g * 0.7));
         sand = mix(sand, vec3(0.70, 0.55, 0.45), smoothstep(-9.0, 0.0, sd) * 0.55); // damp
         vec3 land = mix(sand, paving * 1.3, prom);
-        // the sea: turquoise shallows → deep blue, a slow swell and small ripples
-        float w1 = rcNoise(g * 0.045 + vec2(t * 0.05, t * 0.035));
-        float w2 = rcNoise(g * 0.19 - vec2(t * 0.16, -t * 0.11));
-        float wv = 0.6 * w1 + 0.4 * w2;
-        float deep = smoothstep(0.0, 70.0, sd);
-        vec3 seaCol = mix(vec3(0.16, 0.58, 0.92), vec3(0.04, 0.22, 0.60), deep) * (0.82 + 0.32 * wv);
+        // the sea: six travelling waves (long swells → fine chop, each with the
+        // speed real deep-water waves of that length have) tilt the surface, so
+        // the sun and the moon break into a glittering path; the finer waves
+        // calm down with distance so far water never shimmers
         float isSea = step(0.0, sd);
-        // foam where the waves lap the sand (the line breathes in and out)
+        float deep = smoothstep(0.0, 90.0, sd);
+        float farD = length(vViewPosition);
+        float calm = 0.5 + 0.5 * smoothstep(0.0, 30.0, sd);   // gentler in the shallows
+        vec2 slope = vec2(0.0);
+        float hgt = 0.0;
+        #define RC_WAVE(DX, DZ, K, A, W) { float ph = dot(vec2(DX, DZ), g) * K + t * W; float lod = clamp(1.0 - farD * K * 0.0025, 0.0, 1.0); hgt += A * lod * sin(ph); slope += vec2(DX, DZ) * (A * K * lod * cos(ph)); }
+        RC_WAVE(0.80, 0.60, 0.09, 0.35, 0.75)
+        RC_WAVE(-0.45, 0.89, 0.16, 0.18, 1.00)
+        RC_WAVE(0.98, -0.20, 0.37, 0.07, 1.52)
+        RC_WAVE(-0.70, -0.71, 0.83, 0.028, 2.28)
+        RC_WAVE(0.20, 0.98, 1.90, 0.011, 3.45)
+        RC_WAVE(-0.93, 0.37, 3.70, 0.005, 4.80)
+        slope *= calm;
+        vec3 nW = normalize(vec3(-slope.x, 1.0, -slope.y));
+        normal = normalize(mix(normal, (viewMatrix * vec4(nW, 0.0)).xyz, isSea));
+        // looking across the water it mirrors the sky; looking down, its depth
+        float fres = 0.02 + 0.98 * pow(1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0), 5.0);
+        vec3 skyRefl = mix(vec3(0.45, 0.63, 0.85), vec3(0.06, 0.08, 0.2), uNight);
+        #ifdef USE_FOG
+          skyRefl = mix(skyRefl, fogColor, 0.6);
+        #endif
+        // turquoise shallows → teal → deep blue; crests catch a little more light
+        vec3 seaBody = mix(mix(vec3(0.10, 0.55, 0.60), vec3(0.03, 0.30, 0.48), smoothstep(0.0, 25.0, sd)),
+                           vec3(0.015, 0.10, 0.24), deep);
+        seaBody *= 0.9 + 0.35 * clamp(hgt * 2.0, -0.4, 0.6);
+        // foam: the lapping line on the sand, lines of surf rolling in, a few caps
         float lap = 1.8 + 1.4 * sin(t * 0.9 + g.x * 0.045 + g.y * 0.037);
         float foam = isSea * (1.0 - smoothstep(0.0, lap, sd))
                    + (1.0 - isSea) * smoothstep(-1.2, 0.0, sd) * 0.6;
-        foam += isSea * step(0.83, w2) * (1.0 - deep) * 0.35;    // little whitecaps
+        float surf = fract(sd * 0.06 + t * 0.08 + 0.15 * sin(g.x * 0.05 + g.y * 0.04));
+        foam += isSea * (1.0 - smoothstep(0.0, 0.07, surf)) * (1.0 - smoothstep(6.0, 28.0, sd))
+              * (0.5 + 0.5 * sin(g.x * 0.21 + g.y * 0.17 + t * 0.5)) * 0.55;
+        foam += isSea * smoothstep(0.5, 0.62, hgt) * 0.25;
         foam = clamp(foam, 0.0, 1.0);
-        diffuseColor.rgb = mix(land, seaCol, isSea);
+        diffuseColor.rgb = mix(land, seaBody * (1.0 - fres) * 0.85, isSea);
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.97, 0.98, 1.0), foam);
-        roughnessFactor = mix(mix(0.92, 0.75, prom), 0.08, isSea);
-        // the sea glows softly with the sky, so it never turns black at night
-        vec3 skyTint = mix(vec3(0.04, 0.16, 0.36), vec3(0.17, 0.15, 0.42), uNight);
-        totalEmissiveRadiance += isSea * skyTint * (0.6 + 0.5 * wv) * (1.0 - 0.45 * deep);
-        float glint = pow(rcNoise(g * 0.9 + vec2(t * 0.7, -t * 0.5)), 14.0) * isSea;
-        totalEmissiveRadiance += glint * mix(vec3(1.0, 0.86, 0.6), vec3(0.85, 0.85, 1.0), uNight) * 2.4;
+        roughnessFactor = mix(mix(0.92, 0.75, prom), 0.1, isSea);
+        // the water's own colour and the mirrored sky (so it never turns black)
+        totalEmissiveRadiance += isSea * (1.0 - foam)
+                               * (seaBody * (0.35 + 0.35 * uNight) + fres * skyRefl * 0.8);
         totalEmissiveRadiance += foam * vec3(0.25, 0.3, 0.35) * (0.4 + 0.6 * uNight);
         totalEmissiveRadiance += land * (1.0 - isSea) * 0.3 * uNight; // moonlit sand
       }`,
@@ -2998,42 +3022,46 @@
         // the piping is segmented - occasional dark gaps make it read as fixtures
         float seg = step(0.1, rnd(vec2(floor(wh / 9.0) + vSeed.x * 31.0, face + vSeed.y)));
 
-        const float CW = 1.55, CH = 2.1;                  // small dense window cells (m)
+        // a real storey (3.5 m) and bay (3.2 m): one big glazed opening per bay
+        // over a solid spandrel panel, slim frames and a centre glazing bar -
+        // fewer, bigger windows, like real towers
+        const float CW = 3.2, CH = 3.5;
         vec2 cell = vec2(fract(wu / CW), fract(wh / CH));
         float fx = floor(wu / CW), fy = floor(wh / CH);
+        float pane = step(0.08, cell.x) * step(cell.x, 0.92)
+                   * step(0.30, cell.y) * step(cell.y, 0.93);
+        float ground = step(wh, CH * 1.4);                // ground floor = lobby / storefront
+        pane *= step(CH * 0.35, wh);                      // skip the base slab
+        float bar = 1.0 - step(0.012, abs(cell.x - 0.5)); // the centre glazing bar
+        float glazed = pane * (1.0 - bar);
 
-        // small glass panes with wide dark mullions - towers read as thousands
-        // of little lights, not big tiles
-        float pane = step(0.22, cell.x) * step(cell.x, 0.78)
-                   * step(0.24, cell.y) * step(cell.y, 0.76);
-        float ground = step(wh, CH * 1.6);                // ground floor = lobby / storefront
-        pane *= step(CH * 0.45, wh);                      // skip the base slab
+        // the cladding, with a slim darker floor slab at every storey
+        float slab = 1.0 - smoothstep(0.0, 0.06, cell.y);
+        vec3 concrete = diffuseColor.rgb * (1.0 - 0.28 * slab);
 
-        // concrete slab band darkens the gap between every storey
-        float band = smoothstep(0.0, 0.10, cell.y) * smoothstep(1.0, 0.90, cell.y);
-        vec3 concrete = diffuseColor.rgb * (0.78 + 0.22 * band);
-
-        // MOST windows glow - whole floors light together so towers read as
-        // stacked luminous rows, like the reference city
+        // some rooms lit - whole floors more often than not - fewer by day
         float rWin   = rnd(vec2(fx + face * 53.0 + vSeed.x * 131.0, fy - vSeed.y * 71.0));
         float rFloor = rnd(vec2(fy * 1.3 + vSeed.x * 7.0, face * 3.0 + 11.0));
         float rCol   = rnd(vec2(fx * 2.1 + vSeed.y * 5.0, face * 9.0 + 3.0));
         float litMix = 0.35 * rWin + 0.45 * rFloor + 0.20 * rCol;
-        float lit = step(mix(0.9, 0.55, uNight), litMix);
+        float lit = step(mix(0.93, 0.6, uNight), litMix);
         lit = max(lit, ground * step(0.5, rWin));         // lit lobbies
 
-        // frame / concrete
-        diffuseColor.rgb = mix(concrete * 0.55, concrete, 0.30 + 0.70 * pane);
-        // dark glass where unlit, with a faint cool sky reflection toward the top
-        vec3 glass = vec3(0.10, 0.11, 0.18) + vec3(0.08, 0.09, 0.16) * (1.0 - cell.y);
-        diffuseColor.rgb = mix(diffuseColor.rgb, glass, pane * (1.0 - lit));
+        // frames darker than the cladding
+        diffuseColor.rgb = mix(concrete, concrete * 0.5, pane * (1.0 - glazed));
+        // unlit glass mirrors the sky (lighter up each pane) and is glossy, so it
+        // catches the sun and the moon like real glazing
+        vec3 glass = mix(vec3(0.07, 0.08, 0.12), vec3(0.30, 0.38, 0.50), 0.25 + 0.35 * cell.y)
+                   * (1.0 - 0.55 * uNight);
+        diffuseColor.rgb = mix(diffuseColor.rgb, glass, glazed * (1.0 - lit));
+        roughnessFactor = mix(roughnessFactor, 0.16, glazed * (1.0 - lit));
 
-        // interiors take the tower's own hue, with a few warm-white offices mixed in
-        float warm = step(0.72, rnd(vec2(fx * 1.7 + vSeed.x, fy * 0.6 + vSeed.y)));
-        vec3 wcol = mix(vNeon, vec3(1.0, 0.86, 0.72), warm * 0.6);
+        // most rooms glow warm white, some take the tower's own hue
+        float warm = step(0.3, rnd(vec2(fx * 1.7 + vSeed.x, fy * 0.6 + vSeed.y)));
+        vec3 wcol = mix(vNeon, vec3(1.0, 0.82, 0.62), warm * 0.8);
         float dim = 0.55 + 0.45 * rnd(vec2(fx + fy * 2.0, vSeed.x + 1.0));
-        float ceilG = 0.72 + 0.28 * cell.y;
-        totalEmissiveRadiance += pane * lit * (1.0 - pipe) * wcol * 1.15 * dim * ceilG * (0.3 + 0.7 * uNight);
+        float ceilG = 0.72 + 0.28 * (cell.y - 0.3) / 0.63;
+        totalEmissiveRadiance += glazed * lit * (1.0 - pipe) * wcol * 1.1 * dim * ceilG * (0.3 + 0.7 * uNight);
 
         // corner piping glow (drawn over the windows) - kept below the tone-map
         // knee so the pastel hue survives instead of clipping to white
@@ -10544,9 +10572,9 @@
       // 🚗🛩️  RIDE MODE - a real red car & a plane she can find and actually drive
       // The car sleeps at the kerb of the first road south of spawn (red beam);
       // the plane waits on the runway of ROSE AIRFIELD, a real airfield carved
-      // out of the city right behind the birthday pier, opposite the cake: when
-      // she turns round at the cake, it lies across the beach in front of her,
-      // the runway running east-west (blue beam).
+      // out of the city behind the birthday pier, opposite the cake, from the
+      // second street in (one row of buildings stands between it and the
+      // Corniche), the runway running east-west (blue beam).
       // Walk up close and press F -
       // or tap the prompt / the 🚗 button on phones.
       // ============================================================================
@@ -10578,11 +10606,11 @@
       }
       // Hoisted so the very first towerSpec() call already respects the clearing.
       function inAirport(gx, gz) {
-        return gx >= -5 && gx <= 8 && gz >= -10 && gz <= -8; // (AIR_X is their middle)
+        return gx >= -5 && gx <= 8 && gz >= -9 && gz <= -7; // (AIR_X is their middle)
       }
 
       // ---- Rose Airfield grounds: apron field, painted runway, lights, sign -----
-      const RUNWAY_Z = -8.5 * TILE; // runway centreline (z, metres): the lot row behind the Corniche
+      const RUNWAY_Z = -7.5 * TILE; // runway centreline (z, metres): from the second street in
       const AIR_X = 2 * TILE; // centre of the airfield clearing (x, metres) - the pier's own x
       const AIR_LOTS = 14; // its length in lots: lots -5…8, centred on the pier
       const RW_LEN = AIR_LOTS * TILE - 10; // runway length
@@ -23518,11 +23546,13 @@
           // face where she runs
           if (wishLen > 0.15)
             girl.yaw = angLerp(girl.yaw, Math.atan2(wishX, wishZ), dt * 12);
-          // stride cadence follows her actual ground speed (no foot-skating),
-          // capped so the sprint stays a powerful lope instead of a blur
-          girl.animT +=
-            (girl.grounded ? Math.min(Math.hypot(vel.x, vel.z), 9) * 1.6 : 5) *
-            dt;
+          // stride cadence follows her actual ground speed (no foot-skating):
+          // short steps when she walks, long bounding strides when she runs
+          // (half a turn of animT per step)
+          const gs = Math.hypot(vel.x, vel.z),
+            gw = gaitS(2.4, 5.2, gs),
+            stepLen = 0.5 + 0.22 * gs + (0.45 - 0.06 * gs) * gw;
+          girl.animT += (girl.grounded ? (Math.PI * gs) / stepLen : 5) * dt;
         }
 
         // --- pose the little doll ---
@@ -23580,39 +23610,75 @@
           ER.rotation.x = -0.5;
           girl.body.rotation.set(0.05, 0, 0);
           girl.body.position.y = 0;
-        } else if (runAmp > 0.04) {
-          // a real-feeling run: long thigh swings synced to the ground, the
-          // recovery knee folding high, pumping bent arms, shoulders counter-
-          // twisting the hips, and a bounce on every footfall
-          const swing = Math.sin(at);
-          L.rotation.x = (swing * 0.95 - 0.05) * runAmp;
-          R.rotation.x = (-swing * 0.95 - 0.05) * runAmp;
-          KL.rotation.x =
-            (0.15 + Math.max(0, Math.sin(at + 1.9)) * 1.25) * runAmp;
-          KR.rotation.x =
-            (0.15 + Math.max(0, Math.sin(at + 1.9 + Math.PI)) * 1.25) * runAmp;
-          AL.rotation.x = (-swing * 0.8 - 0.15) * runAmp;
-          AR.rotation.x = (swing * 0.8 - 0.15) * runAmp;
-          EL.rotation.x = -0.55 - Math.max(0, swing) * 0.4 * runAmp;
-          ER.rotation.x = -0.55 - Math.max(0, -swing) * 0.4 * runAmp;
-          girl.body.rotation.set(
-            0.16 * runAmp, // forward lean
-            swing * 0.1 * runAmp, // shoulders counter the hips
-            Math.cos(at) * 0.035 * runAmp, // soft hip sway
-          );
-          girl.body.position.y = Math.abs(Math.cos(at)) * 0.06 * runAmp;
         } else {
-          // idle: standing softly, a little breathing sway
-          L.rotation.x = 0;
-          R.rotation.x = 0;
-          KL.rotation.x = 0.04;
-          KR.rotation.x = 0.04;
-          AL.rotation.x = Math.sin(at * 0.5) * 0.05;
-          AR.rotation.x = -Math.sin(at * 0.5) * 0.05;
-          EL.rotation.x = -0.16;
-          ER.rotation.x = -0.16;
-          girl.body.rotation.set(0, 0, 0);
-          girl.body.position.y = 0;
+          // 🚶‍♀️🏃‍♀️ on her feet. Slow: a real walk - the standing leg straight,
+          // the knee folding only while the leg swings through, gentle arms.
+          // Faster it blends into a run - a forward lean, heels kicking up behind,
+          // elbows bent, a moment in the air between steps - and with Shift a hard
+          // sprint. Whichever foot is down stays planted on the ground.
+          // (thigh +x = back, knee +x = bent, arm −x = forward, elbow −x = bent)
+          const gs = Math.hypot(vel.x, vel.z);
+          const a = gaitS(0.15, 1.2, gs), // 0 = standing still
+            w = gaitS(2.4, 5.2, gs), // walk → run
+            s = gaitS(8.0, 12.0, gs); // run → sprint
+          const TAU = Math.PI * 2;
+          const ampW = Math.min(0.45, Math.asin(Math.min(0.9, (0.5 + 0.22 * gs) / 1.8)) * 0.85),
+            ampR = 0.8 + 0.25 * s;
+          const limb = (ph) => {
+            ph = ((ph % TAU) + TAU) % TAU;
+            const sn = Math.sin(ph);
+            // walking (toe-off ≈ π/2, heel strike ≈ 3π/2)
+            const thW = ampW * sn - 0.04,
+              knW =
+                0.05 +
+                0.85 * Math.pow(Math.max(0, Math.sin(ph - 1.27)), 1.5) +
+                0.12 * Math.max(0, Math.sin(2 * (ph - 4.71))),
+              arW = -0.7 * ampW * sn + 0.05,
+              elW = -0.18 - 0.22 * Math.max(0, sn);
+            // running: the heel kicks up early in the swing, a soft knee on landing
+            const st = (ph - 4.71 + TAU) % TAU,
+              thR = ampR * sn - 0.12,
+              knR =
+                0.25 +
+                (1.45 + 0.35 * s) * Math.pow(Math.max(0, Math.sin(ph - 0.95)), 1.15) +
+                (st < 2.5 ? 0.3 * Math.sin((st / 2.5) * Math.PI) : 0),
+              arR = -(0.75 + 0.25 * s) * sn - 0.15,
+              elR = -1.3 - 0.25 * sn;
+            return {
+              th: (thW + (thR - thW) * w) * a,
+              kn: 0.04 + (knW + (knR - knW) * w - 0.04) * a,
+              ar: (arW + (arR - arW) * w) * a,
+              el: -0.16 + (elW + (elR - elW) * w + 0.16) * a,
+            };
+          };
+          const l = limb(at),
+            r = limb(at + Math.PI);
+          const breathe = Math.sin(starTime * 1.3) * 0.03 * (1 - a);
+          L.rotation.x = l.th;
+          R.rotation.x = r.th;
+          KL.rotation.x = l.kn;
+          KR.rotation.x = r.kn;
+          AL.rotation.x = l.ar + breathe;
+          AR.rotation.x = r.ar - breathe;
+          EL.rotation.x = l.el;
+          ER.rotation.x = r.el;
+          const lean = (0.04 + (0.12 + 0.12 * s) * w) * a;
+          girl.body.rotation.set(
+            lean, // forward lean (more as she runs)
+            Math.sin(at) * (0.07 + 0.05 * w) * a, // shoulders counter the hips
+            Math.cos(at) * (0.025 + 0.005 * w) * a, // weight over the standing leg
+          );
+          // keep the lower foot on the ground (thigh 0.46 m, shin 0.44 m, hip 0.92 m)
+          const footY = (th, kn) =>
+            0.92 * Math.cos(lean) -
+            0.46 * Math.cos(th + lean) -
+            0.44 * Math.cos(th + kn + lean);
+          const rest = 0.92 - 0.46 - 0.44 * Math.cos(0.04);
+          // running: both feet off the ground for a moment after each push-off
+          const fl = ((((at - 0.92) % Math.PI) + Math.PI) % Math.PI) / 0.65;
+          const flight = fl < 1 ? Math.sin(fl * Math.PI) * (0.05 + 0.03 * s) * w * a : 0;
+          girl.body.position.y =
+            rest - Math.min(footY(l.th, l.kn), footY(r.th, r.kn)) + flight;
         }
         // 🏊‍♀️ Rose Resort's heart pool: she swims, the water up to her shoulders
         girl.swim =
@@ -23646,6 +23712,11 @@
         girlCamera(p);
       }
       // --- third-person camera (mouse / touch orbits freely) ---
+      // 0 → 1 smoothly as x goes from a to b (for blending her gaits)
+      function gaitS(a, b, x) {
+        const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+        return t * t * (3 - 2 * t);
+      }
       function girlCamera(p) {
         const tx = p.x,
           ty = p.y + 2.0,
@@ -24165,7 +24236,7 @@
             PARK.d,
           );
           radarG.fillStyle = "rgba(160, 170, 200, 0.4)";
-          radarG.fillRect(-5 * TILE, -10 * TILE, 14 * TILE, 3 * TILE);
+          radarG.fillRect(-5 * TILE, -9 * TILE, 14 * TILE, 3 * TILE);
           radarG.strokeStyle = "rgba(255, 190, 220, 0.28)";
           radarG.lineWidth = ROAD_HW * 1.6;
           radarG.beginPath();
@@ -24343,25 +24414,6 @@
       //   activate: () => openMood(),
       // });
 
-      const sec = buildSecret(P(0, 6 * TILE));
-      addSurprise({
-        id: "secret",
-        emoji: "💌",
-        label: SECRET_TITLE,
-        color: 0x9b5cff,
-        pos: P(0, 6 * TILE),
-        centerY: 12,
-        markerY: 18,
-        radius: 36,
-        update: (s, t) => {
-          sec.grp.rotation.y = Math.sin(t * 0.5) * 0.4;
-          sec.heart.scale.setScalar(2.4 * (1 + Math.sin(t * 1.3) * 0.06));
-        },
-        activate: (s) => {
-          setEmoji(s.marker, "💖");
-          openSecret();
-        },
-      });
 
       // --- rooftop surprises (high up - fly upward with ▲ / E / Shift to reach them) ---
       const ROOF_A = pickRoof(4, 4, 1),
@@ -24435,11 +24487,11 @@
         activate: () => openWish(),
       });
 
-      // --- the locked golden box (street) + its golden key (hidden on a rooftop) ---
+      // --- the golden box (floating over the street) - no key needed any more ---
       const gbox = buildGoldenBox(P(5 * TILE, -5 * TILE));
       addSurprise({
         id: "goldenbox",
-        emoji: "🔐",
+        emoji: "🎁",
         label: "الصندوق الذهبي",
         color: 0xffd24a,
         obj: gbox.grp,
@@ -24453,42 +24505,16 @@
           s.lo = (s.lo || 0) + ((s.opened ? 1 : 0) - (s.lo || 0)) * 0.1;
           gbox.lid.position.y = 2.2 + s.lo * 1.5;
           gbox.lid.rotation.z = -s.lo * 0.5;
-          gbox.lock.visible = !s.opened;
-          gbox.shackle.visible = !s.opened;
+          gbox.lock.visible = false;
+          gbox.shackle.visible = false;
         },
         activate: (s) => {
-          if (!hasGoldenKey) {
-            openLockedBox();
-            return false;
-          }
           s.opened = true;
           setEmoji(s.marker, "💛");
           openGoldenBox();
         },
       });
 
-      const ROOF_K = pickRoof(7, -7, 1);
-      const gkey = buildGoldenKey(
-        new THREE.Vector3(ROOF_K.x, ROOF_K.top, ROOF_K.z),
-      );
-      addSurprise({
-        id: "goldenkey",
-        emoji: "🔑",
-        label: "المفتاح الذهبي",
-        color: 0xffe07a,
-        counted: false,
-        obj: gkey.grp,
-        pos: new THREE.Vector3(ROOF_K.x, ROOF_K.top, ROOF_K.z),
-        centerY: ROOF_K.top + 10,
-        markerY: ROOF_K.top + 18,
-        radius: 42,
-        update: (s, t) => {
-          if (s.gone) return;
-          gkey.spin.rotation.y = t * 1.3;
-          gkey.spin.rotation.z = Math.sin(t * 0.8) * 0.25;
-        },
-        activate: (s) => collectKey(s),
-      });
 
       // --- the sealed envelope on its table inside مقهى روز ☕💌 ---
       const ROSE_CAFE = CAFES.find((c) => c.envelope);
