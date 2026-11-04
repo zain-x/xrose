@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Rose City ♥</title>
+    <title>Rose World ♥</title>
     <style>
       * {
         margin: 0;
@@ -439,12 +439,12 @@
         }
       }
 
-      /* 🧭 the way to her cake - shown only until she first opens it */
+      /* 🧭 the way to her cake - on the right, just under the ROSE WORLD title;
+         shown only until she first opens it */
       #cake-way {
         position: fixed;
-        top: 48px;
-        left: 50%;
-        transform: translateX(-50%);
+        top: 42px;
+        right: 18px;
         z-index: 12;
         display: none;
         align-items: center;
@@ -475,7 +475,16 @@
       }
       @media (max-width: 640px) {
         #cake-way {
-          top: 84px; /* under the 📍 where-pill */
+          font-size: 12px;
+          padding: 4px 11px 4px 7px;
+        }
+        #cake-way svg {
+          width: 18px;
+          height: 18px;
+        }
+        /* the 📍 pill on the left leaves it room on the same row */
+        body:has(#cake-way.on) #where {
+          max-width: calc(100vw - 256px);
         }
       }
 
@@ -1427,7 +1436,7 @@
     <div class="flash" id="flash"></div>
 
     <div id="hud">
-      <div><b>Infinite Rose City ♥</b></div>
+      <div><b>Infinite Rose World ♥</b></div>
       <div>
         <span class="key">W</span><span class="key">A</span
         ><span class="key">S</span><span class="key">D</span> run &nbsp;
@@ -1491,21 +1500,21 @@
     </div>
 
     <div id="title">
-      <h1>ROSE CITY ♥</h1>
+      <h1>ROSE WORLD ♥</h1>
     </div>
 
     <div id="stats"></div>
 
     <div id="overlay">
       <div class="card">
-        <div class="go">Enter Rose City</div>
+        <div class="go">Enter Rose World</div>
       </div>
     </div>
 
     <!-- ♥ Loading: Welcome to Rose Dream Land ♥ -->
     <div id="loading">
       <div class="rose">🌹</div>
-      <h1>Rose Dream City</h1>
+      <h1>Rose Dream World</h1>
       <div class="barwrap"><div class="bar" id="load-bar"></div></div>
       <div class="pct" id="load-pct">0%</div>
     </div>
@@ -7715,9 +7724,10 @@
       };
 
       const CINEMA = { screen: null }; // the SpongeBob cinema's screen (episodes, see 🍿)
-      // 🍿 where the cinema stands: on the sand just east of the birthday pier, the
-      // screen facing the promenade and Rose Airfield behind it (its back to the sea)
-      const CINE_SPOT = { x: 2 * TILE + 64, z: LAND_Z0 + 5, ry: 0 };
+      // 🍿 where the cinema stands: in the park, right at the west end of the
+      // football pitch behind the goal, facing down the pitch toward the park gate.
+      // Nothing points to it - she just comes across it
+      const CINE_SPOT = { x: -173 + PDX, z: 12 + PDZ, ry: Math.PI / 2 };
       const CINE_POSTER = (() => {
         const cv = document.createElement("canvas");
         cv.width = 768;
@@ -8138,9 +8148,8 @@
           parkRoot.add(g);
         }
 
-        // ---- 🍿 the SpongeBob cinema: its own giant screen on the beach by the
-        // birthday pier, facing the promenade - the episodes play on it (see 🍿
-        // further down). Built with the park's materials, but it stands by the sea
+        // ---- 🍿 the SpongeBob cinema: its own giant screen in the park, behind the
+        // pitch's west goal - the episodes play on it (see 🍿 further down)
         {
           const g = new THREE.Group();
           g.position.set(CINE_SPOT.x, 0, CINE_SPOT.z);
@@ -8207,10 +8216,10 @@
           marquee.position.set(0, 27, 0);
           g.add(marquee);
           scene.add(g);
-          // two benches on the sand in front of it, facing the screen
+          // two benches by the pitch corners, facing the screen
           for (const [bx, bz] of [
-            [CINE_SPOT.x - 12, CINE_SPOT.z + 14],
-            [CINE_SPOT.x + 12, CINE_SPOT.z + 14],
+            [CINE_SPOT.x + 15, CINE_SPOT.z + 19],
+            [CINE_SPOT.x + 15, CINE_SPOT.z - 19],
           ])
             benchSpots.push({ x: bx, z: bz, rot: Math.atan2(CINE_SPOT.x - bx, CINE_SPOT.z - bz) });
         }
@@ -8224,6 +8233,7 @@
             (x > -170 && x < -118 && z > -6 && z < 30) || // pitch + goals
             (x > -98 && x < -62 && z > 0 && z < 24) || // court + hoops
             Math.hypot(x + 99, z - 70) < 19 || // playground
+            (x > -181 && x < -165 && z > -6 && z < 30) || // the SpongeBob screen
             Math.hypot(x + 156, z) < 14 || // mood garden
             Math.hypot(x - PARK0.x, z - PARK0.z) < 6; // the glowing cross
           const X0 = PARK0.x - PARK.w / 2 + 1.5,
@@ -8948,7 +8958,7 @@
       // ---- collectible red kisses 💋 (in the roads & above the buildings) ----
       // Small world-anchored kisses she flies through; collect 30 for a real one.
       const kissRoot = new THREE.Group(); scene.add(kissRoot);
-      const KISS_RANGE = 120, KISS_GOAL = 30, KISS_N = 120;
+      const KISS_RANGE = 120, KISS_GOAL = 30, KISS_N = 40;
       const kisses = [];
       let kissCount = 0, kissDone = false;
       const kissCountEl = document.getElementById('kiss-count');
@@ -9039,7 +9049,7 @@
         const note = [
           "💋 روز صرفت رصيد البوسات!",
           "",
-          `جمعت ${KISS_GOAL} بوسة بمدينة روز 🌹 وضغطت «صرف الرصيد»`,
+          `جمعت ${KISS_GOAL} بوسة بعالم روز 🌹 وضغطت «صرف الرصيد»`,
           "يعني بدها البوسة الحقيقية 💗",
         ].join("\n");
         try {
@@ -9200,8 +9210,8 @@
       // 🚗🛩️  RIDE MODE - a real red car & a plane she can find and actually drive
       // The car sleeps at the kerb of the first road south of spawn (red beam);
       // the plane waits on the runway of ROSE AIRFIELD, a real airfield carved
-      // out of the city along the whole north coast, right behind the birthday
-      // pier: from the pier's arch it is just across the Corniche.
+      // out of the city: it starts right across the street from مقهى روز, a
+      // short walk east of the start, and runs to the east coast (blue beam).
       // Walk up close and press F -
       // or tap the prompt / the 🚗 button on phones.
       // ============================================================================
@@ -9233,13 +9243,13 @@
       }
       // Hoisted so the very first towerSpec() call already respects the clearing.
       function inAirport(gx, gz) {
-        return gx >= -8 && gx <= 11 && gz >= -10 && gz <= -8; // (AIR_X is their middle)
+        return gx >= 2 && gx <= 11 && gz >= -1 && gz <= 1; // (AIR_X is their middle)
       }
 
       // ---- Rose Airfield grounds: apron field, painted runway, lights, sign -----
-      const RUNWAY_Z = -8.5 * TILE; // runway centreline (z, metres): the lot row behind the Corniche
-      const AIR_X = 2 * TILE; // centre of the airfield clearing (x, metres) - the pier's own x
-      const AIR_LOTS = 20; // its length in lots - the whole north coast, west coast to east coast
+      const RUNWAY_Z = 0.5 * TILE; // runway centreline (z, metres)
+      const AIR_X = 7 * TILE; // centre of the airfield clearing (x, metres): lots 2…11
+      const AIR_LOTS = 10; // its length in lots - from the café's street to the coast
       const RW_LEN = AIR_LOTS * TILE - 10; // runway length
       {
         // 🌱 a real grass airfield - the runway, taxiway, apron and the buildings'
@@ -9335,7 +9345,7 @@
           }),
         );
         sign.scale.set(30, 15, 1);
-        sign.position.set(AIR_X - RW_LEN / 2 + 15, 13, RUNWAY_Z + 1.5 * TILE - 5);
+        sign.position.set(AIR_X - RW_LEN / 2 + 15, 13, 2 * TILE - 5);
         scene.add(sign);
 
         // ✈️ the airport itself, north of the runway: a taxiway, a terminal,
@@ -10392,7 +10402,7 @@
       const PLANE_GEAR = 1.6; // wheel-contact height below the fuselage origin
       const plane = {
         g: new THREE.Group(),
-        pos: new THREE.Vector3(AIR_X - 20, PLANE_GEAR, RUNWAY_Z), // (behind the pier, most of the runway ahead)
+        pos: new THREE.Vector3(AIR_X - RW_LEN / 2 + 11, PLANE_GEAR, RUNWAY_Z),
         yaw: Math.PI / 2, // lined up with the runway, facing east
         pitch: 0,
         roll: 0,
@@ -13217,7 +13227,6 @@
         const clear = (x, z) =>
           Math.hypot(x - LIGHTHOUSE.x, z - LIGHTHOUSE.z) > 9 &&
           !(Math.abs(x - PIER.x) < 7 && z < CITY_Z0) &&
-          !(Math.abs(x - CINE_SPOT.x) < 19 && z < CITY_Z0 - 12) && // the beach cinema
           !(z > CITY_Z1 && x > RES_PEN.x0 - 10 && x < RES_PEN.x1 + 10); // Rose Resort's own beach
         let k = 0;
         alongSides(22, 15, (x, z) => {
@@ -15717,8 +15726,6 @@
         // the next part waits ready in the other player
         if (EPISODES[ep].parts.length > 1) cineLoad(1, ep, 1);
         cineShowScreen(true);
-        if (Math.hypot(focusPos().x - CINE_SCREEN.x, focusPos().z - CINE_SCREEN.z) < 70)
-          bdayCaption("🍿 SpongeBob SquarePants", EPISODES[ep].label, 4);
         track(`🍿 Cinema: started episode ${EPISODES[ep].id}`);
       }
       function cineEnded(i) {
@@ -18145,7 +18152,7 @@
           radarG.fillStyle = "rgba(120, 210, 150, 0.45)";
           radarG.fillRect(PARK.x - PARK.w / 2, PARK.z - PARK.d / 2, PARK.w, PARK.d);
           radarG.fillStyle = "rgba(160, 170, 200, 0.4)";
-          radarG.fillRect(-8 * TILE, -10 * TILE, 20 * TILE, 3 * TILE);
+          radarG.fillRect(2 * TILE, -TILE, 10 * TILE, 3 * TILE);
           radarG.strokeStyle = "rgba(255, 190, 220, 0.28)";
           radarG.lineWidth = ROAD_HW * 1.6;
           radarG.beginPath();
