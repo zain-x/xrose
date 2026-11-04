@@ -4349,7 +4349,8 @@
           !(music && !music.paused) &&
           !radioQuiet();
         rainSongV +=
-          ((want ? RAINSONG_VOL : 0) - rainSongV) * Math.min(1, dt * (want ? 1.5 : 3));
+          ((want ? RAINSONG_VOL : 0) - rainSongV) *
+          Math.min(1, dt * (want ? 1.5 : 3));
         if (rainSongGain) rainSongGain.gain.value = rainSongV;
         else rainSong.volume = rainSongV;
         if (!want && rainSongV < 0.01) {
@@ -4598,10 +4599,9 @@
       // 🎂 the letter behind the purple lock - her birthday letter (draft, to revise)
       const SECRET_TITLE = "رسالة عيد ميلادك";
       const SECRET_LETTER = [
-        "اليوم مو يوم عادي… ا 🎂",
+        "اليوم مو يوم عادي…",
         "عمرك مو رقم عم يكبر… هو ضحكات وحكايات ولحظات حلوة عم تتجمع.",
         "هالسنة بتمنالك تكوني أخف وأسعد شخص بالدنيا، وتضلي متل ما انتي لأنك حلوة بطبيعتك.",
-        "، تذكري إنه صار في عالم كامل يحتوي ابتسامتك كل ما الدنيا ضاقت فيكي 🏝️",
         "كل عام وانتي ارق واجمل روزة والباقي بقلك ياه وجهاً لوجه 😉🌹",
       ];
       const LOVE_REASONS = [
@@ -4675,10 +4675,12 @@
           .addEventListener("click", exploreTurn);
         track("🎂 Opened the birthday letter");
       }
-      // 🌹 «استكشاف»: the letter closes and she turns slowly round - away from the
-      // cake and the sea - to the whole city, Rose Airfield and the plane right
-      // across the beach. (Anywhere else in the world it just closes the letter)
-      const EXPLORE = { t: -1, y0: 0, dy: 0, g0: 0, p0: 0 };
+      // 🌹 «استكشاف»: the letter closes, she turns round and walks a few steps up
+      // the pier - away from the cake and the sea - while the camera swings round
+      // behind her to the whole city, Rose Airfield and her car waiting at the
+      // end of the pier. (Anywhere else in the world it just closes the letter)
+      const EXPLORE = { t: -1, y0: 0, dy: 0, p0: 0, walk: 0 };
+      const EXPLORE_S = 2.8; // seconds
       function exploreTurn() {
         closePanel();
         track("🌹 Explore: turned round to the city");
@@ -4687,16 +4689,49 @@
         let dy = (Math.PI - yaw) % (2 * Math.PI);
         if (dy > Math.PI) dy -= 2 * Math.PI;
         if (dy < -Math.PI) dy += 2 * Math.PI;
-        Object.assign(EXPLORE, { t: 0, y0: yaw, dy, g0: girl.yaw, p0: pitch });
+        Object.assign(EXPLORE, { t: 0, y0: yaw, dy, p0: pitch, walk: EXPLORE_S });
       }
       function updateExplore(dt) {
+        if (EXPLORE.walk > 0) EXPLORE.walk -= dt; // (updateGirl walks her meanwhile)
         if (EXPLORE.t < 0) return;
-        EXPLORE.t = Math.min(1, EXPLORE.t + dt / 2.8);
+        EXPLORE.t = Math.min(1, EXPLORE.t + dt / EXPLORE_S);
         const k = EXPLORE.t * EXPLORE.t * (3 - 2 * EXPLORE.t); // ease in and out
         yaw = EXPLORE.y0 + EXPLORE.dy * k;
-        girl.yaw = EXPLORE.g0 + EXPLORE.dy * k;
         pitch = EXPLORE.p0 + (0.12 - EXPLORE.p0) * k; // the skyline in view
         if (EXPLORE.t >= 1) EXPLORE.t = -1;
+      }
+      // the first time the city comes into view it has to go to the graphics card
+      // (its shapes, pictures and shaders) - on her first visit she has only ever
+      // faced the sea by then, so that would stutter right in the middle of the
+      // turn. While she reads her letter the turn's views are drawn once, unseen
+      let warmRT = null;
+      function warmTurnViews() {
+        try {
+          const g = girl.pos,
+            cam = camera.clone(),
+            prev = renderer.getRenderTarget();
+          if (!warmRT)
+            warmRT = new THREE.WebGLRenderTarget(64, 64, {
+              type: THREE.HalfFloatType,
+            });
+          for (const a of [Math.PI / 2, (3 * Math.PI) / 4, Math.PI]) {
+            const ez = g.z + 9; // (where she'll be by the end of the walk)
+            cam.position.set(g.x + Math.sin(a) * 6.8, g.y + 2.2, ez + Math.cos(a) * 6.8);
+            cam.lookAt(g.x, g.y + 2, ez);
+            cam.updateMatrixWorld();
+            if (bloomOn) {
+              renderer.setRenderTarget(warmRT); // (the same shaders the glow path uses)
+              renderer.render(scene, cam);
+            } else {
+              renderer.setRenderTarget(null);
+              renderer.setScissorTest(true);
+              renderer.setScissor(0, 0, 1, 1);
+              renderer.render(scene, cam);
+              renderer.setScissorTest(false);
+            }
+          }
+          renderer.setRenderTarget(prev);
+        } catch (e) {}
       }
       // a shuffled deck that never repeats a phrase until every one has been shown
       // (and never starts a new round with the one she just read); remembered
@@ -10648,7 +10683,11 @@
           }),
         );
         sign.scale.set(30, 15, 1);
-        sign.position.set(AIR_X - RW_LEN / 2 + 15, 13, RUNWAY_Z + 1.5 * TILE - 5);
+        sign.position.set(
+          AIR_X - RW_LEN / 2 + 15,
+          13,
+          RUNWAY_Z + 1.5 * TILE - 5,
+        );
         scene.add(sign);
 
         // ✈️ the airport itself, north of the runway: a taxiway, a terminal,
@@ -15362,6 +15401,7 @@
       }
       function enterCar(rig = car) {
         drv = rig;
+        if (rig === car) car.waiting = false;
         for (const L of rig.lamps) rig.g.add(L, L.target); // the headlight beams come along
         vehMode = "car";
         setRideClass();
@@ -15906,7 +15946,11 @@
             hz = LAND_CZ - plane.pos.z;
           if (!plane.homing && Math.hypot(hx, hz) > PLANE_EDGE) {
             plane.homing = true;
-            bdayCaption("↩️ Rose World", "the plane turns back to the island", 3);
+            bdayCaption(
+              "↩️ Rose World",
+              "the plane turns back to the island",
+              3,
+            );
             track("🛩️ Reached the edge of the world: turning back");
           }
           let homeTurn = 0;
@@ -15924,7 +15968,8 @@
           if (!pitchIn) plane.pitch -= plane.pitch * 0.35 * dt;
           plane.pitch = Math.max(-1.15, Math.min(1.15, plane.pitch));
           if (homeTurn)
-            plane.roll += (-homeTurn * 0.75 - plane.roll) * Math.min(1, dt * 2.5);
+            plane.roll +=
+              (-homeTurn * 0.75 - plane.roll) * Math.min(1, dt * 2.5);
           else {
             plane.roll += rollIn * 2.0 * dt;
             if (!rollIn) plane.roll -= plane.roll * 1.7 * dt;
@@ -16044,11 +16089,13 @@
             car.pos.z,
           );
         }
-        // a car nobody is driving keeps its lights low
+        // a car nobody is driving keeps its lights low - except hers while it
+        // waits for her at the pier
         for (const rig of [car, streetCar])
           if (!driving(rig)) {
-            rig.tailMat.emissiveIntensity = 0.7;
-            rig.headMat.emissiveIntensity = 0.3;
+            const wait = rig === car && car.waiting;
+            rig.tailMat.emissiveIntensity = wait ? 1.4 : 0.7;
+            rig.headMat.emissiveIntensity = wait ? 0.6 + 2.4 * uNight.value : 0.3;
             if (vehMode !== "car" || drv.lamps !== rig.lamps)
               for (const L of rig.lamps) L.intensity = 0;
           }
@@ -20869,12 +20916,14 @@
         parkCarByPier();
       }
       // 🚗 her car comes to wait at the land end of the pier, just past the arch,
-      // nose to the city - so it's right there when she walks back off the pier
+      // facing the pier with its headlights on - so she sees it from the far end
+      // and it's right there when she walks back off the pier
       function parkCarByPier() {
         if (driving(car)) return;
         car.pos.set(PIER.x + 4.5, 0, PIER.z0 + 10);
         car.pos.y = roofUnder(car.pos.x, car.pos.z, 0);
-        car.yaw = 0; // (nose toward the city)
+        car.yaw = Math.PI; // (nose toward the pier)
+        car.waiting = true; // (its lights stay on until she gets in)
         car.speed = 0;
         car.g.position.copy(car.pos);
         car.g.rotation.set(0, car.yaw, 0);
@@ -20963,6 +21012,7 @@
           markDiscovered("secret");
         }
         openSecret();
+        setTimeout(warmTurnViews, 700); // (while she reads - see «استكشاف»)
       }
       function updateCake(dt, t) {
         // the flames flicker - and bow away from her while she blows
@@ -23281,6 +23331,12 @@
           dirZ = -Math.cos(yaw); // camera forward, flattened
         let wishX = dirX * fwd + Math.cos(yaw) * side;
         let wishZ = dirZ * fwd - Math.sin(yaw) * side;
+        // 🌹 «استكشاف»: she walks up the pier toward the city while the camera
+        // swings round behind her
+        if (EXPLORE.walk > 0 && !uiPaused) {
+          wishX = 0;
+          wishZ = 0.45; // (a gentle walk, ~9 m)
+        }
         const wishLen = Math.hypot(wishX, wishZ);
         if (wishLen > 1) {
           wishX /= wishLen;
