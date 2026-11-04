@@ -3959,6 +3959,7 @@
         updateVehicles(dt, starTime);
         updateBannerPlane(dt, starTime);
         updateHall(dt, starTime);
+        updateAmbient(dt);
         updateRadio();
         updateStreetProps();
         updateTrafficLights(starTime);
@@ -4060,6 +4061,25 @@
         }
         music.play().catch(() => {});
       }
+      // 🎧 inter.mp3 - the world's own background track: it starts with her and
+      // loops for ever, and just fades away while any other music plays (the ♪
+      // song, the hall's piano or vinyl, a ride's radio, the birthday song, the
+      // cinema) - and comes back when that's over
+      const AMB_VOL = 0.45;
+      const amb = new Audio("assets/inter.mp3");
+      amb.loop = true;
+      amb.preload = "auto";
+      amb.volume = 0;
+      let ambOn = false; // (set on the tap that enters the city - phones allow it there)
+      function updateAmbient(dt) {
+        if (!ambOn) return;
+        const quiet = roseOn || songOn || (music && !music.paused) || radioQuiet() || cine.loud;
+        const to = quiet ? 0 : AMB_VOL;
+        amb.volume += (to - amb.volume) * Math.min(1, dt * (quiet ? 3 : 1.2));
+        if (quiet && amb.volume < 0.01) {
+          if (!amb.paused) amb.pause();
+        } else if (amb.paused) amb.play().catch(() => {});
+      }
       // ♪ - the piano's « Rose » song, heard all over the island (the hall's grand
       // piano plays it, see updateHall). Tap again and it stops.
       let roseOn = false;
@@ -4086,7 +4106,9 @@
         } catch (e) {}
         overlay.classList.add("hidden");
         document.getElementById("touch").classList.add("on");
-        // music does NOT auto-start - it only plays when she taps the ♪ button
+        ambOn = true; // 🎧 the background track starts on this tap and loops
+        amb.play().catch(() => {});
+        // (the vinyl and the ♪ song still only play when she asks for them)
         initHallAudio(); // (created on this tap so the hall's piano may play later)
         if (!isTouch) canvas.requestPointerLock();
         track("🌹 Entered Rose Dream Land");
