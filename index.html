@@ -386,16 +386,25 @@
         padding: 9px 16px;
       }
 
-      /* ─────────── 🏝️ where she is - a little pill under the 💗 counter ─────────── */
-      #where {
+      /* ─────────── 🏝️ the top row under the 💗 counter: where she is, and the
+         🎂 badge right beside it (same height, same line) ─────────── */
+      #toprow {
         position: fixed;
         top: 50px;
         left: 52px; /* (the ♪ button sits just before it) */
+        right: 14px;
         z-index: 12;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        pointer-events: none;
+      }
+      #where {
+        flex: 0 1 auto;
+        min-width: 0;
         display: none;
         align-items: center;
         gap: 6px;
-        max-width: calc(100vw - 66px);
         padding: 4px 12px 4px 9px;
         border-radius: 14px;
         font-size: 12px;
@@ -443,14 +452,10 @@
         }
       }
 
-      /* 🧭 the way to her cake - on the right, on the same row as the 📍 street
-         name and the same size (same top, padding and font); shown only until
-         she first opens it */
+      /* 🧭 the way to her cake - in the top row, right beside the 📍 street name,
+         the same size; shown only until she first opens it */
       #cake-way {
-        position: fixed;
-        top: 50px;
-        right: 18px;
-        z-index: 12;
+        flex: 0 0 auto;
         display: none;
         align-items: center;
         gap: 6px;
@@ -481,12 +486,6 @@
       }
       #cake-way b {
         color: #ffd6e8;
-      }
-      @media (max-width: 640px) {
-        /* the 📍 pill on the left leaves it room on the same row */
-        body:has(#cake-way.on) #where {
-          max-width: calc(100vw - 256px);
-        }
       }
 
       /* ─────────── 🎂 the birthday finale: captions & the blow-the-candles card ─────────── */
@@ -765,20 +764,13 @@
       }
       body.touch #radio {
         left: max(10px, env(safe-area-inset-left));
-        top: 96px;
+        top: 84px; /* right under the 📍 street-name row */
         bottom: auto;
         width: 200px;
         grid-template-columns: 40px 1fr;
         gap: 5px 8px;
         padding: 7px 9px;
         transition: top 0.3s ease;
-      }
-      /* the 🧭 cake arrow (first visit only) sits where the radio does on a
-         phone, so while it's up the radio steps down under it */
-      @media (max-width: 640px) {
-        body.touch.cake-way-on #radio {
-          top: 128px;
-        }
       }
       body.touch #radio .rf-disc {
         width: 40px;
@@ -1556,15 +1548,17 @@
     <div id="kisses">
       💋 <span id="kiss-count">0</span> / <span id="kiss-goal">7</span>
     </div>
-    <div id="where" dir="rtl">
-      <span class="w-i"></span><b></b><span class="w-s"></span>
+    <div id="toprow">
+      <div id="where" dir="rtl">
+        <span class="w-i"></span><b></b><span class="w-s"></span>
+      </div>
+      <div id="cake-way">
+        <svg viewBox="0 0 24 24"><path d="M12 2 20.5 21 12 16.2 3.5 21Z" /></svg
+        ><span>🎂 Your cake</span><b></b>
+      </div>
     </div>
     <div id="prompt"></div>
     <div id="bcap"></div>
-    <div id="cake-way">
-      <svg viewBox="0 0 24 24"><path d="M12 2 20.5 21 12 16.2 3.5 21Z" /></svg
-      ><span>🎂 Your cake</span><b></b>
-    </div>
     <div id="blow">
       <div class="b-t">🎂 Make a wish, Rose…</div>
       <div class="b-s" id="blow-s">…then blow out the candles!</div>
@@ -4133,6 +4127,7 @@
         updateBannerPlane(dt, starTime);
         updateHall(dt, starTime);
         updateAmbient(dt);
+        updateRainSong(dt);
         updateExplore(dt);
         updateRadio();
         updateStreetProps();
@@ -4264,6 +4259,7 @@
         if (!ambOn) return;
         const quiet =
           hallWant > 0.01 ||
+          rainSongV > 0.02 || // ♪ rain.mp3
           (music && !music.paused) ||
           radioQuiet() ||
           cine.loud;
@@ -4275,23 +4271,58 @@
           if (!amb.paused) amb.pause();
         } else if (amb.paused) amb.play().catch(() => {});
       }
-      // ♪ - the piano's « Rose » song, heard all over the island (the hall's grand
-      // piano plays it, see updateHall). Tap again and it stops.
-      let roseOn = false;
+      // ♪ - the music button plays rain.mp3, round and round, until she taps it
+      // again. It fades away while other music is really heard (inside the music
+      // hall, the vinyl, a ride's radio, the birthday song) and comes back after;
+      // inter.mp3 steps aside for it
+      const RAINSONG_VOL = 0.6;
+      const rainSong = new Audio("assets/rain.mp3");
+      rainSong.loop = true;
+      rainSong.preload = "none"; // (only fetched once she asks for it)
+      let roseOn = false,
+        rainSongV = 0,
+        rainSongGain = null; // (a gain node, like inter.mp3 - phones ignore .volume)
+      function rainSongAudio() {
+        if (rainSongGain) return;
+        initHallAudio();
+        if (!hallCtx) return;
+        if (hallCtx.state !== "running") hallCtx.resume();
+        try {
+          rainSongGain = hallCtx.createGain();
+          rainSongGain.gain.value = 0;
+          hallCtx.createMediaElementSource(rainSong).connect(rainSongGain);
+          rainSongGain.connect(hallCtx.destination);
+        } catch (e) {
+          rainSongGain = null;
+        }
+      }
       function setRose(on) {
         roseOn = on;
         musicBtn.classList.toggle("off", !on);
         if (!on) return;
-        initHallAudio();
-        if (!hallCtx) return;
-        if (hallCtx.state !== "running") hallCtx.resume();
+        rainSongAudio();
         if (music && !music.paused) music.pause(); // the vinyl gives way
-        if (!songOn || song !== SONGS[citySong()]) startSong(citySong());
+        rainSong.play().catch(() => {});
+      }
+      function updateRainSong(dt) {
+        const want =
+          roseOn &&
+          !bdaySong &&
+          !hallWasIn &&
+          !(music && !music.paused) &&
+          !radioQuiet();
+        rainSongV +=
+          ((want ? RAINSONG_VOL : 0) - rainSongV) * Math.min(1, dt * (want ? 1.5 : 3));
+        if (rainSongGain) rainSongGain.gain.value = rainSongV;
+        else rainSong.volume = rainSongV;
+        if (!want && rainSongV < 0.01) {
+          if (!rainSong.paused) rainSong.pause();
+        } else if (want && rainSong.paused) rainSong.play().catch(() => {});
       }
       musicBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         setRose(!roseOn);
-        track(roseOn ? "♪ Rose song on" : "♪ Rose song off");
+        track(roseOn ? "♪ Music on (rain.mp3)" : "♪ Music off");
       });
       function enterCity() {
         if (started) return;
@@ -8349,7 +8380,6 @@
         // how loud the hall is where she stands: only inside (out in the streets
         // the world's own music, inter.mp3, plays)
         let vol = inside ? 1 : 0;
-        if (roseOn) vol = Math.max(vol, 0.42); // ♪ the calm song, softly, all over the island
         if (bdaySong) vol = Math.max(vol, 0.9); // 🎂 « Happy Birthday », after the candles
         if (radioQuiet()) vol = 0; // 📻 the radio is playing - the piano falls silent
         if (cinemaLoud()) vol *= 0.15; // 🍿 an episode is on at the park cinema
@@ -8365,7 +8395,7 @@
             );
           if (!pianoOpen) {
             if (want > 0.01 && !songOn)
-              startSong(roseOn ? citySong() : "cool"); // the hall's own groove
+              startSong("cool"); // the hall's own groove
             else if (want <= 0.01 && songOn && hallBus.gain.value < 0.02)
               stopSong();
           }
@@ -12078,16 +12108,6 @@
         c.add(roadHeart);
         rig.love = { charm, roadHeart };
       }
-      // the hearts that float up behind the Rose Plane's tail
-      const loveTrail = [],
-        _lv = new THREE.Vector3();
-      for (let i = 0; i < 28; i++) {
-        const sp = emojiSprite(i % 2 ? "💗" : "💕");
-        sp.material.depthTest = true;
-        sp.visible = false;
-        scene.add(sp);
-        loveTrail.push({ sp, t: 1, x: 0, y: 0, z: 0 });
-      }
       function updateLove(dt, t) {
         for (const rig of [car, streetCar]) {
           const L = rig.love;
@@ -12105,41 +12125,6 @@
             driving && rig.pos.y < 0.6
               ? 0.55 * clamp((uNight.value - 0.3) / 0.5, 0, 1)
               : 0;
-        }
-        // the Rose Plane leaves a trail of big hearts behind her tail
-        if (vehMode === "plane" && plane.speed > 12) {
-          plane.trailT = (plane.trailT || 0) - dt;
-          if (plane.trailT <= 0) {
-            plane.trailT = 0.09;
-            const h2 = loveTrail.find((q) => q.t >= 1);
-            if (h2) {
-              plane.g.localToWorld(
-                _lv.set(
-                  (Math.random() - 0.5) * 1.2,
-                  0.3 + (Math.random() - 0.5) * 0.6,
-                  -5.4,
-                ),
-              );
-              h2.t = 0;
-              h2.x = _lv.x;
-              h2.y = _lv.y;
-              h2.z = _lv.z;
-              h2.k = 2.4;
-              h2.sp.visible = true;
-            }
-          }
-        }
-        for (const q of loveTrail) {
-          if (q.t >= 1) continue;
-          q.t += dt / 1.4;
-          if (q.t >= 1) {
-            q.sp.visible = false;
-            continue;
-          }
-          const s = (0.45 + q.t * 0.35) * (q.k || 1);
-          q.sp.scale.set(s, s, 1);
-          q.sp.position.set(q.x, q.y + q.t * 1.6 * (q.k || 1), q.z);
-          q.sp.material.opacity = Math.sin(q.t * Math.PI) * 0.9;
         }
       }
 
@@ -19243,7 +19228,7 @@
           label: () => "Dance!",
           use: () => {
             PARTY.on = true;
-            setRose(true); // ♪ the Rose song for the party
+            setRose(true); // ♪ her music for the party
             const p = girl.pos;
             rest({
               kind: "dance",
@@ -20845,6 +20830,18 @@
         CAKE.show = true;
         CAKE.showT = -1.4;
         CAKE.letterOpen = false;
+        parkCarByPier();
+      }
+      // 🚗 her car comes to wait at the land end of the pier, just past the arch,
+      // nose to the city - so it's right there when she walks back off the pier
+      function parkCarByPier() {
+        if (driving(car)) return;
+        car.pos.set(PIER.x + 4.5, 0, PIER.z0 + 10);
+        car.pos.y = roofUnder(car.pos.x, car.pos.z, 0);
+        car.yaw = 0; // (nose toward the city)
+        car.speed = 0;
+        car.g.position.copy(car.pos);
+        car.g.rotation.set(0, car.yaw, 0);
       }
       // the « Happy Birthday » melody on the hall's grand piano, heard everywhere
       let bdaySong = false,
@@ -20988,8 +20985,7 @@
         )
           relightCandles();
         if (bdaySong && nowS() > bdayUntil) {
-          bdaySong = false;
-          if (roseOn) startSong(citySong()); // back to her ♪ song, if it was on
+          bdaySong = false; // (her ♪ rain.mp3 comes back by itself, if it was on)
         }
       }
       RESORT_SPOTS.push({
