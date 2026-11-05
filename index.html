@@ -19788,6 +19788,7 @@
         girl.pos.set(r.x, r.y, r.z);
         girl.g.position.set(r.x, r.y, r.z);
         girl.g.rotation.set(0, r.yaw, 0);
+        girl.ankleL.rotation.x = girl.ankleR.rotation.x = 0;
         if (r.kind === "dance") {
           // 💃 bouncing on the spot, arms up, hips swaying, turning slowly
           girl.g.rotation.y = r.yaw + Math.sin(t * 0.7) * 0.6;
@@ -22818,6 +22819,8 @@
         legR: null,
         kneeL: null,
         kneeR: null,
+        ankleL: null,
+        ankleR: null,
         armL: null,
         armR: null,
         elbowL: null,
@@ -22886,6 +22889,7 @@
         for (const s of [-1, 1]) {
           const hip = new THREE.Group();
           hip.position.set(s * 0.095, 0.92, 0);
+          hip.rotation.order = "YXZ"; // (y turns the swung leg: undoes the body's twist)
           hip.add(ball(0.066, LEGGING_MAT, 1, 0.88, 1)); // hip joint
           hip.add(tube(0.063, 0.048, 0.46, LEGGING_MAT)); // thigh
           const knee = new THREE.Group();
@@ -22895,17 +22899,21 @@
           const calf = ball(0.046, LEGGING_MAT, 0.9, 1.5, 0.95); // calf muscle
           calf.position.set(0, -0.14, -0.014);
           knee.add(calf);
-          // a real ballet flat: rounded toe + a slim heel
+          // a real ballet flat: rounded toe + a slim heel, on an ankle so the
+          // foot stays flat on the ground and rolls heel → toe as she walks
+          const ankle = new THREE.Group();
+          ankle.position.y = -0.44;
+          knee.add(ankle);
           const shoe = ball(0.05, SHOE_MAT, 1.05, 0.7, 2.15);
-          shoe.position.set(0, -0.435, 0.055);
-          knee.add(shoe);
+          shoe.position.set(0, 0.005, 0.055);
+          ankle.add(shoe);
           const heel = new THREE.Mesh(
             new THREE.BoxGeometry(0.066, 0.05, 0.055),
             SHOE_MAT,
           );
-          heel.position.set(0, -0.44, -0.05);
+          heel.position.set(0, 0, -0.05);
           heel.castShadow = true;
-          knee.add(heel);
+          ankle.add(heel);
           // 🦸‍♀️ knee-high boot with a golden trim
           const boot = hero(tube(0.053, 0.033, 0.31, BOOT_MAT));
           boot.position.y = -0.295;
@@ -22924,9 +22932,11 @@
           if (s < 0) {
             girl.legL = hip;
             girl.kneeL = knee;
+            girl.ankleL = ankle;
           } else {
             girl.legR = hip;
             girl.kneeR = knee;
+            girl.ankleR = ankle;
           }
         }
         // --- a prettier figure: a curvy lathe-turned torso (real waistline,
@@ -23543,16 +23553,14 @@
           }
           if (girl.onBalloon) girl.grounded = true; // in a balloon basket 🧺
 
-          // face where she runs
-          if (wishLen > 0.15)
+          // face where she goes (a gentle push on the joystick too)
+          if (wishLen > 0.05)
             girl.yaw = angLerp(girl.yaw, Math.atan2(wishX, wishZ), dt * 12);
           // stride cadence follows her actual ground speed (no foot-skating):
           // short steps when she walks, long bounding strides when she runs
           // (half a turn of animT per step)
-          const gs = Math.hypot(vel.x, vel.z),
-            gw = gaitS(2.4, 5.2, gs),
-            stepLen = 0.5 + 0.22 * gs + (0.45 - 0.06 * gs) * gw;
-          girl.animT += (girl.grounded ? (Math.PI * gs) / stepLen : 5) * dt;
+          const gs = Math.hypot(vel.x, vel.z);
+          girl.animT += (girl.grounded ? (Math.PI * gs) / gaitStep(gs) : 5) * dt;
         }
 
         // --- pose the little doll ---
@@ -23570,6 +23578,8 @@
           AR = girl.armR,
           EL = girl.elbowL,
           ER = girl.elbowR;
+        girl.ankleL.rotation.x = girl.ankleR.rotation.x = 0; // feet follow the shins
+        L.rotation.y = R.rotation.y = 0;
         if (girl.climbing) {
           // hand over hand up the glass, knees pushing
           AL.rotation.x = -2.7 + Math.sin(at) * 0.55;
@@ -23611,80 +23621,60 @@
           girl.body.rotation.set(0.05, 0, 0);
           girl.body.position.y = 0;
         } else {
-          // 🚶‍♀️🏃‍♀️ on her feet. Slow: a real walk - the standing leg straight,
-          // the knee folding only while the leg swings through, gentle arms.
-          // Faster it blends into a run - a forward lean, heels kicking up behind,
-          // elbows bent, a moment in the air between steps - and with Shift a hard
-          // sprint. Whichever foot is down stays planted on the ground.
+          // 🚶‍♀️🏃‍♀️ on her feet: each foot stays planted on the ground while it
+          // carries her and the leg is solved to reach it, so nothing slides and
+          // her hips ride only a few cm up and down. Slow, she walks - heel to toe
+          // over the standing leg, gentle arms; faster she runs - a forward lean,
+          // heels kicking up behind, bent elbows, a moment in the air between
+          // steps - and with Shift she sprints.
           // (thigh +x = back, knee +x = bent, arm −x = forward, elbow −x = bent)
-          const gs = Math.hypot(vel.x, vel.z);
-          const a = gaitS(0.15, 1.2, gs), // 0 = standing still
-            w = gaitS(2.4, 5.2, gs), // walk → run
-            s = gaitS(8.0, 12.0, gs); // run → sprint
-          const TAU = Math.PI * 2;
-          const ampW = Math.min(0.45, Math.asin(Math.min(0.9, (0.5 + 0.22 * gs) / 1.8)) * 0.85),
-            ampR = 0.8 + 0.25 * s;
-          const limb = (ph) => {
-            ph = ((ph % TAU) + TAU) % TAU;
-            const sn = Math.sin(ph);
-            // walking (toe-off ≈ π/2, heel strike ≈ 3π/2)
-            const thW = ampW * sn - 0.04,
-              knW =
-                0.05 +
-                0.85 * Math.pow(Math.max(0, Math.sin(ph - 1.27)), 1.5) +
-                0.12 * Math.max(0, Math.sin(2 * (ph - 4.71))),
-              arW = -0.7 * ampW * sn + 0.05,
-              elW = -0.18 - 0.22 * Math.max(0, sn);
-            // running: the heel kicks up early in the swing, a soft knee on landing
-            const st = (ph - 4.71 + TAU) % TAU,
-              thR = ampR * sn - 0.12,
-              knR =
-                0.25 +
-                (1.45 + 0.35 * s) * Math.pow(Math.max(0, Math.sin(ph - 0.95)), 1.15) +
-                (st < 2.5 ? 0.3 * Math.sin((st / 2.5) * Math.PI) : 0),
-              arR = -(0.75 + 0.25 * s) * sn - 0.15,
-              elR = -1.3 - 0.25 * sn;
-            return {
-              th: (thW + (thR - thW) * w) * a,
-              kn: 0.04 + (knW + (knR - knW) * w - 0.04) * a,
-              ar: (arW + (arR - arW) * w) * a,
-              el: -0.16 + (elW + (elR - elW) * w + 0.16) * a,
-            };
-          };
-          const l = limb(at),
-            r = limb(at + Math.PI);
-          const breathe = Math.sin(starTime * 1.3) * 0.03 * (1 - a);
-          L.rotation.x = l.th;
-          R.rotation.x = r.th;
-          KL.rotation.x = l.kn;
-          KR.rotation.x = r.kn;
-          AL.rotation.x = l.ar + breathe;
-          AR.rotation.x = r.ar - breathe;
-          EL.rotation.x = l.el;
-          ER.rotation.x = r.el;
-          const lean = (0.04 + (0.12 + 0.12 * s) * w) * a;
+          const gs = Math.hypot(vel.x, vel.z),
+            G = gaitParams(gs),
+            a = G.a,
+            w = G.w,
+            fl = GAIT.l,
+            fr = GAIT.r;
+          gaitFoot(at, G, fl);
+          gaitFoot(at + Math.PI, G, fr);
+          // hips: highest over the standing leg in a walk, lowest as the foot takes
+          // her weight in a run - and never higher than a planted foot allows
+          let H = G.hc + G.bob * Math.cos(2 * (at - Math.PI * G.beta));
+          if (fl.stance) H = Math.min(H, fl.y + Math.sqrt(GAIT_REACH ** 2 - fl.z ** 2));
+          if (fr.stance) H = Math.min(H, fr.y + Math.sqrt(GAIT_REACH ** 2 - fr.z ** 2));
+          legIK(fl, H, G.lean);
+          legIK(fr, H, G.lean);
+          L.rotation.x = fl.th;
+          R.rotation.x = fr.th;
+          KL.rotation.x = fl.kn;
+          KR.rotation.x = fr.kn;
+          // the shoe keeps its own pitch: flat while planted, then up on the toes
+          girl.ankleL.rotation.x = fl.p - fl.th - fl.kn - G.lean;
+          girl.ankleR.rotation.x = fr.p - fr.th - fr.kn - G.lean;
+          // arms swing against the legs: each arm is back as its own foot lands
+          const armA =
+              lerp(Math.min(0.32, 0.15 + 0.09 * gs), 0.45 + 0.04 * gs + 0.15 * G.s, w) * a,
+            armO = lerp(0.05, -0.15, w) * a,
+            fL = -Math.cos(at), // 1 = her left arm all the way forward
+            breathe = Math.sin(starTime * 1.3) * 0.03 * (1 - a);
+          AL.rotation.x = -armA * fL + armO + breathe;
+          AR.rotation.x = armA * fL + armO - breathe;
+          EL.rotation.x = gaitElbow(fL, w, a);
+          ER.rotation.x = gaitElbow(-fL, w, a);
+          const twist = fL * (0.035 + 0.025 * w) * a;
           girl.body.rotation.set(
-            lean, // forward lean (more as she runs)
-            Math.sin(at) * (0.07 + 0.05 * w) * a, // shoulders counter the hips
-            Math.cos(at) * (0.025 + 0.005 * w) * a, // weight over the standing leg
+            G.lean, // forward lean (more as she runs)
+            twist, // shoulders turn with the arms…
+            Math.cos(at - Math.PI * G.beta) * (0.02 - 0.008 * w) * a, // weight over the standing leg
           );
-          // keep the lower foot on the ground (thigh 0.46 m, shin 0.44 m, hip 0.92 m)
-          const footY = (th, kn) =>
-            0.92 * Math.cos(lean) -
-            0.46 * Math.cos(th + lean) -
-            0.44 * Math.cos(th + kn + lean);
-          const rest = 0.92 - 0.46 - 0.44 * Math.cos(0.04);
-          // running: both feet off the ground for a moment after each push-off
-          const fl = ((((at - 0.92) % Math.PI) + Math.PI) % Math.PI) / 0.65;
-          const flight = fl < 1 ? Math.sin(fl * Math.PI) * (0.05 + 0.03 * s) * w * a : 0;
-          girl.body.position.y =
-            rest - Math.min(footY(l.th, l.kn), footY(r.th, r.kn)) + flight;
+          L.rotation.y = R.rotation.y = -twist; // …the legs don't, so the planted foot stays put
+          girl.body.position.y = H - 0.92 * Math.cos(G.lean); // (hips 0.92 m up the body)
         }
         // 🏊‍♀️ Rose Resort's heart pool: she swims, the water up to her shoulders
         girl.swim =
           !superWoman && !girl.climbing && p.y < 0.6 && inPool(p.x, p.z);
         if (girl.swim) {
           const sw = Math.sin(at * 0.9);
+          girl.ankleL.rotation.x = girl.ankleR.rotation.x = 0.5; // toes pointed
           girl.g.position.y = p.y - 1.12;
           girl.body.rotation.set(0.3, 0, 0);
           girl.body.position.y = 0;
@@ -23716,6 +23706,99 @@
       function gaitS(a, b, x) {
         const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
         return t * t * (3 - 2 * t);
+      }
+      // --- her gait: each foot is planted for its share of the stride and the
+      // leg is solved to reach it (no allocations per frame) ---
+      const GAIT_TH = 0.46, // thigh (m)
+        GAIT_SH = 0.44, // shin (m)
+        GAIT_REACH = 0.899, // hip → ankle with the knee all but straight
+        GAIT_TAU = Math.PI * 2;
+      const GAIT = {
+        l: { z: 0, y: 0, p: 0, stance: false, th: 0, kn: 0 },
+        r: { z: 0, y: 0, p: 0, stance: false, th: 0, kn: 0 },
+        P: {},
+      };
+      // one step's length (m) at a ground speed: short steps in a walk, long
+      // bounding strides in a run (the cadence follows from it)
+      function gaitStep(gs) {
+        return lerp(
+          0.42 + 0.2 * gs,
+          0.5 + 0.22 * gs + (0.45 - 0.06 * gs) * gaitS(2.4, 5.2, gs),
+          gaitS(1.9, 3.2, gs),
+        );
+      }
+      function gaitParams(gs) {
+        const G = GAIT.P,
+          a = gaitS(0.05, 0.6, gs), // 0 = standing still
+          w = gaitS(1.9, 3.2, gs), // walk → run
+          s = gaitS(8, 12, gs), // run → sprint
+          step = gaitStep(gs),
+          hs = lerp(Math.min(0.58 * step, 0.36), 0.26 + 0.008 * gs, w);
+        G.a = a;
+        G.w = w;
+        G.s = s;
+        G.beta = Math.min(0.62, hs / step); // share of the stride a foot is down
+        G.hs = hs * a; // a planted foot goes from hs ahead of the hip to hs behind
+        G.lift = lerp(0.045, 0.12 + 0.025 * gs, w) * a; // swing: clearance / heel kick
+        G.liftK = lerp(1, 0.75, w);
+        G.pTD = lerp(-0.2, -0.04, w) * a; // foot pitch landing (toes up: on the heel)
+        G.pTO = lerp(0.5, 0.65, w) * a; // … pushing off the toes
+        G.pSw = lerp(-0.1, 0.25, w) * a; // … mid-swing
+        G.heelUp = lerp(0.55, 0.6, w); // when in the stance the heel comes up
+        G.kz = lerp(0.5, 0.35, w);
+        G.hc = lerp(0.92, lerp(0.892, 0.877 - 0.01 * s, w), a); // hip height
+        G.bob = lerp(0.016, -0.017, w) * a; // walk: up over the leg, run: down on it
+        G.lean = (0.03 + (0.09 + 0.09 * s) * w) * a;
+        return G;
+      }
+      // ankle height that keeps the sole on the ground with the foot pitched by p
+      // (+ = toes down): on the heel, flat, or up on the toes
+      function soleY(p) {
+        const c = Math.cos(p),
+          sn = Math.sin(p);
+        return Math.max(0.025 * c - 0.077 * sn, 0.03 * c + 0.16 * sn) - 0.008;
+      }
+      // where one foot is at a phase of her stride (z ahead of the hip, y up)
+      function gaitFoot(ph, G, f) {
+        ph = ((ph % GAIT_TAU) + GAIT_TAU) % GAIT_TAU;
+        const st = GAIT_TAU * G.beta;
+        if (ph < st) {
+          // planted: it moves back under her exactly as fast as she moves on
+          const u = ph / st;
+          f.stance = true;
+          f.z = G.hs * (1 - 2 * u);
+          f.p = G.pTD * (1 - gaitS(0, 0.2, u)) + G.pTO * gaitS(G.heelUp, 1, u);
+          f.y = soleY(f.p);
+        } else {
+          // swinging through: a Hermite curve whose ends carry on the planted
+          // foot's drift back, so lift-off and landing are smooth
+          const v = (ph - st) / (GAIT_TAU - st),
+            v2 = v * v,
+            v3 = v2 * v,
+            m = (-G.kz * 2 * G.hs * (1 - G.beta)) / G.beta;
+          f.stance = false;
+          f.z = G.hs * (6 * v2 - 4 * v3 - 1) + m * (2 * v3 - 3 * v2 + v);
+          f.p = lerp(G.pTO, G.pTD, gaitS(0.15, 0.95, v)) + G.pSw * Math.sin(Math.PI * v);
+          f.y =
+            lerp(soleY(G.pTO), soleY(G.pTD), v) +
+            G.lift * Math.pow(Math.sin(Math.PI * Math.pow(v, G.liftK)), 1.3);
+        }
+      }
+      // two-bone leg: thigh and knee angles that put the ankle on the foot's spot
+      function legIK(f, H, lean) {
+        const dy = f.y - H,
+          D = Math.min(GAIT_REACH, Math.max(0.3, Math.hypot(f.z, dy))),
+          T2 = GAIT_TH * GAIT_TH,
+          S2 = GAIT_SH * GAIT_SH;
+        f.kn = Math.PI - Math.acos((T2 + S2 - D * D) / (2 * GAIT_TH * GAIT_SH));
+        f.th =
+          Math.atan2(-f.z, -dy) -
+          Math.acos(Math.min(1, (T2 + D * D - S2) / (2 * GAIT_TH * D))) -
+          lean;
+      }
+      // elbow bend for an arm swung forward by f (-1…1)
+      function gaitElbow(f, w, a) {
+        return -0.16 + (lerp(-0.18 - 0.22 * Math.max(0, f), -1.3 - 0.25 * f, w) + 0.16) * a;
       }
       function girlCamera(p) {
         const tx = p.x,
