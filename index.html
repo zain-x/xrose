@@ -22604,7 +22604,7 @@
       });
       const HAIR_MAT = new THREE.MeshStandardMaterial({
         color: 0x7a4128, // warm chestnut
-        roughness: 0.42, // sleek, glossy straight hair
+        roughness: 0.5, // soft, shiny curls
         metalness: 0.12,
       });
       const DRESS_MAT = new THREE.MeshStandardMaterial({
@@ -22966,66 +22966,120 @@
         const lipLow = ball(0.015, LIP_MAT, 1.25, 0.55, 0.6);
         lipLow.position.set(0, 1.699, 0.139);
         body.add(lipLow);
-        // hair: a smooth scalp, feathered bangs and layered face-framing strands
+        // 🌀 curly hair: a cloud of little curls all over her head with a curly
+        // fringe, and springy ringlets framing her face and falling down her
+        // back - each part merged into one mesh, so all her curls cost only a
+        // few draw calls
         const hair = new THREE.Mesh(
-          new THREE.SphereGeometry(0.168, 24, 20),
+          new THREE.SphereGeometry(0.165, 20, 16),
           HAIR_MAT,
         );
         hair.scale.set(1, 1.02, 0.98);
         hair.position.set(0, 1.79, -0.045);
         hair.castShadow = true;
         body.add(hair);
-        const bangs = new THREE.Mesh(
-          new THREE.SphereGeometry(0.15, 20, 14),
-          HAIR_MAT,
-        );
-        bangs.scale.set(1.04, 0.45, 0.75);
-        bangs.position.set(0, 1.9, 0.035);
-        body.add(bangs);
-        // long straight hair: sleek flat panels that fall straight down - two
-        // framing her face over the shoulders, two behind them - blunt-cut ends
-        const panel = (w, len, depth) => {
-          const m = new THREE.Mesh(
-            new THREE.CylinderGeometry(w, w * 0.92, len, 14),
-            HAIR_MAT,
-          );
-          m.scale.set(0.55, 1, depth);
+        // one ringlet: a helix, tight at the root, tapering toward its tip
+        const ringlet = (x, y, z, len, R, ph, out) => {
+          const turns = len / 0.075,
+            curve = new THREE.Curve();
+          curve.getPoint = (t, v = new THREE.Vector3()) => {
+            const a = ph + t * turns * Math.PI * 2,
+              rr = R * (0.5 + 0.5 * Math.min(1, t * 4));
+            return v.set(Math.cos(a) * rr, -t * len, Math.sin(a) * rr);
+          };
+          const n = Math.ceil(turns * 8),
+            g = new THREE.TubeGeometry(curve, n, 0.014, 5, false),
+            pa = g.attributes.position,
+            c = new THREE.Vector3();
+          for (let i = 0; i <= n; i++) {
+            curve.getPointAt(i / n, c);
+            const k = 1 - 0.45 * (i / n);
+            for (let j = 0; j <= 5; j++) {
+              const q = i * 6 + j;
+              pa.setXYZ(
+                q,
+                c.x + (pa.getX(q) - c.x) * k,
+                c.y + (pa.getY(q) - c.y) * k,
+                c.z + (pa.getZ(q) - c.z) * k,
+              );
+            }
+          }
+          g.translate(x, y, z);
+          out.push(g);
+        };
+        const curlMesh = (geos) => {
+          const m = new THREE.Mesh(mergeGeometries(geos), HAIR_MAT);
+          for (const g of geos) g.dispose();
           m.castShadow = true;
           return m;
         };
-        for (const s of [-1, 1]) {
-          const front = panel(0.04, 0.4, 1.5);
-          front.position.set(s * 0.138, 1.69, 0.045);
-          body.add(front);
-          const back = panel(0.05, 0.56, 1.4);
-          back.position.set(s * 0.12, 1.62, -0.12);
-          body.add(back);
+        // little curls spread evenly round her head, her face left clear - the
+        // ones along the hairline make the curly fringe
+        const puffs = [];
+        for (let i = 0, N = 110; i < N; i++) {
+          const yN = 1 - (2 * (i + 0.5)) / N,
+            rN = Math.sqrt(1 - yN * yN),
+            dx = Math.cos(i * 2.39996) * rN,
+            dz = Math.sin(i * 2.39996) * rN;
+          if (yN < -0.3) continue; // the nape: the ringlets take over there
+          if (dz > 0.2 && yN < 0.5 && Math.abs(dx) < 0.78) continue; // her face
+          const g = new THREE.SphereGeometry(0.034 + 0.016 * hash(i, 7, 3), 8, 6);
+          g.translate(dx * 0.17, 1.79 + yN * 0.174, -0.045 + dz * 0.166);
+          puffs.push(g);
         }
-        // 🦸‍♀️ golden tiara with a little ruby, resting on the bangs
+        body.add(curlMesh(puffs));
+        // ringlets framing her face, down to her shoulders
+        const sideCurls = [];
+        for (const s of [-1, 1]) {
+          ringlet(s * 0.152, 1.81, 0.075, 0.22, 0.022, s, sideCurls);
+          ringlet(s * 0.172, 1.8, 0, 0.2, 0.024, 2 + s, sideCurls);
+          ringlet(s * 0.165, 1.78, -0.095, 0.36, 0.025, 4 - s, sideCurls);
+        }
+        body.add(curlMesh(sideCurls));
+        // 🦸‍♀️ golden tiara with a little ruby, nestled in her curls
         const tiara = hero(
           new THREE.Mesh(
-            new THREE.TorusGeometry(0.145, 0.009, 8, 28),
+            new THREE.TorusGeometry(0.19, 0.009, 8, 32),
             GOLD_MAT,
           ),
         );
-        tiara.position.set(0, 1.87, -0.01);
+        tiara.position.set(0, 1.885, -0.01);
         tiara.rotation.x = Math.PI / 2 + 0.12;
         body.add(tiara);
         const gem = hero(ball(0.015, DRESS_MAT));
-        gem.position.set(0, 1.872, 0.142);
+        gem.position.set(0, 1.862, 0.177);
         body.add(gem);
-        // the long straight fall down her back - one sleek sheet hung from the
-        // crown, cut blunt at mid-back; it sways gently as she moves
+        // and a fall of ringlets down her back to mid-back, two rows round the
+        // back of her head; they bounce as she moves
         girl.pony = new THREE.Group();
         girl.pony.position.set(0, 1.86, -0.17);
-        const fall = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.15, 0.135, 0.66, 22),
-          HAIR_MAT,
-        );
-        fall.scale.set(1, 1, 0.32);
-        fall.position.y = -0.33;
-        fall.castShadow = true;
-        girl.pony.add(fall);
+        const backCurls = [];
+        for (let k = 0; k < 11; k++) {
+          const al = (k / 10 - 0.5) * 2.7,
+            sa = Math.sin(al);
+          ringlet(
+            0.15 * sa,
+            -0.1,
+            0.125 - 0.15 * Math.cos(al),
+            0.5 + 0.08 * hash(k, 3, 1) - 0.1 * Math.abs(sa),
+            0.028,
+            k * 1.7,
+            backCurls,
+          );
+          if (k === 10) break;
+          const a2 = al + 0.135,
+            s2 = Math.sin(a2);
+          ringlet(
+            0.13 * s2,
+            -0.16,
+            0.125 - 0.13 * Math.cos(a2),
+            0.44 + 0.06 * hash(k, 5, 2) - 0.08 * Math.abs(s2),
+            0.026,
+            k * 2.3 + 1,
+            backCurls,
+          );
+        }
+        girl.pony.add(curlMesh(backCurls));
         girl.pony.rotation.x = 0.06;
         body.add(girl.pony);
         // 🦸‍♀️ her red super-cape - real cloth now: a flared sheet whose
@@ -23063,7 +23117,7 @@
           new THREE.SphereGeometry(0.05, 12, 10),
           DRESS_MAT,
         );
-        hairRose.position.set(0.115, 1.925, 0.05);
+        hairRose.position.set(0.129, 1.942, 0.062); // on top of the curls
         body.add(hairRose);
         G.position.copy(girl.pos);
         G.rotation.y = girl.yaw;
@@ -23525,7 +23579,7 @@
           if (Math.random() < dt * (runAmp > 0.2 ? 4 : 1.2))
             poolRipple(p.x, p.z);
         }
-        // straight hair hangs down, swinging back a touch when she runs
+        // her ringlets hang down, bouncing back a touch when she runs
         girl.pony.rotation.x =
           0.06 +
           Math.abs(Math.cos(at)) * 0.12 * runAmp +
