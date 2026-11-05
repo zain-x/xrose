@@ -1739,7 +1739,7 @@
       import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
       import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
       // Real love-words from the original Rose project - re-used as the city's treasures.
-      import { dailyMessages, moodMessages } from "../messages.js";
+      import { moodMessages } from "../messages.js";
 
       // ----------------------------------------------------------------------------
       // Renderer / Scene / Camera
@@ -4256,8 +4256,8 @@
       // ============================================================================
       // ♥♥♥  ROSE DREAM LAND - adventures, surprises & phone controls  ♥♥♥
       // Every feature of the original "Rose" site reborn as a glowing landmark she
-      // can fly to and discover. Loading screen, full touch controls, gift box of
-      // love-words, mood garden, breathing rose, secret heart, portrait & story.
+      // can fly to and discover. Loading screen, full touch controls, mood
+      // garden, breathing rose, portrait & story.
       // ============================================================================
 
       // ---- shared interaction state ---------------------------------------------
@@ -4666,10 +4666,6 @@
         "بتمنى إنك تكوني سعيدة سعادة حقيقية، من النوع اللي بيبين بعيونك قبل ابتسامتك.",
         "بتمنى إنك تعرفي إن أجمل العلاقات هي اللي الطرفين فيها بيحسوا إنهم مهمين بحياة بعض",
       ];
-      // The golden box holds the messages she picked in messages.js - the
-      // happiness → courage sections - pulled straight from dailyMessages.
-      const LOVE_YOU = dailyMessages.slice(10, 121);
-      let hasGoldenKey = false;
       const MOODS = [
         { key: "مبسوطة", e: "😊" },
         { key: "مرتاحة", e: "😌" },
@@ -4687,13 +4683,6 @@
       }
 
       // ---- panel content openers -------------------------------------------------
-      function openGift() {
-        const msg = pickFrom(dailyMessages);
-        openPanel(`<span class="emoji-head">🎁</span><h2>رسالة من القلب</h2>
-    <p class="big-msg">${msg}</p>`);
-        screenBurst(["💜", "💕", "✨", "🌟", "💫"]);
-        track(`💌 Gift message: ${msg}`);
-      }
       function openSecret() {
         openPanel(
           `<span class="emoji-head">🎂</span>${SECRET_LETTER.map((p) => `<p>${p}</p>`).join("")}<div class="panel-btn" id="letterExplore">استكشاف</div>`,
@@ -4896,40 +4885,6 @@
         screenBurst(["⭐", "🌠", "✨", "💫"]);
         shootingStar();
         track(`🌠 Made a wish: ${w}`);
-      }
-      function openLockedBox() {
-        openPanel(`<svg width="62" height="62" viewBox="0 0 24 24" style="display:block;margin:0 auto 10px">
-      <path d="M7 10V8a5 5 0 0 1 10 0v2" stroke="#ffe08a" stroke-width="2.2" fill="none" stroke-linecap="round"/>
-      <rect x="5" y="10" width="14" height="10" rx="2.6" fill="#ffcf40"/>
-      <circle cx="12" cy="14.4" r="1.7" fill="#5a3d00"/>
-      <rect x="11.2" y="14.4" width="1.6" height="3.6" rx="0.8" fill="#5a3d00"/>
-    </svg>
-    <p class="big-msg">🔑 Golden key needed</p>`);
-        screenBurst(["🔑", "💛", "✨"]);
-        track("🔒 Tried the golden box (locked)");
-      }
-      function openGoldenBox() {
-        const m = pickFrom(LOVE_YOU);
-        openPanel(`<span class="emoji-head">💛</span><h2>الصندوق الذهبي</h2>
-    <p class="big-msg">${m}</p>
-    <div class="panel-btn" id="loveMore">💗 بحبك تانية</div>`);
-        document
-          .getElementById("loveMore")
-          .addEventListener("click", openGoldenBox);
-        screenBurst(["💛", "💗", "💖", "✨", "🌟"]);
-        track(`💛 بحبك: ${m}`);
-      }
-      function collectKey(s) {
-        if (hasGoldenKey) return;
-        hasGoldenKey = true;
-        s.gone = true;
-        s.obj.visible = false;
-        s.marker.visible = false;
-        s.beam.visible = false;
-        screenBurst(["🔑", "✨", "💛", "🌟"]);
-        openPanel(`<span class="emoji-head">🔑</span><h2>المفتاح الذهبي</h2>
-    <p class="big-msg">Golden Key found!</p>`);
-        track("🔑 Got the golden key");
       }
       function openMood() {
         openPanel(`<span class="emoji-head">🌈</span><h2>كيف مزاجك اليوم؟</h2>
@@ -5263,38 +5218,6 @@
           metalness: 0.25,
         });
 
-      function buildGift(pos) {
-        const grp = new THREE.Group();
-        grp.position.copy(pos);
-        const box = new THREE.Mesh(
-          new THREE.BoxGeometry(2, 2, 2),
-          SM(0xff5d83, 0.25),
-        );
-        box.position.y = 1;
-        grp.add(box);
-        const lid = new THREE.Mesh(
-          new THREE.BoxGeometry(2.2, 0.3, 2.2),
-          SM(0xba94ff, 0.35),
-        );
-        lid.position.y = 2.15;
-        grp.add(lid);
-        const rib = new THREE.BoxGeometry(0.26, 2.05, 2.32);
-        const r1 = new THREE.Mesh(rib, SM(0xffd700, 0.4));
-        r1.position.y = 1;
-        grp.add(r1);
-        const r2 = r1.clone();
-        r2.rotation.y = Math.PI / 2;
-        grp.add(r2);
-        const bow = new THREE.Mesh(
-          new THREE.SphereGeometry(0.34, 16, 16),
-          SM(0xffd700, 0.5),
-        );
-        bow.position.y = 2.45;
-        grp.add(bow);
-        grp.scale.setScalar(3.2);
-        surpriseRoot.add(grp);
-        return { grp, lid };
-      }
       function buildMood(pos) {
         const grp = new THREE.Group();
         grp.position.copy(pos);
@@ -5375,94 +5298,6 @@
         grp.add(star);
         surpriseRoot.add(grp);
         return { grp, star };
-      }
-      const GOLD = (e) =>
-        new THREE.MeshStandardMaterial({
-          color: 0xffd24a,
-          emissive: 0xc8920a,
-          emissiveIntensity: e,
-          roughness: 0.28,
-          metalness: 0.9,
-        });
-      function buildGoldenBox(pos) {
-        const grp = new THREE.Group();
-        grp.position.copy(pos);
-        const box = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), GOLD(0.25));
-        box.position.y = 1;
-        grp.add(box);
-        const lid = new THREE.Mesh(
-          new THREE.BoxGeometry(2.2, 0.42, 2.2),
-          GOLD(0.35),
-        );
-        lid.position.y = 2.2;
-        grp.add(lid);
-        const lockMat = new THREE.MeshStandardMaterial({
-          color: 0x4a3300,
-          emissive: 0xffd24a,
-          emissiveIntensity: 0.5,
-          metalness: 1,
-          roughness: 0.3,
-        });
-        const lock = new THREE.Mesh(
-          new THREE.BoxGeometry(0.5, 0.6, 0.26),
-          lockMat,
-        );
-        lock.position.set(0, 1.0, 1.06);
-        grp.add(lock);
-        const shackle = new THREE.Mesh(
-          new THREE.TorusGeometry(0.2, 0.06, 8, 16, Math.PI),
-          lockMat,
-        );
-        shackle.position.set(0, 1.34, 1.06);
-        grp.add(shackle);
-        grp.scale.setScalar(3.4);
-        surpriseRoot.add(grp);
-        return { grp, lid, lock, shackle };
-      }
-      const PURPLE = (e) =>
-        new THREE.MeshStandardMaterial({
-          color: 0x9b5cff,
-          emissive: 0x6a2fd0,
-          emissiveIntensity: e,
-          roughness: 0.3,
-          metalness: 0.85,
-        });
-      function buildKeyShape(pos, matFn) {
-        const grp = new THREE.Group();
-        grp.position.copy(pos);
-        const spin = new THREE.Group();
-        spin.position.y = 9;
-        grp.add(spin);
-        const ring = new THREE.Mesh(
-          new THREE.TorusGeometry(1, 0.3, 14, 26),
-          matFn(0.6),
-        );
-        ring.position.y = 1.6;
-        spin.add(ring);
-        const shaft = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.22, 0.22, 3.2, 10),
-          matFn(0.6),
-        );
-        shaft.position.y = -0.6;
-        spin.add(shaft);
-        const t1 = new THREE.Mesh(
-          new THREE.BoxGeometry(0.85, 0.3, 0.3),
-          matFn(0.6),
-        );
-        t1.position.set(0.45, -1.9, 0);
-        spin.add(t1);
-        const t2 = new THREE.Mesh(
-          new THREE.BoxGeometry(0.55, 0.3, 0.3),
-          matFn(0.6),
-        );
-        t2.position.set(0.3, -1.4, 0);
-        spin.add(t2);
-        grp.scale.setScalar(1.7);
-        surpriseRoot.add(grp);
-        return { grp, spin };
-      }
-      function buildGoldenKey(pos) {
-        return buildKeyShape(pos, GOLD);
       }
       // Roof finder - reproduces buildChunk's height/jitter so a surprise sits on a real rooftop.
       function buildingTop(gx, gz) {
@@ -12360,7 +12195,7 @@
         return rig;
       }
       // her violet VIP car, parked at the kerb of the first road south of spawn,
-      // nose pointing south toward the gift
+      // nose pointing south
       const car = buildCarRig(
         PAINT_VIOLET,
         true,
@@ -22812,7 +22647,7 @@
       const girl = {
         g: new THREE.Group(),
         pos: new THREE.Vector3(0, 0, -8), // on the road, the red car in view
-        yaw: Math.PI, // facing south toward the car & the gift
+        yaw: Math.PI, // facing south toward the car
         grounded: true,
         climbing: false,
         animT: 0,
@@ -24456,29 +24291,6 @@
 
       // --- street-level surprises (fly straight to them) ---
       // spread wide across the city so every discovery is its own little journey
-      const gift = buildGift(P(0, -4 * TILE));
-      addSurprise({
-        id: "gift",
-        emoji: "🎁",
-        label: "افتحي الهدية",
-        color: 0xba94ff,
-        pos: P(0, -4 * TILE),
-        centerY: 9,
-        markerY: 16,
-        radius: 36,
-        update: (s, t) => {
-          gift.grp.rotation.y = t * 0.4;
-          gift.grp.position.y = 3.4 + Math.sin(t * 1.2) * 0.6; // floats above the street
-          s.lo = (s.lo || 0) + ((s.opened ? 1 : 0) - (s.lo || 0)) * 0.1;
-          gift.lid.position.y = 2.15 + s.lo * 1.4;
-          gift.lid.rotation.z = -s.lo * 0.5;
-        },
-        activate: (s) => {
-          s.opened = true;
-          openGift();
-        },
-      });
-
       // 🌈 the mood garden (« كيف مزاجك اليوم؟ ») is out of the hunt for now
       // const mood = buildMood(P(...pk(-156, 0)));
       // addSurprise({
@@ -24569,34 +24381,6 @@
           star.star.rotation.z = Math.sin(t * 0.6) * 0.2;
         },
         activate: () => openWish(),
-      });
-
-      // --- the golden box (floating over the street) - no key needed any more ---
-      const gbox = buildGoldenBox(P(5 * TILE, -5 * TILE));
-      addSurprise({
-        id: "goldenbox",
-        emoji: "🎁",
-        label: "الصندوق الذهبي",
-        color: 0xffd24a,
-        obj: gbox.grp,
-        pos: P(5 * TILE, -5 * TILE),
-        centerY: 11,
-        markerY: 18,
-        radius: 38,
-        update: (s, t) => {
-          gbox.grp.rotation.y = t * 0.3;
-          gbox.grp.position.y = 3.4 + Math.sin(t * 1.1) * 0.5; // floats above the street
-          s.lo = (s.lo || 0) + ((s.opened ? 1 : 0) - (s.lo || 0)) * 0.1;
-          gbox.lid.position.y = 2.2 + s.lo * 1.5;
-          gbox.lid.rotation.z = -s.lo * 0.5;
-          gbox.lock.visible = false;
-          gbox.shackle.visible = false;
-        },
-        activate: (s) => {
-          s.opened = true;
-          setEmoji(s.marker, "💛");
-          openGoldenBox();
-        },
       });
 
 
