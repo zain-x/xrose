@@ -258,6 +258,93 @@
         pointer-events: none;
         white-space: nowrap;
       }
+      /* 🗺️ the map button: a round pill just left of the 💋 counter (it rides
+         along with the counter, whatever its width) */
+      #map-btn {
+        position: absolute;
+        right: calc(100% + 8px);
+        top: 50%;
+        transform: translateY(-50%);
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        background: rgba(40, 10, 28, 0.5);
+        border: 1px solid rgba(255, 120, 150, 0.4);
+        pointer-events: auto;
+        cursor: pointer;
+      }
+      #map-btn:active {
+        transform: translateY(-50%) scale(0.92);
+      }
+      #panel-card.map {
+        width: auto;
+        max-width: none;
+        padding: 12px 12px 10px;
+      }
+      #panel-card.map .map-h {
+        font-size: 16px;
+        margin: 4px 44px 10px;
+      }
+      #map-cv {
+        display: block;
+        margin: 0 auto;
+        border-radius: 14px;
+        box-shadow: 0 6px 22px rgba(0, 0, 0, 0.35);
+      }
+      .map-key {
+        margin-top: 8px;
+        font-size: 11.5px;
+        line-height: 1.7;
+        color: #f3cfe0;
+      }
+      .map-key i {
+        display: inline-block;
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        vertical-align: middle;
+        margin: 0 2px;
+      }
+      .map-key i.me {
+        background: #ff3d7f;
+        box-shadow: 0 0 0 2px #fff;
+      }
+      .map-key i.sp {
+        background: #ff1e2d;
+      }
+      .map-key span {
+        white-space: nowrap;
+      }
+      .map-key span + span::before {
+        content: " · ";
+      }
+      /* a phone on its side: no title, the key in a column beside the map */
+      @media (max-height: 500px) {
+        #panel-card.map {
+          max-height: none;
+        }
+        #panel-card.map .map-h {
+          display: none;
+        }
+        #panel-card.map #panel-body {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+        }
+        #panel-card.map .map-key {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          margin: 0;
+        }
+        #panel-card.map .map-key span + span::before {
+          content: none;
+        }
+      }
       #prompt {
         position: fixed;
         left: 50%;
@@ -1583,6 +1670,7 @@
       <span id="disc-count">0</span> / <span id="disc-total">7</span> 💗
     </div>
     <div id="kisses">
+      <div id="map-btn" title="الخريطة (Tab)">🗺️</div>
       💋 <span id="kiss-count">0</span> / <span id="kiss-goal">7</span>
     </div>
     <div id="toprow">
@@ -4280,6 +4368,7 @@
       const actBtn = document.getElementById("btn-action");
       const panel = document.getElementById("panel");
       const panelBody = document.getElementById("panel-body");
+      const panelCard = document.getElementById("panel-card");
 
       // ---- enter the city + ambient music ---------------------------------------
       let music = null;
@@ -4595,6 +4684,7 @@
         uiPaused = false;
       }
       function openPanel(html) {
+        panelCard.classList.remove("map");
         panelBody.innerHTML = html;
         panel.classList.add("show");
         pauseUI();
@@ -24123,6 +24213,230 @@
             Math.sin(Math.min(1, k * 4) * Math.PI * 0.5) * (1 - k) * 0.95;
         }
       }
+
+      // ============================================================================
+      // 🗺️  MAP - the 🗺️ button left of the 💋 counter (or Tab) pauses and shows the
+      // whole island, north up (the resort at the top, her cake at the bottom):
+      // the districts, streets, park, airfield and pier, where she is and which
+      // way she faces, her car, the plane, and the surprises - red dots until she
+      // finds them, like on the radar (the cinema stays a secret). It is drawn
+      // only while it's open: the island once, then just the pulsing markers.
+      // ============================================================================
+      const MAP_X0 = LAND_X0 - 30,
+        MAP_X1 = LAND_X1 + 30,
+        MAP_Z0 = CAKE.z - 30,
+        MAP_Z1 = RES_PEN.z1 + 30;
+      const MAP_COL = {
+        downtown: "#c86b98",
+        rose: "#f29bb8",
+        sky: "#a99bf0",
+        marina: "#7fc3e0",
+        garden: "#f0cf78",
+        park: "#7fcf8f",
+        air: "#aab0c4",
+      };
+      const MAP_EMOJI = '"Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif';
+      function openMap() {
+        const tall = innerHeight > 500, // (else: the key goes beside the map)
+          s = Math.min(
+            (Math.min(innerWidth - 64, 520) - (tall ? 0 : 150)) / (MAP_X1 - MAP_X0),
+            (innerHeight - (tall ? 130 : 70)) / (MAP_Z1 - MAP_Z0),
+          ),
+          cw = Math.round((MAP_X1 - MAP_X0) * s),
+          ch = Math.round((MAP_Z1 - MAP_Z0) * s),
+          dpr = Math.min(2, devicePixelRatio || 1),
+          k = Math.max(0.75, Math.min(1.3, s / 0.44)); // marker size
+        openPanel(`<h2 class="map-h">🗺️ خريطة Rose World</h2>
+    <canvas id="map-cv" style="width:${cw}px;height:${ch}px"></canvas>
+    <div class="map-key"><span><i class="me"></i> انتي هون</span><span><i class="sp"></i> مفاجأة مخبّاية</span><span>🎂 كيكتك</span><span>🎹 الموسيقى</span><span>🚗 السيارة</span><span>🛩️ الطيارة</span></div>`);
+        panelCard.classList.add("map");
+        track("🗺️ Opened the map");
+        // north up: +z at the top, so +x runs to the left (a turn, not a mirror)
+        const X = (x) => Math.max(8, Math.min(cw - 8, (MAP_X1 - x) * s)),
+          Y = (z) => Math.max(8, Math.min(ch - 8, (MAP_Z1 - z) * s));
+        const base = document.createElement("canvas");
+        base.width = Math.round(cw * dpr);
+        base.height = Math.round(ch * dpr);
+        const b = base.getContext("2d");
+        // the island, in metres
+        b.setTransform(-s * dpr, 0, 0, -s * dpr, MAP_X1 * s * dpr, MAP_Z1 * s * dpr);
+        b.fillStyle = "#1b5d86";
+        b.fillRect(MAP_X0, MAP_Z0, MAP_X1 - MAP_X0, MAP_Z1 - MAP_Z0);
+        b.fillStyle = "#f1d9a6";
+        b.strokeStyle = "rgba(90, 205, 225, 0.45)"; // the shallows
+        b.lineWidth = 16;
+        for (const [x0, z0, x1, z1, r] of [
+          [LAND_X0, LAND_Z0, LAND_X1, LAND_Z1, ISLE_R],
+          [RES_PEN.x0, RES_PEN.z0, RES_PEN.x1, RES_PEN.z1, RES_PEN.r],
+        ]) {
+          rrPath(b, x0, z0, x1 - x0, z1 - z0, r);
+          b.stroke();
+          b.fill();
+        }
+        b.fillStyle = "#fff4f8"; // the streets
+        b.fillRect(CITY_X0, CITY_Z0, CITY_X1 - CITY_X0, CITY_Z1 - CITY_Z0);
+        const mids = {}; // each district's lots, for where its name goes
+        for (let gx = ISLE.gx0; gx <= ISLE.gx1; gx++)
+          for (let gz = ISLE.gz0; gz <= ISLE.gz1; gz++) {
+            const d = districtLot(gx, gz);
+            b.fillStyle = MAP_COL[d];
+            b.fillRect(gx * TILE + ROAD_HW, gz * TILE + ROAD_HW, TILE - 2 * ROAD_HW, TILE - 2 * ROAD_HW);
+            const m = (mids[d] ||= { x: 0, z: 0, n: 0, lots: [] });
+            m.x += (gx + 0.5) * TILE;
+            m.z += (gz + 0.5) * TILE;
+            m.n++;
+            m.lots.push((gx + 0.5) * TILE, (gz + 0.5) * TILE);
+          }
+        // the name sits on the district's own lot nearest its middle (the marina
+        // wraps round the airfield, so its middle is on the runway); the airfield's
+        // name goes on the runway, clear of the parked plane
+        for (const m of Object.values(mids)) {
+          const cx = m.x / m.n,
+            cz = m.z / m.n;
+          let best = 1e9;
+          for (let i = 0; i < m.lots.length; i += 2) {
+            const dd = Math.hypot(m.lots[i] - cx, m.lots[i + 1] - cz);
+            if (dd < best) {
+              best = dd;
+              m.lx = m.lots[i];
+              m.lz = m.lots[i + 1];
+            }
+          }
+        }
+        if (mids.air) {
+          mids.air.lx = 6 * TILE;
+          mids.air.lz = RUNWAY_Z;
+        }
+        b.fillStyle = "#59606f"; // the runway, with its centre line
+        b.fillRect(-5 * TILE + ROAD_HW, RUNWAY_Z - 7, 14 * TILE - 2 * ROAD_HW, 14);
+        b.strokeStyle = "rgba(255, 255, 255, 0.8)";
+        b.lineWidth = 1.6;
+        b.setLineDash([10, 9]);
+        b.beginPath();
+        b.moveTo(-5 * TILE + ROAD_HW + 8, RUNWAY_Z);
+        b.lineTo(9 * TILE - ROAD_HW - 8, RUNWAY_Z);
+        b.stroke();
+        b.setLineDash([]);
+        b.fillStyle = "#c99a68"; // the birthday pier out to the cake
+        b.fillRect(PIER.x - PIER.hw, PIER.z0 - PIER.len, PIER.hw * 2, PIER.len + 8);
+        // names and places, in screen pixels
+        b.setTransform(dpr, 0, 0, dpr, 0, 0);
+        b.textAlign = "center";
+        b.textBaseline = "middle";
+        b.shadowColor = "rgba(0, 0, 0, 0.75)";
+        b.shadowBlur = 3;
+        b.fillStyle = "#fff";
+        const fs = Math.round(Math.max(9, Math.min(13, 11 * k))),
+          boxes = [];
+        b.font = `600 ${fs}px system-ui, sans-serif`;
+        const label = (t, px, py) => {
+          const w = (b.measureText(t)?.width || t.length * fs * 0.55) / 2 + 2;
+          // a name that would run into one already written moves a line up or
+          // down - or, on a very small map, is left out
+          for (const dy of [0, -fs * 1.3, fs * 1.3]) {
+            const y = py + dy;
+            if (boxes.some((q) => Math.abs(q[0] - px) < q[2] + w && Math.abs(q[1] - y) < fs))
+              continue;
+            boxes.push([px, y, w]);
+            b.fillText(t, px, y);
+            return;
+          }
+        };
+        for (const d of ["downtown", "park", "air", "rose", "sky", "garden", "marina"])
+          if (mids[d]) label(`${DISTRICTS[d].icon} ${DISTRICTS[d].ar}`, X(mids[d].lx), Y(mids[d].lz));
+        label(`${DISTRICTS.resort.icon} ${DISTRICTS.resort.ar}`, X(PEN_CX), Y(PEN_CZ + 18));
+        b.shadowBlur = 0;
+        const placed = [];
+        const icon = (e, x, z, size, disc = true) => {
+          let px = X(x),
+            py = Y(z);
+          // two things side by side (her car outside the music hall…): the later
+          // one steps up beside the first instead of hiding under it
+          for (let i = 0; i < 3; i++) {
+            const hit = placed.find((q) => Math.hypot(q[0] - px, q[1] - py) < (q[2] + size) * 0.55);
+            if (!hit) break;
+            px = hit[0] + (hit[2] + size) * 0.6;
+            py = hit[1] - (hit[2] + size) * 0.25;
+          }
+          placed.push([px, py, size]);
+          if (disc) {
+            b.beginPath();
+            b.arc(px, py, size * 0.72, 0, 7);
+            b.fillStyle = "rgba(255, 255, 255, 0.85)";
+            b.fill();
+          }
+          b.font = `${Math.round(size)}px ${MAP_EMOJI}`;
+          b.fillText(e, px, py + 1);
+        };
+        icon("🎂", CAKE.x, CAKE.z, 17 * k);
+        icon("🎹", HALL.cx, HALL.cz, 14 * k);
+        icon("🏮", LANT_STAND.x, LANT_STAND.z, 11 * k, false);
+        if (!(vehMode === "car" && drv === boat)) icon("🦢", boat.pos.x, boat.pos.z, 12 * k, false);
+        if (!driving(car)) icon("🚗", car.pos.x, car.pos.z, 14 * k);
+        if (vehMode !== "plane") icon("🛩️", plane.pos.x, plane.pos.z, 14 * k);
+        for (const sp of surprises)
+          if (!sp.gone && sp.found) icon(sp.icon, sp.center.x, sp.center.z, 13 * k);
+        // live: the hidden surprises pulse, and so does she
+        const fp = focusPos(),
+          rig = vehMode === "plane" ? plane : vehMode === "car" && drv ? drv : girl,
+          hx = X(fp.x),
+          hy = Y(fp.z),
+          ha = Math.atan2(-Math.cos(rig.yaw), -Math.sin(rig.yaw)), // (forward = sin, cos of yaw)
+          hidden = surprises.filter((sp) => !sp.gone && !sp.found);
+        const cv = document.getElementById("map-cv"),
+          g = cv.getContext("2d");
+        cv.width = base.width;
+        cv.height = base.height;
+        const live = (now) => {
+          if (!cv.isConnected || !panel.classList.contains("show")) return;
+          g.setTransform(1, 0, 0, 1, 0, 0);
+          g.drawImage(base, 0, 0);
+          g.setTransform(dpr, 0, 0, dpr, 0, 0);
+          const pu = 0.5 + 0.5 * Math.sin(now / 160);
+          for (const sp of hidden) {
+            g.beginPath();
+            g.arc(X(sp.center.x), Y(sp.center.z), (3.6 + 1.4 * pu) * k, 0, 7);
+            g.fillStyle = `rgba(255, 30, 45, ${(0.55 + 0.45 * pu).toFixed(3)})`;
+            g.fill();
+          }
+          const ph = (now / 1100) % 1;
+          g.beginPath();
+          g.arc(hx, hy, (8 + 14 * ph) * k, 0, 7);
+          g.strokeStyle = `rgba(255, 61, 127, ${(1 - ph).toFixed(3)})`;
+          g.lineWidth = 2.5;
+          g.stroke();
+          g.save();
+          g.translate(hx, hy);
+          g.rotate(ha);
+          g.beginPath(); // her arrow, pointing the way she faces
+          g.moveTo(11 * k, 0);
+          g.lineTo(-6 * k, 7 * k);
+          g.lineTo(-2.5 * k, 0);
+          g.lineTo(-6 * k, -7 * k);
+          g.closePath();
+          g.fillStyle = "#ff3d7f";
+          g.fill();
+          g.lineWidth = 2;
+          g.strokeStyle = "#fff";
+          g.stroke();
+          g.restore();
+          requestAnimationFrame(live);
+        };
+        requestAnimationFrame(live);
+      }
+      const mapOpen = () =>
+        panel.classList.contains("show") && panelCard.classList.contains("map");
+      document.getElementById("map-btn").addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (!uiPaused) openMap();
+      });
+      // Tab opens / closes the map on a keyboard (M is the radio's)
+      addEventListener("keydown", (e) => {
+        if (e.code !== "Tab" || pianoOpen) return;
+        e.preventDefault();
+        if (mapOpen()) closePanel();
+        else if (started && !uiPaused) openMap();
+      });
 
       // ============================================================================
       // 📡  RADAR - a little heading-up minimap: every target is a pulsing red
