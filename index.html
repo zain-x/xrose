@@ -15903,7 +15903,11 @@
             }
           }
       }
-      const PLANE_EDGE = 800; // how far out over the sea she may fly (land ends ~500 m out)
+      // 🌊 how far past the coastline she may fly (the cake's pier reaches 78 m out):
+      // there the plane turns back by itself, and it hands her the controls again
+      // only once it is close to the shore - so it can't flip back and forth there
+      const PLANE_SEA = 110,
+        PLANE_HOME = 40;
       function updatePlane(dt) {
         let pitchIn = 0,
           rollIn = 0,
@@ -15967,12 +15971,11 @@
           }
         } else {
           // airborne
-          // 🌊 the edge of Rose World: once she is PLANE_EDGE from the island's
-          // centre the plane banks round by itself and heads back to the island -
-          // she has the controls again as soon as its nose points home
-          const hx = LAND_CX - plane.pos.x,
-            hz = LAND_CZ - plane.pos.z;
-          if (!plane.homing && Math.hypot(hx, hz) > PLANE_EDGE) {
+          // 🌊 the edge of Rose World: PLANE_SEA past the coast the plane banks
+          // round by itself and flies her back toward the island; she steers
+          // again PLANE_HOME from the shore (climbing and diving stay hers)
+          const sea = coastDist(plane.pos.x, plane.pos.z);
+          if (!plane.homing && sea > PLANE_SEA) {
             plane.homing = true;
             bdayCaption(
               "↩️ Rose World",
@@ -15980,24 +15983,22 @@
               3,
             );
             track("🛩️ Reached the edge of the world: turning back");
-          }
+          } else if (plane.homing && sea < PLANE_HOME) plane.homing = false;
           let homeTurn = 0;
           if (plane.homing) {
-            let dyaw = Math.atan2(hx, hz) - plane.yaw; // (x += sin yaw, z += cos yaw)
+            let dyaw =
+              Math.atan2(LAND_CX - plane.pos.x, LAND_CZ - plane.pos.z) - plane.yaw; // (x += sin yaw, z += cos yaw)
             dyaw = Math.atan2(Math.sin(dyaw), Math.cos(dyaw));
-            if (Math.abs(dyaw) < 0.12) plane.homing = false;
-            else {
-              homeTurn = Math.sign(dyaw);
-              rollIn = 0;
-              rudder = 0;
-            }
+            homeTurn = Math.max(-1, Math.min(1, dyaw * 1.6)); // eases off as the nose comes round
+            rollIn = 0;
+            rudder = 0;
           }
           plane.pitch += pitchIn * 1.05 * Math.max(authority, 0.25) * dt;
           if (!pitchIn) plane.pitch -= plane.pitch * 0.35 * dt;
           plane.pitch = Math.max(-1.15, Math.min(1.15, plane.pitch));
-          if (homeTurn)
+          if (plane.homing)
             plane.roll +=
-              (-homeTurn * 0.75 - plane.roll) * Math.min(1, dt * 2.5);
+              (-homeTurn * 0.8 - plane.roll) * Math.min(1, dt * 2.5);
           else {
             plane.roll += rollIn * 2.0 * dt;
             if (!rollIn) plane.roll -= plane.roll * 1.7 * dt;
@@ -16006,7 +16007,7 @@
           plane.yaw +=
             (-Math.sin(plane.roll) * 1.05 * authority +
               rudder * 0.4 +
-              homeTurn * 0.25) *
+              homeTurn * 0.45) *
             dt;
 
           plane.speed +=
