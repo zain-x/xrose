@@ -102,8 +102,22 @@
         color: #e3a9c4;
         margin: 4px 0;
       }
+      /* 🎧 above the button: the music and the radio are half of it */
+      #overlay .phones {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        font-size: 13px;
+        letter-spacing: 0.5px;
+        color: #ffd3e4;
+      }
+      #overlay .phones span {
+        font-size: 30px;
+        line-height: 1;
+      }
       #overlay .go {
-        margin-top: 22px;
+        margin-top: 16px;
         font-size: 13px;
         color: #fff;
         border: 1px solid rgba(255, 150, 190, 0.55);
@@ -1659,6 +1673,7 @@
 
     <div id="overlay">
       <div class="card">
+        <div class="phones"><span>🎧</span>Better with headphones</div>
         <div class="go">Enter Rose World</div>
       </div>
     </div>
