@@ -4740,7 +4740,8 @@
         "بحبك لأنك أمان قلبي مهما صار",
       ];
       // 🌠 the wishing star's wishes - dealt in a random order, never the same one
-      // twice until she has read them all (remembered between visits)
+      // twice until she has read them all (remembered between visits; "2" keys
+      // since the list went from 16 wishes to 11)
       const WISHES = [
         "بتمنى إنك تشوفي حالك بالعيون اللي بتحبك، وتعرفي قديش انتي إنسانة مميزة.",
         "بتمنى تعرفي انه في حدا بيفهمك حتى باللحظات اللي بتعجزي فيها عن التعبير.",
@@ -4748,16 +4749,11 @@
         "بتمنى إنك تحسي بالأمان الكافي بكل حالاتك وتفاصيلك.",
         "بتمنى إنك تعرفي إن تفاصيلك الصغيرة إلها جمال يمكن إنتي نفسك ما بتنتبهي عليها.",
         "بتمنى إنك تعيشي حب يخلي قلبك مرتاح، وتكوني فيه حرة وقريبة بنفس الوقت.",
-        "بتمنى إنك تظلي تحتفظي بالطفلة الحلوة اللي جواكي، بكل عفويتها وأحلامها.",
-        "بتمنى إنك تعرفي إنك بتتركي أثر حلو بقلوب الناس حتى بأبسط تصرفاتك.",
-        "بتمنى إنك تعيشي لحظات تخلي عيونك تلمع من الفرحة، وتنسي فيها كل التعب.",
         "بتمنى إنك تحققي كل أحلامك، ويكون إلي نصيب أفرح معك فيها",
-        "بتمنى إنك تعرفي إن أحياناً أبسط اهتمام منك ممكن يصنع أجمل لحظة بيوم شخص",
-        "بتمنى تعرفي في ناس يحبوا روحك مثل ما هي، بكل هدوئها وجنونها وتناقضاتها.",
+        "أحلى الاماني انه روحك بالاصل حلوة بكل هدوئها وجنونها وتناقضاتها.",
         "بتمنى إنك تضلي متل النجمة، تلمعي بطريقتك الخاصة، حتى لو ما انتبه كل العالم لضوّك.",
         "بتمنى إنك تعرفي إن أجمل الأشياء بالحياة هي اللي بنختار نهتم فيها ونحافظ عليها من قلبنا",
         "بتمنى إنك تكوني سعيدة سعادة حقيقية، من النوع اللي بيبين بعيونك قبل ابتسامتك.",
-        "بتمنى إنك تعرفي إن أجمل العلاقات هي اللي الطرفين فيها بيحسوا إنهم مهمين بحياة بعض",
       ];
       const MOODS = [
         { key: "مبسوطة", e: "😊" },
@@ -4890,7 +4886,7 @@
         if (!wishBag) {
           try {
             wishBag = JSON.parse(
-              localStorage.getItem("rose-wish-bag") || "null",
+              localStorage.getItem("rose-wish-bag2") || "null",
             );
           } catch (e) {}
           if (
@@ -4901,7 +4897,7 @@
         }
         let last = -1;
         try {
-          last = +(localStorage.getItem("rose-wish-last") ?? -1);
+          last = +(localStorage.getItem("rose-wish-last2") ?? -1);
         } catch (e) {}
         if (!wishBag.length) {
           // a fresh shuffle of all of them - and never the last one first
@@ -4919,13 +4915,13 @@
         const i = wishBag.pop();
         if (!wishBag.length) wishAskNext = true; // that was the last one → her turn next
         try {
-          localStorage.setItem("rose-wish-bag", JSON.stringify(wishBag));
-          localStorage.setItem("rose-wish-last", String(i));
+          localStorage.setItem("rose-wish-bag2", JSON.stringify(wishBag));
+          localStorage.setItem("rose-wish-last2", String(i));
           localStorage.setItem("rose-wish-ask", wishAskNext ? "1" : "0");
         } catch (e) {}
         return WISHES[i];
       }
-      // once she has read all sixteen, the star asks for hers - no button, just the
+      // once she has read them all, the star asks for hers - no button, just the
       // question; the next time she comes, a new round begins
       let wishAskNext = false;
       try {
@@ -4956,11 +4952,11 @@
           });
           screenBurst(["⭐", "🌠", "✨", "💫"]);
           for (let k = 0; k < 3; k++) setTimeout(shootingStar, k * 900);
-          track("🌠 Read all 16 wishes, the star asked for hers");
+          track(`🌠 Read all ${WISHES.length} wishes, the star asked for hers`);
           return;
         }
         const w = nextWish();
-        // where she is in the round: « أمنية 3 من 16 » and a row of little stars
+        // where she is in the round: « أمنية 3 من 11 » and a row of little stars
         const n = WISHES.length - wishBag.length,
           N = WISHES.length;
         const dots = WISHES.map(
