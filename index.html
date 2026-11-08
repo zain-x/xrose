@@ -2910,6 +2910,8 @@
       // lots empty (they're built later, see "ROSE PLAZAS & STREET CAFÉS").
       // 🎹 the Rosmantic Music hall (built in the "ROSMANTIC MUSIC" section)
       const MUSIC_LOT = [-1, -2];
+      // 🌠 the wishing star's own little plaza, right beside the music hall
+      const WISH_LOT = [0, -2];
       const PLAZA_LOTS = [
         [-1, 2],
         [2, -2],
@@ -2969,6 +2971,7 @@
         for (const p of PLAZA_LOTS) if (p[0] === gx && p[1] === gz) return true;
         for (const c of CAFES) if (c.gx === gx && c.gz === gz) return true;
         if (gx === MUSIC_LOT[0] && gz === MUSIC_LOT[1]) return true;
+        if (gx === WISH_LOT[0] && gz === WISH_LOT[1]) return true;
         return false;
       }
 
@@ -5463,8 +5466,9 @@
       // ────────────────────────────────────────────────────────────────────────────
       // ☕🌹 ROSE PLAZAS & STREET CAFÉS - hand-placed clearings in the tower grid.
       // Plazas: fountain, glowing ring, rose bushes, benches, lamp posts with
-      // fairy-lights. Cafés: open-front little shops with awnings & neon signs;
-      // مقهى روز keeps a sealed envelope on a table inside 💌 (surprise "envelope").
+      // fairy-lights - the wishing star's plaza has golden rings and no fountain.
+      // Cafés: open-front little shops with awnings & neon signs; مقهى روز keeps
+      // a sealed envelope on a table inside 💌 (surprise "envelope").
       // ────────────────────────────────────────────────────────────────────────────
       const decorRoot = new THREE.Group();
       scene.add(decorRoot);
@@ -5613,7 +5617,7 @@
         });
       }
 
-      function buildPlaza(gx, gz) {
+      function buildPlaza(gx, gz, wish = false) {
         const x = lotC(gx),
           z = lotC(gz);
         const g = new THREE.Group();
@@ -5628,40 +5632,51 @@
         g.add(pave);
         const ring = new THREE.Mesh(
           new THREE.TorusGeometry(8.7, 0.1, 6, 44),
-          SM(0xff7da0, 0.9),
+          SM(wish ? 0xffd36b : 0xff7da0, 0.9),
         );
         ring.rotation.x = Math.PI / 2;
         ring.position.y = 0.18;
         g.add(ring);
-        // fountain: basin, glowing water, column, a rose-red bloom on top
-        const basin = new THREE.Mesh(
-          new THREE.CylinderGeometry(3.4, 3.8, 0.9, 18),
-          STONE_MAT,
-        );
-        basin.position.y = 0.45;
-        g.add(basin);
-        const water = new THREE.Mesh(
-          new THREE.CylinderGeometry(3.05, 3.05, 0.14, 18),
-          SM(0x9fd8ff, 0.55),
-        );
-        water.position.y = 0.92;
-        g.add(water);
-        const column = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.42, 0.62, 2.6, 12),
-          STONE_MAT,
-        );
-        column.position.y = 2.1;
-        g.add(column);
-        const bloom = new THREE.Mesh(
-          new THREE.SphereGeometry(0.75, 14, 12),
-          SM(0xff2d5e, 0.9),
-        );
-        bloom.position.y = 3.7;
-        g.add(bloom);
-        const roseSp = emojiSprite("🌹");
-        roseSp.scale.set(5, 5, 1);
-        roseSp.position.set(0, 6.2, 0);
-        g.add(roseSp);
+        if (wish) {
+          // a second, smaller golden ring right under the star
+          const inner = new THREE.Mesh(
+            new THREE.TorusGeometry(3.6, 0.09, 6, 36),
+            SM(0xffe07a, 0.9),
+          );
+          inner.rotation.x = Math.PI / 2;
+          inner.position.y = 0.18;
+          g.add(inner);
+        } else {
+          // fountain: basin, glowing water, column, a rose-red bloom on top
+          const basin = new THREE.Mesh(
+            new THREE.CylinderGeometry(3.4, 3.8, 0.9, 18),
+            STONE_MAT,
+          );
+          basin.position.y = 0.45;
+          g.add(basin);
+          const water = new THREE.Mesh(
+            new THREE.CylinderGeometry(3.05, 3.05, 0.14, 18),
+            SM(0x9fd8ff, 0.55),
+          );
+          water.position.y = 0.92;
+          g.add(water);
+          const column = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.42, 0.62, 2.6, 12),
+            STONE_MAT,
+          );
+          column.position.y = 2.1;
+          g.add(column);
+          const bloom = new THREE.Mesh(
+            new THREE.SphereGeometry(0.75, 14, 12),
+            SM(0xff2d5e, 0.9),
+          );
+          bloom.position.y = 3.7;
+          g.add(bloom);
+          const roseSp = emojiSprite("🌹");
+          roseSp.scale.set(5, 5, 1);
+          roseSp.position.set(0, 6.2, 0);
+          g.add(roseSp);
+        }
         decorRoot.add(g);
         // rose bushes around the rim
         for (let i = 0; i < 8; i++) {
@@ -6034,6 +6049,7 @@
       }
 
       for (const [pgx, pgz] of PLAZA_LOTS) buildPlaza(pgx, pgz);
+      buildPlaza(WISH_LOT[0], WISH_LOT[1], true);
       for (const c of CAFES) buildCafe(c);
 
       // ────────────────────────────────────────────────────────────────────────────
@@ -24323,9 +24339,9 @@
         activate: () => openReasons(),
       });
 
-      // 🌠 the wishing star floats over the glowing circle in the middle of Rose
-      // Park, where the two paths cross (its light beam & radar dot show it)
-      const WISH_AT = P(PARK.x, PARK.z);
+      // 🌠 the wishing star floats over the golden ring of its own little plaza,
+      // right beside Rosmantic Music (its light beam & radar dot show it)
+      const WISH_AT = P(lotC(WISH_LOT[0]), lotC(WISH_LOT[1]));
       const star = buildStar(WISH_AT);
       addSurprise({
         id: "wish",
