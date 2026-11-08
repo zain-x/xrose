@@ -316,6 +316,12 @@
       .map-key i.sp {
         background: #ff1e2d;
       }
+      .map-key i.sky {
+        width: 14px;
+        height: 5px;
+        border-radius: 3px;
+        background: #ff5c9a;
+      }
       .map-key span {
         white-space: nowrap;
       }
@@ -3223,6 +3229,158 @@
           : n > ISLE.gz0 && n <= ISLE.gz1;
         return ok ? bridgeLine(n, dir) : 0;
       }
+      // 🛣️ two of the 38 m bridges are skyways she can drive her car up: a wider
+      // deck, and at each end a ramp that climbs from the street over 7 lots
+      // (10°) - up one end, over the city and down the other. (dir & n as for
+      // bridgeAt; s = how far along the line)
+      const SKY_W = 7,
+        SKY_HW = SKY_W / 2,
+        SKY_LOTS = 7;
+      const SKYWAYS = [
+        [1, -6], // x = −192: from the south coast to the north coast
+        [0, 6], // z = 192: from the west coast to the east coast
+      ].map(([dir, n]) => {
+        const lo = (dir ? ISLE.gz0 : ISLE.gx0) * TILE, // the Corniche at each end
+          hi = ((dir ? ISLE.gz1 : ISLE.gx1) + 1) * TILE;
+        return {
+          dir,
+          n,
+          line: n * TILE,
+          top: bridgeAt(n, dir) + 0.45, // the deck's road
+          lo,
+          hi,
+          a0: lo + ROAD_HW + 1, // a ramp's foot, just past the Corniche
+          a1: lo + SKY_LOTS * TILE, // …and its top
+          b0: hi - SKY_LOTS * TILE,
+          b1: hi - ROAD_HW - 1,
+        };
+      });
+      const skyLine = (n, dir) =>
+        SKYWAYS.some((w) => w.n === n && w.dir === dir);
+      // the deck a lot of a bridge line gets: none over a ramp, a wider one along
+      // a skyway, else the usual (its width ÷ 4.6 m)
+      function skyLot(dir, n, m) {
+        if (!skyLine(n, dir)) return 1;
+        const i = m - (dir ? ISLE.gz0 : ISLE.gx0),
+          last = dir ? ISLE.gz1 - ISLE.gz0 : ISLE.gx1 - ISLE.gx0;
+        return i < SKY_LOTS || i > last - SKY_LOTS ? 0 : SKY_W / 4.6;
+      }
+      // the road's height at s along a skyway (−1 off its ends)
+      function skyH(w, s) {
+        if (s < w.a0 || s > w.b1) return -1;
+        if (s < w.a1) return (w.top * (s - w.a0)) / (w.a1 - w.a0);
+        if (s > w.b0) return (w.top * (w.b1 - s)) / (w.b1 - w.b0);
+        return w.top;
+      }
+      // the highest skyway road under (x, z) she can step onto from height y (at
+      // most `step` up) - or −1; skyWay says which skyway it is
+      let skyWay = null;
+      function skyUnder(x, z, y, step) {
+        let best = -1;
+        skyWay = null;
+        for (const w of SKYWAYS) {
+          if (Math.abs((w.dir ? x : z) - w.line) > SKY_HW) continue;
+          const h = skyH(w, w.dir ? z : x);
+          if (h >= 0 && h <= y + step && h > best) {
+            best = h;
+            skyWay = w;
+          }
+        }
+        return best;
+      }
+      // a ramp's low end is solid to whoever is beside it below its road (r =
+      // their radius, tall = their height): they're pushed out sideways
+      function skyWall(p, r, tall, step) {
+        for (const w of SKYWAYS) {
+          const lat = (w.dir ? p.x : p.z) - w.line;
+          if (Math.abs(lat) >= SKY_HW + r) continue;
+          const h = skyH(w, w.dir ? p.z : p.x);
+          if (h <= p.y + step || h - 0.9 >= p.y + tall) continue; // on it, or under it
+          const c = w.line + (lat < 0 ? -1 : 1) * (SKY_HW + r);
+          if (w.dir) p.x = c;
+          else p.z = c;
+          return true;
+        }
+        return false;
+      }
+      // the rails along a skyway keep the car on its road: it slides along them,
+      // straightened out - or bounces off if it drives straight into one
+      function skyRails(rig, dt) {
+        const w = rig.sky,
+          p = rig.pos,
+          lat = (w.dir ? p.x : p.z) - w.line,
+          lim = SKY_HW - 1.25;
+        if (Math.abs(lat) <= lim) return;
+        const c = w.line + Math.sign(lat) * lim;
+        if (w.dir) p.x = c;
+        else p.z = c;
+        const fa = w.dir ? Math.cos(rig.yaw) : Math.sin(rig.yaw), // along it
+          fl = w.dir ? Math.sin(rig.yaw) : Math.cos(rig.yaw); // across it
+        if (fl * Math.sign(lat) * Math.sign(rig.speed || 1) > 0.55) {
+          if (Math.abs(rig.speed) > 13 && nowS() - lastCrashT > 1.2) {
+            lastCrashT = nowS();
+            screenBurst(["💥", "💫"], 6);
+          }
+          rig.speed *= -0.18;
+        } else {
+          const ahead = w.dir
+            ? fa >= 0
+              ? 0
+              : Math.PI
+            : fa >= 0
+              ? Math.PI / 2
+              : -Math.PI / 2;
+          rig.yaw = angLerp(rig.yaw, ahead, Math.min(1, dt * 5));
+          rig.speed *= 1 - Math.min(1, dt * 0.5);
+        }
+      }
+      // the car's nose-up angle on a ramp (as rotation.x: − = nose up)
+      function skyPitch(rig) {
+        const w = rig.sky,
+          s = w.dir ? rig.pos.z : rig.pos.x,
+          fa = w.dir ? Math.cos(rig.yaw) : Math.sin(rig.yaw);
+        const hf = Math.max(0, skyH(w, s + 1.3 * fa)),
+          hb = Math.max(0, skyH(w, s - 1.3 * fa));
+        return -Math.atan2(hf - hb, 2.6);
+      }
+      // a pillar mid-lot under each ramp lot (none in the park)
+      const SKY_PILLARS = [];
+      for (const w of SKYWAYS)
+        for (let k = 1; k < SKY_LOTS; k++)
+          for (const s of [w.lo + (k + 0.5) * TILE, w.hi - (k + 0.5) * TILE]) {
+            const m = Math.floor(s / TILE);
+            if (
+              [w.n - 1, w.n].some((q) =>
+                w.dir
+                  ? inPark(q, m) || inAirport(q, m)
+                  : inPark(m, q) || inAirport(m, q),
+              )
+            )
+              continue;
+            SKY_PILLARS.push({
+              x: w.dir ? w.line : s,
+              z: w.dir ? s : w.line,
+              top: skyH(w, s) - 0.95, // (under the ramp's road)
+              dir: w.dir,
+            });
+          }
+      // push p out of the pillars (r = its radius); returns the push normal
+      function skyPillarPush(p, r) {
+        for (const q of SKY_PILLARS) {
+          if (p.y > q.top) continue;
+          const dx = p.x - q.x,
+            dz = p.z - q.z;
+          if (Math.abs(dx) > 3 || Math.abs(dz) > 3) continue;
+          const d = Math.hypot(dx, dz),
+            R = 0.85 + r;
+          if (d < R && d > 1e-4) {
+            p.x += (dx / d) * (R - d);
+            p.z += (dz / d) * (R - d);
+            return [dx / d, dz / d];
+          }
+        }
+        return null;
+      }
       function makeTrussTexture() {
         const w = 512,
           h = 64,
@@ -3283,6 +3441,59 @@
       const MAX_DECK = CHUNK * CHUNK * 2,
         MAX_RAIL = MAX_DECK * 2,
         MAX_TRUSS = MAX_DECK * 2;
+      // the skyways' ramps (a road between low walls with glowing rails) and the
+      // pillars under them - all merged: two draw calls
+      {
+        const road = [],
+          glow = [];
+        for (const w of SKYWAYS) {
+          const run = w.a1 - w.a0,
+            L = Math.hypot(run, w.top) + 0.4, // (a little into the deck)
+            th = Math.atan2(w.top, run);
+          for (const up of [1, -1]) {
+            // from its foot, climbing toward the middle of the line
+            const f = up > 0 ? w.a0 : w.b1,
+              ry = w.dir ? (-up * Math.PI) / 2 : up > 0 ? 0 : Math.PI;
+            const put = (geo, y, z, list) => {
+              geo.translate(L / 2, y, z);
+              geo.rotateZ(th);
+              geo.rotateY(ry);
+              geo.translate(w.dir ? w.line : f, 0, w.dir ? f : w.line);
+              list.push(geo);
+            };
+            put(new THREE.BoxGeometry(L, 0.9, SKY_W), -0.45, 0, road);
+            for (const sd of [-1, 1]) {
+              const z = sd * (SKY_HW - 0.15);
+              put(new THREE.BoxGeometry(L, 0.62, 0.3), 0.31, z, road);
+              put(new THREE.BoxGeometry(L, 0.16, 0.24), 0.7, z, glow);
+            }
+          }
+        }
+        for (const q of SKY_PILLARS) {
+          const hp = q.top - 0.5; // (a cross-beam on top)
+          road.push(
+            new THREE.CylinderGeometry(0.7, 0.85, hp, 12).translate(
+              q.x,
+              hp / 2,
+              q.z,
+            ),
+            new THREE.BoxGeometry(
+              q.dir ? SKY_W - 0.6 : 1.5,
+              0.5,
+              q.dir ? 1.5 : SKY_W - 0.6,
+            ).translate(q.x, q.top - 0.25, q.z),
+          );
+        }
+        for (const [list, mat] of [
+          [road, deckMat],
+          [glow, railMat],
+        ]) {
+          const m = new THREE.Mesh(mergeGeometries(list), mat);
+          for (const g of list) g.dispose();
+          m.receiveShadow = true;
+          scene.add(m);
+        }
+      }
 
       // ---- Sky trains ---------------------------------------------------------
       // A handful of sleek, modern « Rose Express » trains glide along the bridge
@@ -3505,7 +3716,7 @@
           );
           const n = base + ((Math.random() * 16) | 0) - 8;
           const y = bridgeAt(n, dir);
-          if (!y) continue;
+          if (!y || skyLine(n, dir)) continue; // (cars drive the skyways)
           tr.dir = dir;
           tr.line = n * TILE;
           tr.y = y + 0.45 + 1.35; // deck top + half car height
@@ -3725,24 +3936,32 @@
         let bD = 0,
           bR = 0,
           bT = 0;
-        const putBridge = (x, y, z, rotY) => {
+        // (k = the deck's width ÷ 4.6 m, see skyLot - 0: a ramp's lot, no deck)
+        const putBridge = (x, y, z, rotY, k) => {
+          if (!k) return;
           dummy.rotation.set(0, rotY, 0);
-          dummy.scale.set(1, 1, 1);
+          dummy.scale.set(1, 1, k);
           // deck
           dummy.position.set(x, y, z);
           dummy.updateMatrix();
           decks.setMatrixAt(bD++, dummy.matrix);
+          dummy.scale.set(1, 1, 1);
           // glowing hand-rails on both edges
           const ox = Math.sin(rotY),
-            oz = Math.cos(rotY); // sideways unit vector
+            oz = Math.cos(rotY), // sideways unit vector
+            e = 2.3 * k; // the deck's edge
           for (const s of [-1, 1]) {
-            dummy.position.set(x + ox * s * 2.15, y + 1.15, z + oz * s * 2.15);
+            dummy.position.set(
+              x + ox * s * (e - 0.15),
+              y + 1.15,
+              z + oz * s * (e - 0.15),
+            );
             dummy.updateMatrix();
             rails.setMatrixAt(bR++, dummy.matrix);
           }
           // dark truss silhouettes hanging under both sides
           for (const s of [-1, 1]) {
-            dummy.position.set(x + ox * s * 2.3, y - 1.9, z + oz * s * 2.3);
+            dummy.position.set(x + ox * s * e, y - 1.9, z + oz * s * e);
             dummy.updateMatrix();
             trusses.setMatrixAt(bT++, dummy.matrix);
           }
@@ -3753,12 +3972,26 @@
               gxA = cx * CHUNK + j;
             const yA =
               gxA >= ISLE.gx0 && gxA <= ISLE.gx1 ? bridgeAt(gzL, 0) : 0;
-            if (yA) putBridge((gxA + 0.5) * TILE, yA, gzL * TILE, 0);
+            if (yA)
+              putBridge(
+                (gxA + 0.5) * TILE,
+                yA,
+                gzL * TILE,
+                0,
+                skyLot(0, gzL, gxA),
+              );
             const gxL = cx * CHUNK + i, // N-S line (runs along Z) at x = gxL*TILE
               gzA = cz * CHUNK + j;
             const yB =
               gzA >= ISLE.gz0 && gzA <= ISLE.gz1 ? bridgeAt(gxL, 1) : 0;
-            if (yB) putBridge(gxL * TILE, yB, (gzA + 0.5) * TILE, Math.PI / 2);
+            if (yB)
+              putBridge(
+                gxL * TILE,
+                yB,
+                (gzA + 0.5) * TILE,
+                Math.PI / 2,
+                skyLot(1, gxL, gzA),
+              );
           }
         decks.count = bD;
         rails.count = bR;
@@ -12245,6 +12478,9 @@
             liftT: 0,
             thrust: 0,
             flames: [],
+            tilt: 0, // nose up / down a skyway's ramp
+            onSky: false, // on a skyway's road (sky = which)
+            sky: null,
           });
           const flame = (outer, inner, x, y, z, rx, rear) => {
             const fg = new THREE.Group();
@@ -15001,9 +15237,12 @@
         for (const w of rig.wheels) w.pivot.rotation.z = 0;
         for (let i = 0; i < 40 && coastDist(rig.pos.x, rig.pos.z) > -2.4; i++)
           keepOnLand(rig.pos, 2.4, false);
-        rig.pos.y = roofUnder(rig.pos.x, rig.pos.z, rig.pos.y);
+        rig.pos.y = Math.max(
+          roofUnder(rig.pos.x, rig.pos.z, rig.pos.y),
+          skyUnder(rig.pos.x, rig.pos.z, rig.pos.y, 1), // (or a skyway's road)
+        );
         rig.g.position.copy(rig.pos);
-        rig.g.rotation.set(0, rig.yaw, 0);
+        rig.g.rotation.set(rig.onSky ? rig.tilt : 0, rig.yaw, 0);
       }
       function enterCar(rig = car) {
         drv = rig;
@@ -15044,6 +15283,16 @@
             ),
           );
         pushOutPoint(girl.pos, 0.5);
+        // up on a skyway she steps out onto its road, not over the rail
+        if (drv.onSky && drv.sky) {
+          const w = drv.sky,
+            lat = (w.dir ? drv.pos.x : drv.pos.z) - w.line,
+            gl = w.line + lat + (lat > 0 ? -2.2 : 2.2);
+          if (w.dir) girl.pos.x = gl;
+          else girl.pos.z = gl;
+          girl.pos.y =
+            Math.max(0, skyH(w, w.dir ? girl.pos.z : girl.pos.x)) + 0.05;
+        }
         girl.grounded = false;
         girl.climbing = false;
         girl.g.visible = true;
@@ -15229,7 +15478,7 @@
             (keys["KeyC"] || keys["ControlLeft"] || touchDown ? 1 : 0);
           handbrake = false;
         }
-        const inAir = drv.pos.y > 0.6;
+        const inAir = drv.pos.y > 0.6 && !drv.onSky; // (a skyway is a road)
         // a pedal boat is gentler; ⚡ / Shift boosts hard; in the air the car is
         // twice as fast
         const top = (boost ? 64 : 38) * (drv.boat ? 0.45 : 1) * (inAir ? 2 : 1);
@@ -15268,17 +15517,24 @@
             setRideClass();
           }
           // (on the street with the jets off, the street is the ground - no popping
-          // up onto a low ledge she drives past)
-          const ground =
+          // up onto a low ledge she drives past - but a skyway's ramp takes her up)
+          const sky = skyUnder(drv.pos.x, drv.pos.z, drv.pos.y, 1);
+          drv.sky = skyWay;
+          const ground = Math.max(
+            sky,
             !drv.jet && drv.pos.y < 0.05
               ? 0
-              : roofUnder(drv.pos.x, drv.pos.z, drv.pos.y);
+              : roofUnder(drv.pos.x, drv.pos.z, drv.pos.y),
+          );
           if (drv.jet) {
             const lift = drv.liftT > 0 ? 1 : rise;
             drv.liftT = Math.max(0, drv.liftT - dt);
             drv.vy += (lift * 10 - drv.vy) * Math.min(1, dt * 2.5);
           } else drv.vy -= 20 * dt;
           drv.pos.y += drv.vy * dt;
+          // 🛣️ down a ramp she keeps to the road
+          if (!drv.jet && drv.onSky && sky >= 0 && drv.pos.y - sky < 1.5)
+            drv.pos.y = Math.min(drv.pos.y, sky);
           const floor = overSea ? Math.max(ground, 1.5) : ground;
           if (drv.pos.y > 300) {
             drv.pos.y = 300;
@@ -15292,6 +15548,7 @@
             drv.pos.y = floor;
             drv.vy = Math.max(0, drv.vy);
           }
+          drv.onSky = !drv.jet && sky >= 0 && drv.pos.y <= sky + 0.01;
           drv.thrust = Math.max(
             thr,
             Math.abs(rise) * 0.8,
@@ -15301,6 +15558,10 @@
         const airborne = drv.pos.y > 0.6;
         if (airborne) flyCollide();
         else carCollide();
+        // 🛣️ a skyway's rails keep her on its road; beside a ramp's low end its
+        // side is a wall
+        if (drv.onSky) skyRails(drv, dt);
+        else if (drv.flames && skyWall(drv.pos, 1, 1.5, 1)) drv.speed *= 0.6;
         // 🌊 cars stop at the beach; the swan boat stays on the water (a flying car
         // goes wherever it likes)
         if (
@@ -15308,10 +15569,13 @@
           (drv.boat ? keepOnSea(drv.pos, 1.8) : keepOnLand(drv.pos, 2.4, false))
         )
           drv.speed *= 0.6;
-        // parked & passing cars: shove apart, and bounce if she drove into one
+        // parked & passing cars (and the skyways' pillars): shove apart, and
+        // bounce if she drove into one
         if (drv.pos.y < HALL.h + 0.5 && hallPush(drv.pos, 1.05, true))
           drv.speed *= 0.4; // the music hall
-        const bump = drv.pos.y < 2 ? pushOffCars(drv.pos, 1.05) : null;
+        const bump =
+          (drv.pos.y < 2 ? pushOffCars(drv.pos, 1.05) : null) ||
+          skyPillarPush(drv.pos, 1.05);
         if (bump) {
           const into =
             Math.sin(drv.yaw) * bump[0] + Math.cos(drv.yaw) * bump[1];
@@ -15326,6 +15590,12 @@
 
         drv.g.position.copy(drv.pos);
         drv.g.rotation.set(0, drv.yaw, 0);
+        if (drv.flames) {
+          // nose up the ramps, nose down them
+          drv.tilt +=
+            ((drv.onSky ? skyPitch(drv) : 0) - drv.tilt) * Math.min(1, dt * 8);
+          drv.g.rotation.set(drv.tilt, drv.yaw, 0, "YXZ");
+        }
         if (drv.flames) {
           // 🚀 the jets: flames grow with throttle & climb, wheels fold flat, and in
           // the air the car noses up / down with its climb and banks into turns
@@ -15899,6 +16169,12 @@
       const EXTRA_MAX = 24;
       function parkedAt(dir, m, n) {
         if (hash(m, n, 90 + dir) > 0.3) return null;
+        // (the street at the foot of a skyway's ramp stays clear)
+        if (
+          skyLine(n, dir) &&
+          (m === (dir ? ISLE.gz0 : ISLE.gx0) || m === (dir ? ISLE.gz1 : ISLE.gx1))
+        )
+          return null;
         const key = dir + "," + m + "," + n;
         if (takenParked.has(key)) return null;
         const ax = dir ? n - 1 : m,
@@ -20442,6 +20718,158 @@
           sg.rotation.y = ry;
           P.add(sg);
         }
+        // 🌹 the gate of Rose World: two tall rose-pink steel towers and a lattice
+        // beam with the name, where the pier meets the city - right in view when
+        // she turns round from her cake to the city. Merged: 3 draw calls + signs
+        {
+          const GX = PIER.x,
+            GZ = PIER.z0 + 8, // on the sand past the pier, over her car's spot
+            SPAN = 13, // the towers stand ±13 m from the middle
+            H = 34;
+          const pinks = [],
+            golds = [],
+            bulbs = [];
+          const up = new THREE.Vector3(0, 1, 0),
+            d = new THREE.Vector3(),
+            q = new THREE.Quaternion(),
+            m4 = new THREE.Matrix4(),
+            one = new THREE.Vector3(1, 1, 1),
+            mid = new THREE.Vector3();
+          // one steel member from a to b, t thick
+          const bar = (list, a, b, t) => {
+            d.set(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+            const len = d.length();
+            q.setFromUnitVectors(up, d.normalize());
+            mid.set((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2);
+            list.push(
+              new THREE.BoxGeometry(t, len, t).applyMatrix4(
+                m4.compose(mid, q, one),
+              ),
+            );
+          };
+          // the towers: four corner posts leaning in as they rise, a gold ring
+          // and crossed braces every 3 m, a gold ball on top
+          const hw = (y) => 1.6 - (0.7 * y) / H; // a tower's half-width at y
+          const FACES = [
+            [-1, -1, 1, -1],
+            [1, -1, 1, 1],
+            [1, 1, -1, 1],
+            [-1, 1, -1, -1],
+          ];
+          for (const sx of [-1, 1]) {
+            const cx = GX + sx * SPAN,
+              C = (y, i, j) => [cx + i * hw(y), y, GZ + j * hw(y)];
+            for (const [i, j] of FACES) bar(pinks, C(0, i, j), C(H, i, j), 0.42);
+            for (let y = 0; y < H; y += 3)
+              for (const [i, j, i2, j2] of FACES) {
+                bar(golds, C(y + 3, i, j), C(y + 3, i2, j2), 0.2);
+                bar(pinks, C(y, i, j), C(y + 3, i2, j2), 0.14);
+                bar(pinks, C(y, i2, j2), C(y + 3, i, j), 0.14);
+              }
+            bulbs.push(new THREE.SphereGeometry(0.85, 16, 12).translate(cx, H + 0.8, GZ));
+            AIR_SOLIDS.push({
+              x0: cx - 1.8,
+              x1: cx + 1.8,
+              z0: GZ - 1.8,
+              z1: GZ + 1.8,
+              h: H + 2,
+            });
+          }
+          // the beam: a lattice girder on each side, a row of bulbs under it
+          const X0 = GX - SPAN,
+            X1 = GX + SPAN,
+            YT = H - 0.6,
+            YB = H - 5.6,
+            N = 12;
+          for (const j of [-1, 1]) {
+            const z = GZ + j * 0.95;
+            bar(pinks, [X0, YT, z], [X1, YT, z], 0.45);
+            bar(pinks, [X0, YB, z], [X1, YB, z], 0.45);
+            for (let k = 0; k < N; k++) {
+              const xa = X0 + (k / N) * (X1 - X0),
+                xb = X0 + ((k + 1) / N) * (X1 - X0);
+              bar(golds, [xb, YB, z], [xb, YT, z], 0.18);
+              bar(golds, [xa, k % 2 ? YB : YT, z], [xb, k % 2 ? YT : YB, z], 0.16);
+            }
+            for (let x = X0 + 2; x < X1 - 1; x += 1.6)
+              bulbs.push(
+                new THREE.SphereGeometry(0.16, 8, 6).translate(x, YB - 0.4, z + j * 0.1),
+              );
+          }
+          for (let x = X0; x <= X1 + 0.01; x += 4)
+            bar(golds, [x, YT, GZ - 0.95], [x, YT, GZ + 0.95], 0.16);
+          const GATE_PINK = new THREE.MeshStandardMaterial({
+            color: 0xff4f93,
+            metalness: 0.55,
+            roughness: 0.35,
+            emissive: 0x8a1446,
+            emissiveIntensity: 0.55,
+          });
+          const GATE_GOLD = new THREE.MeshStandardMaterial({
+            color: 0xffc861,
+            metalness: 0.7,
+            roughness: 0.3,
+            emissive: 0x6a4410,
+            emissiveIntensity: 0.5,
+          });
+          for (const [list, mat, shadow] of [
+            [pinks, GATE_PINK, true],
+            [golds, GATE_GOLD, true],
+            [bulbs, SM(0xffd9a0, 2.2), false],
+          ]) {
+            const m = new THREE.Mesh(mergeGeometries(list), mat);
+            for (const g of list) g.dispose();
+            m.castShadow = shadow;
+            P.add(m);
+          }
+          // the name across the beam, on both faces
+          const cv = document.createElement("canvas");
+          cv.width = 1024;
+          cv.height = 216;
+          const sgc = cv.getContext("2d");
+          rrPath(sgc, 6, 6, 1012, 204, 40);
+          sgc.fillStyle = "#3a0f30";
+          sgc.fill();
+          sgc.lineWidth = 8;
+          sgc.strokeStyle = "#ffd166";
+          sgc.stroke();
+          sgc.textAlign = "center";
+          sgc.textBaseline = "middle";
+          sgc.shadowColor = "#ff5c9a";
+          sgc.shadowBlur = 26;
+          sgc.fillStyle = "#fff2f8";
+          sgc.font = `800 104px "Segoe UI", Tahoma, Arial, sans-serif`;
+          sgc.fillText("ROSE WORLD", 512, 86);
+          sgc.direction = "rtl";
+          sgc.fillStyle = "#ffd166";
+          sgc.font = `700 52px "Segoe UI", Tahoma, Arial, sans-serif`;
+          sgc.fillText("♥ عالم روز ♥", 512, 168);
+          const tex = new THREE.CanvasTexture(cv);
+          tex.colorSpace = THREE.SRGBColorSpace;
+          tex.anisotropy = 4;
+          const signGeo = new THREE.PlaneGeometry(20, 4.2),
+            signMat = new THREE.MeshBasicMaterial({ map: tex, transparent: true });
+          for (const j of [-1, 1]) {
+            const sg = new THREE.Mesh(signGeo, signMat);
+            sg.position.set(GX, (YT + YB) / 2, GZ + j * 1.3);
+            sg.rotation.y = j < 0 ? Math.PI : 0; // (one faces the pier, one the city)
+            P.add(sg);
+          }
+          // and a big glowing heart on top
+          const heart = new THREE.Mesh(
+            new THREE.ExtrudeGeometry(heartShape(), {
+              depth: 0.4,
+              bevelEnabled: true,
+              bevelThickness: 0.08,
+              bevelSize: 0.08,
+              bevelSegments: 2,
+            }).translate(0, 0.95, -0.2),
+            SM(0xff2f6d, 1.8),
+          );
+          heart.scale.setScalar(1.8);
+          heart.position.set(GX, H + 1.9, GZ);
+          P.add(heart);
+        }
       }
       const allLit = () => CAKE.flames.every((f) => f.lit);
       function relightCandles() {
@@ -22942,7 +23370,7 @@
           const lat = dir ? p.x : p.z;
           const n = Math.round(lat / TILE);
           const y = bridgeAt(n, dir);
-          if (!y) continue;
+          if (!y || skyLine(n, dir)) continue; // (a skyway: see skyUnder)
           const along = dir ? p.z : p.x; // the decks end at the Corniche
           if (
             along < (dir ? CITY_Z0 : CITY_X0) ||
@@ -23106,6 +23534,8 @@
           }
           pushOffCars(p, 0.35); // parked & passing cars are solid
           hallPush(p, 0.35); // Rosmantic Music's walls & furniture
+          skyPillarPush(p, 0.35); // the skyways' pillars…
+          skyWall(p, 0.35, 1.8, 0.45); // …and the low ends of their ramps
           // 🌊 from the land she can't walk into the sea (out at sea - dropped there
           // by the plane - she can walk the water back to the shore)
           if (landBefore && p.y < 3) keepOnLand(p, 0.6);
@@ -23116,6 +23546,8 @@
           let gy = roofUnder(p.x, p.z, p.y - 2.55);
           const dy2 = deckUnder(p);
           if (dy2 > gy) gy = dy2;
+          const sy = skyUnder(p.x, p.z, p.y, 0.45); // a skyway's road & ramps
+          if (sy > gy) gy = sy;
           const by = boardUnder(p); // the pier & the resort's boardwalk
           if (by > gy) gy = by;
           if (p.y <= gy + 0.02 && vel.y <= 0) {
@@ -23164,6 +23596,8 @@
           }
           pushOffCars(p, 0.35); // parked & passing cars are solid
           hallPush(p, 0.35); // Rosmantic Music's walls & furniture
+          skyPillarPush(p, 0.35); // the skyways' pillars…
+          skyWall(p, 0.35, 1.8, 0.45); // …and the low ends of their ramps
           // 🌊 from the land she can't walk into the sea (out at sea - dropped there
           // by the plane - she can walk the water back to the shore)
           if (landBefore && p.y < 3) keepOnLand(p, 0.6);
@@ -23176,8 +23610,13 @@
           let gy = roofUnder(p.x, p.z, p.y - 2.55 + Math.max(0, -vel.y * dt));
           const dy2 = deckUnder(p);
           if (dy2 > gy) gy = dy2;
+          const sy = skyUnder(p.x, p.z, p.y, 0.45); // a skyway's road & ramps
+          if (sy > gy) gy = sy;
           const by = boardUnder(p); // the pier & the resort's boardwalk
           if (by > gy) gy = by;
+          // (down a ramp her feet keep to it)
+          if (girl.grounded && vel.y <= 0 && sy >= 0 && sy === gy && p.y - gy < 0.4)
+            p.y = gy;
           if (p.y <= gy + 0.02 && vel.y <= 0) {
             if (fallV < -22) screenBurst(["🌸", "💨"], 5); // superhero landing
             p.y = gy;
@@ -23908,7 +24347,7 @@
           k = Math.max(0.75, Math.min(1.3, s / 0.44)); // marker size
         openPanel(`<h2 class="map-h">🗺️ خريطة Rose World</h2>
     <canvas id="map-cv" style="width:${cw}px;height:${ch}px"></canvas>
-    <div class="map-key"><span><i class="me"></i> انتي هون</span><span><i class="sp"></i> مفاجأة مخبّاية</span><span>🎂 كيكتك</span><span>🎹 الموسيقى</span><span>🚗 السيارة</span><span>🛩️ الطيارة</span></div>`);
+    <div class="map-key"><span><i class="me"></i> انتي هون</span><span><i class="sp"></i> مفاجأة مخبّاية</span><span>🎂 كيكتك</span><span>🎹 الموسيقى</span><span>🚗 السيارة</span><span>🛩️ الطيارة</span><span><i class="sky"></i> جسر السيارة</span></div>`);
         panelCard.classList.add("map");
         track("🗺️ Opened the map");
         // north up: +z at the top, so +x runs to the left (a turn, not a mirror)
@@ -23977,6 +24416,19 @@
         b.lineTo(9 * TILE - ROAD_HW - 8, RUNWAY_Z);
         b.stroke();
         b.setLineDash([]);
+        b.strokeStyle = "#ff5c9a"; // 🛣️ the skyways she can drive up
+        b.lineWidth = SKY_W;
+        for (const w of SKYWAYS) {
+          b.beginPath();
+          if (w.dir) {
+            b.moveTo(w.line, w.a0);
+            b.lineTo(w.line, w.b1);
+          } else {
+            b.moveTo(w.a0, w.line);
+            b.lineTo(w.b1, w.line);
+          }
+          b.stroke();
+        }
         b.fillStyle = "#c99a68"; // the birthday pier out to the cake
         b.fillRect(PIER.x - PIER.hw, PIER.z0 - PIER.len, PIER.hw * 2, PIER.len + 8);
         // places and names, in screen pixels - the places go down first and the
