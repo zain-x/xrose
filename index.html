@@ -14401,7 +14401,8 @@
         radio.tuneT = 0;
         radio.tuneDur = dur;
       }
-      function pickNext() {
+      // the song "next" will bring (pickNext then takes this same one)
+      function peekNext() {
         if (!radio.shuffle)
           return radio.idx >= 0 && radio.idx < RADIO_MUSIC.length - 1
             ? radio.idx + 1
@@ -14418,8 +14419,42 @@
             [radio.bag[i], radio.bag[j]] = [radio.bag[j], radio.bag[i]];
           }
         }
-        return radio.bag.pop();
+        return radio.bag[radio.bag.length - 1];
       }
+      function pickNext() {
+        const i = peekNext();
+        if (radio.shuffle) radio.bag.pop();
+        return i;
+      }
+      // 📥 a song is fetched quietly ahead of time - the one coming next while
+      // this one plays, the first one while she walks up to a ride - so it
+      // starts at once instead of after seconds of static
+      const rfWarmed = new Set();
+      function radioWarm(i) {
+        const s = RADIO_SONGS[i];
+        if (!s || rfWarmed.has(s.id) || location.protocol === "file:") return;
+        rfWarmed.add(s.id);
+        fetch(RADIO_DIR + s.id + ".mp3")
+          .then(async (r) => {
+            if (!r.ok || !r.body) throw 0;
+            const rd = r.body.getReader();
+            while (!(await rd.read()).done);
+          })
+          .catch(() => {}); // (then it simply loads when it plays)
+      }
+      // play the song player: "ok", "tap" (the browser wants a tap first), "fail",
+      // or "slow" - nothing yet after ms
+      const rfPlay = (ms) =>
+        new Promise((res) => {
+          const t = setTimeout(() => res("slow"), ms);
+          rfSong.play().then(
+            () => (clearTimeout(t), res("ok")),
+            (e) => (
+              clearTimeout(t),
+              res(e && e.name === "NotAllowedError" ? "tap" : "fail")
+            ),
+          );
+        });
 
       // ---- tune to a song (how: 'enter' | 'auto' | 'next' | 'back' | 'pick') -------
       async function tuneTo(i, how = "next") {
@@ -14475,15 +14510,22 @@
           rfSong.currentTime = radio.startAt;
         } catch (e) {}
         rfAM = rfAMto = flow ? 0 : 1;
-        try {
-          await rfSong.play();
-        } catch (e) {
-          // the browser wants a tap first → it starts on her next tap / key
-          if (seq === radio.seq && radio.on) radio.needTap = true;
-          return;
-        }
-        radio.needTap = false;
+        // 🛟 a song that hasn't come in after 6 s (a slow or stuck download) is
+        // asked for afresh from its very start, and if it still hasn't 8 s
+        // later another song takes over - she's never left on static
+        let got = await rfPlay(6000);
         if (seq !== radio.seq || !radio.on) return;
+        if (got === "slow") {
+          radio.startAt = 0;
+          rfSong.load();
+          got = await rfPlay(8000);
+          if (seq !== radio.seq || !radio.on) return;
+          if (got === "slow") return tuneTo(pickNext(), "next");
+        }
+        // the browser wants a tap first → it starts on her next tap / key
+        if (got === "tap") return void (radio.needTap = true);
+        if (got !== "ok") return; // (the player's error event tries another song)
+        radio.needTap = false;
         radio.errs = 0;
         radio.phase = "song";
         radio.sinceNews++;
@@ -14491,6 +14533,13 @@
         rfCh.stat.to = 0;
         // …and the station locks in: tinny AM opens up into full hi-fi
         setTimeout(() => seq === radio.seq && (rfAMto = 0), 1300);
+        // the song after this one comes down meanwhile
+        setTimeout(
+          () =>
+            seq === radio.seq &&
+            radioWarm(radio.mixRun && isMix(i) ? nextInMix() : peekNext()),
+          4000,
+        );
         radioRender();
         track(`📻 Rose FM: ${s.en}${s.artistEn ? " - " + s.artistEn : ""}`);
       }
@@ -14518,6 +14567,7 @@
       const nextInMix = () =>
         isMix(radio.idx + 1) ? radio.idx + 1 : RADIO_MIX[0].i;
       function radioNext() {
+        radio.errs = 0;
         tuneTo(
           radio.mixRun && isMix(radio.idx) ? nextInMix() : pickNext(),
           "next",
@@ -15683,6 +15733,13 @@
             nearParked = nearestParked(girl.pos, 3.9);
             if (nearParked) nearVehicle = "parked";
           }
+          // 📻 the song her ride's radio will open with
+          if (nearVehicle && !radio.on)
+            radioWarm(
+              radio.everOn
+                ? peekNext()
+                : RADIO_SONGS.findIndex((s) => s.id === RF_OPENER),
+            );
         }
         nearMusic =
           !nearVehicle && vehMode === "walk" && started && !uiPaused
