@@ -10308,7 +10308,8 @@
       }
       const BAL_RANGE = 130;
       // Balloons are anchored in the WORLD (not stuck to the camera) so she can fly
-      // into them. They rise up around her, recycle in low when they drift off, and pop on contact.
+      // into them. They rise up around her, recycle in low when they drift off, and
+      // pop on contact - shoving away whatever burst them (see balloonKick).
       function seedBalloon(b, fromBelow) {
         const cam = camera.position;
         const ang = Math.random() * Math.PI * 2;
@@ -10330,6 +10331,50 @@
         const b = { group: g };
         seedBalloon(b, false);
         balloons.push(b);
+      }
+      // 💥 the pop shoves her car, plane or herself away from the balloon (x,y,z:
+      // from the balloon to her) - a shove that dies away in half a second
+      function balloonKick(x, y, z) {
+        let hl = Math.hypot(x, z);
+        if (hl < 0.3) {
+          // (straight above or below her: back the way she came)
+          const yw = vehMode === "plane" ? plane.yaw : vehMode === "car" ? drv.yaw : girl.yaw;
+          x = -Math.sin(yw);
+          z = -Math.cos(yw);
+          hl = 1;
+        }
+        const nx = x / hl,
+          nz = z / hl,
+          up = y >= 0 ? 1 : -0.5; // (popped from below: a bump up; from above: down)
+        if (vehMode === "car") {
+          drv.kx = nx * 16;
+          drv.kz = nz * 16;
+          drv.speed *= 0.35;
+          if (drv.flames && (drv.jet || drv.pos.y > 0.6)) drv.vy += 6 * up;
+        } else if (vehMode === "plane") {
+          plane.kx = nx * 20;
+          plane.kz = nz * 20;
+          if (!plane.grounded) {
+            plane.vy += 7 * up;
+            plane.roll += (Math.random() < 0.5 ? -1 : 1) * 0.5; // a wobble
+          }
+          plane.speed *= 0.85;
+        } else {
+          vel.x += nx * 10;
+          vel.z += nz * 10;
+          vel.y = Math.max(vel.y, 7);
+          girl.grounded = false;
+        }
+      }
+      // (a shove from a balloon, on a car or the plane: moves it, dying away)
+      function applyKick(r, dt) {
+        if (!r.kx && !r.kz) return;
+        r.pos.x += r.kx * dt;
+        r.pos.z += r.kz * dt;
+        const f = Math.exp(-dt * 4);
+        r.kx *= f;
+        r.kz *= f;
+        if (Math.abs(r.kx) + Math.abs(r.kz) < 0.2) r.kx = r.kz = 0;
       }
       function updateBalloons(dt, t) {
         const cam = camera.position;
@@ -10398,6 +10443,7 @@
           if (!heroFoot && dx * dx + dy * dy + dz * dz < pop * pop) {
             // 🎈💥 she bumped into it
             screenBurst(["🎈", "💥", "💗", "✨", "🌸"], 20);
+            balloonKick(-dx, -dy, -dz);
             seedBalloon(b, true);
           } else if (
             !b.rider &&
@@ -10521,7 +10567,7 @@
           <div class="big-kiss">💋</div>
           <h1>رصيدك: ${KISS_GOAL} بوسة</h1>
           <div class="k-opts" id="kissOpts">${KISS_OPTIONS.map(([k, t]) => `<div class="k-opt" data-k="${k}">${t}</div>`).join("")}</div>
-          <p class="k-how">📸 لتصرفي رصيدك: اختاري شو بدك، خدي سكرين شوت للشاشة وابعتيلي ياها</p>`;
+          <p class="k-how" dir="ltr">📸 Take a screenshot of the choice you chose</p>`;
         el.classList.add("show");
         pauseUI();
         const close = () => {
@@ -15557,6 +15603,7 @@
 
         drv.pos.x += Math.sin(drv.yaw) * drv.speed * dt;
         drv.pos.z += Math.cos(drv.yaw) * drv.speed * dt;
+        applyKick(drv, dt); // 🎈💥 shoved by a balloon she burst
         // up & down: the jets climb, hover and descend; without them she falls
         // back to the street (or onto a roof she's over)
         if (drv.flames) {
@@ -15941,6 +15988,7 @@
           }
         }
 
+        applyKick(plane, dt); // 🎈💥 shoved by a balloon she burst
         plane.g.position.copy(plane.pos);
         plane.g.rotation.set(-plane.pitch, plane.yaw, plane.roll, "YXZ");
         const rpm = 4 + plane.throttle * 46 + plane.speed * 0.12;
