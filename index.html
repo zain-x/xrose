@@ -15586,6 +15586,32 @@
           handbrake = !!keys["Space"];
           boost = keys["ShiftLeft"] || keys["ShiftRight"] || touchBoost;
         }
+        // 🌊 on the water, the edge of Rose World is the plane's: out there the
+        // jet ski (or the swan) turns round by itself and heads back to the
+        // island; she steers again near the shore
+        if (drv.boat) {
+          const sea = coastDist(drv.pos.x, drv.pos.z);
+          if (!drv.homing && sea > PLANE_SEA) {
+            drv.homing = true;
+            bdayCaption(
+              "↩️ Rose World",
+              drv.ski
+                ? "the jet ski turns back to the island"
+                : "the swan boat turns back to the island",
+              3,
+            );
+            track("🌊 Reached the edge of the world on the water: turning back");
+          } else if (drv.homing && sea < PLANE_HOME) drv.homing = false;
+          if (drv.homing) {
+            let dyaw =
+              Math.atan2(LAND_CX - drv.pos.x, LAND_CZ - drv.pos.z) - drv.yaw; // (x += sin yaw, z += cos yaw)
+            dyaw = Math.atan2(Math.sin(dyaw), Math.cos(dyaw));
+            steerIn = clamp(dyaw * 2.5, -1, 1);
+            thr = Math.max(thr, 0.8);
+            brk = 0;
+            handbrake = false;
+          }
+        }
         // 🚀 jets lit: W / S (or the stick) throttle & brake, Space / ▲ climb,
         // C / ▼ descend - the ▲▼ buttons stop being gas & brake
         const jetOn = !!drv.jet;
@@ -15901,11 +15927,12 @@
             }
           }
       }
-      // 🌊 how far past the coastline she may fly (the cake's pier reaches 78 m out):
-      // there the plane turns back by itself, and it hands her the controls again
-      // only once it is close to the shore - so it can't flip back and forth there
-      const PLANE_SEA = 170,
-        PLANE_HOME = 60;
+      // 🌊 how far past the coastline she may fly or ride (the cake's pier reaches
+      // 78 m out): there the plane - or the jet ski, or the swan - turns back by
+      // itself, and it hands her the controls again only once it is close to the
+      // shore - so it can't flip back and forth there
+      const PLANE_SEA = 140,
+        PLANE_HOME = 50;
       function updatePlane(dt) {
         let pitchIn = 0,
           rollIn = 0,
@@ -19787,97 +19814,173 @@
       ];
       const SKIS = SKI_SPOTS.map(([x, z, yaw, col, gx, gz]) => {
         const g = new THREE.Group();
-        // the hull: a side profile - a long pointed nose, the deck rising to the
-        // bars, a flat stern - extruded and rounded; white under the waterline
-        // stripe, its own colour above (vertex colours: one mesh)
-        const sh = new THREE.Shape();
-        sh.moveTo(-1.35, 0.05);
-        sh.lineTo(-1.4, 0.5);
-        sh.quadraticCurveTo(-1.38, 0.62, -1.2, 0.62);
-        sh.lineTo(0.35, 0.66);
-        sh.quadraticCurveTo(0.9, 0.95, 1.35, 0.72);
-        sh.quadraticCurveTo(1.85, 0.5, 2.0, 0.3);
-        sh.quadraticCurveTo(1.7, 0.02, 1.2, 0.0);
-        sh.lineTo(-1.35, 0.05);
-        const hull = new THREE.ExtrudeGeometry(sh, {
-          depth: 0.86,
-          bevelEnabled: true,
-          bevelThickness: 0.12,
-          bevelSize: 0.1,
-          bevelSegments: 3,
-          curveSegments: 10,
-        });
-        hull.rotateY(-Math.PI / 2); // (the profile runs along z, nose = +z)
-        hull.translate(0.43, 0, 0);
         const paint = new THREE.Color(col),
-          white = new THREE.Color(0xf6f4f8),
-          hp = hull.attributes.position,
-          hc = new Float32Array(hp.count * 3);
-        for (let i = 0; i < hp.count; i++) {
-          const c = hp.getY(i) < 0.3 ? white : paint;
-          hc.set([c.r, c.g, c.b], i * 3);
+          white = new THREE.Color(0xf4f4f7),
+          matC = new THREE.Color(0x3a3640);
+        // 🛥️ the hull, lofted through cross-sections from its flat stern (z −1.5)
+        // to a sharp bow (+1.75), 1.2 m wide: a V bottom rising toward the bow,
+        // white below a crisp line and its own colour above, and a flat deck
+        // with a dark footwell either side of the seat
+        const rings = [],
+          cols = [];
+        for (let i = 0; i <= 16; i++) {
+          const u = 1 - Math.pow(1 - i / 16, 1.3), // (finer toward the bow)
+            zz = -1.5 + 3.25 * u,
+            t = Math.max(0, (u - 0.55) / 0.45),
+            w = Math.max(
+              0.012,
+              u <= 0.42
+                ? 0.6
+                : 0.6 *
+                    Math.pow(Math.max(0, 1 - Math.pow((u - 0.42) / 0.58, 1.8)), 0.9),
+            ),
+            yk = 0.02 + 0.32 * Math.pow(t, 2.2), // the keel
+            yg = 0.48 + 0.14 * Math.pow(t, 1.5); // the deck's edge
+          rings.push(
+            [
+              [-0.96, yg],
+              [-1, yg - 0.1],
+              [-0.98, yg - 0.24],
+              [-0.88, yk + 0.2],
+              [-0.72, yk + 0.09],
+              [0, yk],
+              [0.72, yk + 0.09],
+              [0.88, yk + 0.2],
+              [0.98, yg - 0.24],
+              [1, yg - 0.1],
+              [0.96, yg],
+              [0.85, yg],
+              [0.45, yg],
+              [0, yg],
+              [-0.45, yg],
+              [-0.85, yg],
+            ].map(([sx, y]) => [sx * w, y, zz]),
+          );
         }
-        hull.setAttribute("color", new THREE.BufferAttribute(hc, 3));
+        for (const c of [paint, paint, paint, white, white, white, white, white, paint, paint, paint, matC, matC, matC, matC, matC])
+          cols.push(c);
+        // (a mesh lofted ring to ring: flat-shaded facets, a fan over each end)
+        const loft = (rs, closed, cs) => {
+          const pos = [],
+            col = [],
+            m = rs[0].length;
+          const put = (p, c) => {
+            pos.push(p[0], p[1], p[2]);
+            if (cs) col.push(c.r, c.g, c.b);
+          };
+          for (let i = 0; i < rs.length - 1; i++)
+            for (let k = 0; k < (closed ? m : m - 1); k++) {
+              const k2 = (k + 1) % m,
+                ca = cs && cs[k],
+                cb = cs && cs[k2];
+              put(rs[i][k], ca);
+              put(rs[i][k2], cb);
+              put(rs[i + 1][k2], cb);
+              put(rs[i][k], ca);
+              put(rs[i + 1][k2], cb);
+              put(rs[i + 1][k], ca);
+            }
+          for (const r of [rs[0], rs[rs.length - 1]]) {
+            const c = [0, 1, 2].map((j) => r.reduce((s, p) => s + p[j], 0) / m);
+            for (let k = 0; k < (closed ? m : m - 1); k++) {
+              put(c, cs && cs[cs.length - 1]);
+              put(r[k], cs && cs[k]);
+              put(r[(k + 1) % m], cs && cs[(k + 1) % m]);
+            }
+          }
+          const geo = new THREE.BufferGeometry();
+          geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+          if (cs) geo.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+          geo.setAttribute(
+            "uv",
+            new THREE.Float32BufferAttribute(new Float32Array((pos.length / 3) * 2), 2),
+          );
+          geo.computeVertexNormals();
+          return geo;
+        };
         rmesh(
-          hull,
+          loft(rings, true, cols),
           new THREE.MeshStandardMaterial({
             vertexColors: true,
-            roughness: 0.22,
-            metalness: 0.3,
-            emissive: col,
-            emissiveIntensity: 0.12,
+            roughness: 0.25,
+            metalness: 0.25,
+            side: THREE.DoubleSide,
           }),
           0,
           0,
           0,
           g,
         );
-        // neon stripes along both sides
-        const NEON = SM(col, 1.6);
-        for (const sx of [-1, 1])
-          rbox(0.04, 0.06, 2.5, sx * 0.555, 0.42, 0.15, NEON, g);
-        // the seat, the bars on their column, a little windscreen
-        const seat = rmesh(
-          new THREE.CapsuleGeometry(0.2, 0.85, 6, 12).rotateX(Math.PI / 2),
-          RM(0x2b1d2e, { roughness: 0.55 }),
-          0,
-          0.82,
-          -0.45,
-          g,
-        );
-        seat.scale.x = 1.35;
-        const DARK = RM(0x3a3440, { roughness: 0.4, metalness: 0.5 });
-        const col_ = rmesh(
-          new THREE.CylinderGeometry(0.06, 0.07, 0.5, 10),
-          DARK,
-          0,
-          0.91,
-          0.43,
-          g,
-        );
-        col_.rotation.x = Math.atan2(-0.25, 0.42);
-        const bars = rmesh(
-          new THREE.CylinderGeometry(0.035, 0.035, 0.78, 10),
-          RM(0xdfe3ea, { roughness: 0.2, metalness: 0.9 }),
-          0,
-          1.14,
-          0.29,
-          g,
-        );
-        bars.rotation.z = Math.PI / 2;
-        for (const sx of [-1, 1]) {
-          const grip = rmesh(
-            new THREE.CylinderGeometry(0.05, 0.05, 0.16, 10),
-            RM(0x1a1420, { roughness: 0.7 }),
-            sx * 0.36,
-            1.14,
-            0.29,
-            g,
-          );
-          grip.rotation.z = Math.PI / 2;
+        // the raised seat base and the hood sloping down from the bars to the
+        // bow - in its colour, glossy
+        const hood = [];
+        for (let i = 0; i <= 10; i++) {
+          const v = i / 10,
+            zz = 0.3 + 1.2 * v,
+            uu = (zz + 1.5) / 3.25,
+            tt = Math.max(0, (uu - 0.55) / 0.45),
+            base = 0.48 + 0.14 * Math.pow(tt, 1.5),
+            top = 1.02 - 0.4 * Math.pow(v, 1.3),
+            hw = 0.42 - 0.3 * Math.pow(v, 1.1),
+            r = [];
+          for (let k = 0; k <= 8; k++) {
+            const a = (Math.PI * k) / 8;
+            r.push([Math.cos(a) * hw, base + Math.sin(a) * (top - base), zz]);
+          }
+          hood.push(r);
         }
+        const PAINT = new THREE.MeshStandardMaterial({
+          color: col,
+          roughness: 0.22,
+          metalness: 0.35,
+          emissive: col,
+          emissiveIntensity: 0.1,
+          side: THREE.DoubleSide,
+        });
+        rmesh(
+          mergeNI([
+            loft(hood, false, null),
+            new THREE.BoxGeometry(0.54, 0.32, 1.45).translate(0, 0.64, -0.425),
+          ]),
+          PAINT,
+          0,
+          0,
+          0,
+          g,
+        );
+        // a white neon line along each side
+        const NEON = SM(0xffffff, 1.3);
+        for (const sx of [-1, 1])
+          rbox(0.03, 0.05, 1.9, sx * 0.605, 0.36, -0.45, NEON, g);
+        // black parts: the long saddle, the bars and grips, the dash, the
+        // mirrors, the grab handle behind the seat
+        const dark = [
+          new THREE.CapsuleGeometry(0.12, 1.1, 6, 14)
+            .rotateX(Math.PI / 2)
+            .scale(2.1, 0.75, 1)
+            .translate(0, 0.86, -0.45),
+          new THREE.CylinderGeometry(0.03, 0.03, 0.72, 10)
+            .rotateZ(Math.PI / 2)
+            .translate(0, 1.1, 0.33),
+          new THREE.BoxGeometry(0.28, 0.08, 0.14).translate(0, 1.03, 0.45),
+          new THREE.TorusGeometry(0.15, 0.022, 6, 14, Math.PI).translate(0, 0.8, -1.2),
+        ];
+        for (const sx of [-1, 1])
+          dark.push(
+            new THREE.CylinderGeometry(0.045, 0.045, 0.16, 10)
+              .rotateZ(Math.PI / 2)
+              .translate(sx * 0.34, 1.1, 0.33),
+            new THREE.SphereGeometry(0.06, 10, 8)
+              .scale(1.3, 0.7, 0.35)
+              .translate(sx * 0.4, 1.03, 0.42),
+            new THREE.CylinderGeometry(0.012, 0.012, 0.14, 6)
+              .rotateZ(sx * 1.0)
+              .translate(sx * 0.34, 0.99, 0.42),
+          );
+        rmesh(mergeNI(dark), RM(0x1c161e, { roughness: 0.55, metalness: 0.2 }), 0, 0, 0, g);
+        // a little tinted windscreen over the dash
         const screen = new THREE.Mesh(
-          new THREE.PlaneGeometry(0.5, 0.26),
+          new THREE.PlaneGeometry(0.4, 0.16),
           new THREE.MeshStandardMaterial({
             color: 0x9fdcff,
             transparent: true,
@@ -19887,28 +19990,20 @@
             side: THREE.DoubleSide,
           }),
         );
-        screen.position.set(0, 1.0, 0.62);
-        screen.rotation.x = -0.95;
+        screen.position.set(0, 1.13, 0.52);
+        screen.rotation.x = -0.5;
         g.add(screen);
-        // a glowing heart on the nose, a headlight, a tail light
-        const heart = rmesh(
-          new THREE.ExtrudeGeometry(heartShape(), { depth: 0.04, bevelEnabled: false })
-            .translate(0, 0.95, 0)
-            .scale(0.11, 0.11, 1),
-          SM(0xffffff, 1.4),
-          0,
-          0.86,
-          1.18,
-          g,
-        );
-        heart.rotation.x = -1.25;
+        // slim LED lights on the hood's nose, a red light across the stern
         const headMat = RM(0x3a2a10, {
           emissive: 0xfff0c8,
           emissiveIntensity: 0.4,
         });
-        rmesh(new THREE.SphereGeometry(0.07, 10, 8), headMat, 0, 0.6, 1.83, g);
+        for (const sx of [-1, 1]) {
+          const led = rbox(0.03, 0.03, 0.34, sx * 0.17, 0.68, 1.27, headMat, g);
+          led.rotation.y = -sx * 0.3;
+        }
         const tailMat = RM(0x400818, { emissive: 0xff2040, emissiveIntensity: 0.9 });
-        const tail = rbox(0.3, 0.06, 0.05, 0, 0.55, -1.42, tailMat, g);
+        const tail = rbox(0.36, 0.05, 0.04, 0, 0.72, -1.17, tailMat, g);
         const home = new THREE.Vector3(x, 0, z);
         g.position.copy(home);
         g.rotation.y = yaw;
@@ -19937,8 +20032,8 @@
       let nearSki = null; // the jet ski within her reach
       // Rose astride: knees bent, hands forward on the bars, leaning in
       function skiPose() {
-        girl.legL.rotation.set(-1.45, 0, 0);
-        girl.legR.rotation.set(-1.45, 0, 0);
+        girl.legL.rotation.set(-1.45, 0, -0.35); // (legs apart, astride)
+        girl.legR.rotation.set(-1.45, 0, 0.35);
         girl.kneeL.rotation.x = girl.kneeR.rotation.x = 1.5;
         girl.ankleL.rotation.x = girl.ankleR.rotation.x = 0;
         girl.armL.rotation.x = girl.armR.rotation.x = -1.05;
@@ -19956,6 +20051,7 @@
         s.g.rotation.set(0, s.yaw, 0);
         girl.pos.copy(s.stand);
         girl.yaw = s.homeYaw;
+        girl.legL.rotation.z = girl.legR.rotation.z = 0; // (feet together again)
         girl.g.rotation.set(0, girl.yaw, 0);
         screenBurst(["🚤", "🌊", "💗"], 8);
       }
@@ -20049,7 +20145,7 @@
         wakeAcc += dt;
         if (sp > 1.2 && wakeAcc > 0.05) {
           wakeAcc = 0;
-          wakeP.unshift([s.pos.x - fx * 1.3, s.pos.z - fz * 1.3, fz, -fx, 0, k]);
+          wakeP.unshift([s.pos.x - fx * 1.5, s.pos.z - fz * 1.5, fz, -fx, 0, k]);
           if (wakeP.length > WAKE_N) wakeP.pop();
         }
         const n = sp > 2 ? Math.min(8, Math.floor(sp * dt * 9 + Math.random())) : 0;
@@ -20060,9 +20156,9 @@
           if (j % 3 === 2 && sp > 7) {
             // off the bow, fanned out sideways
             const v = 2 + sp * 0.12;
-            sprayPos[o] = s.pos.x + fx * 0.9 + fz * side * 0.55;
+            sprayPos[o] = s.pos.x + fx * 1.1 + fz * side * 0.5;
             sprayPos[o + 1] = 0.25;
-            sprayPos[o + 2] = s.pos.z + fz * 0.9 - fx * side * 0.55;
+            sprayPos[o + 2] = s.pos.z + fz * 1.1 - fx * side * 0.5;
             sprayVel[o] = fz * side * v - fx * 1.5;
             sprayVel[o + 1] = 1.4 + sp * 0.06;
             sprayVel[o + 2] = -fx * side * v - fz * 1.5;
@@ -20071,9 +20167,9 @@
             // the rooster tail, up and back off the stern
             const r = (Math.random() - 0.5) * 1.6,
               back = 1.5 + sp * 0.22;
-            sprayPos[o] = s.pos.x - fx * 1.45;
+            sprayPos[o] = s.pos.x - fx * 1.6;
             sprayPos[o + 1] = 0.35;
-            sprayPos[o + 2] = s.pos.z - fz * 1.45;
+            sprayPos[o + 2] = s.pos.z - fz * 1.6;
             sprayVel[o] = -fx * back + fz * r;
             sprayVel[o + 1] = 2.2 + sp * 0.16 + Math.random();
             sprayVel[o + 2] = -fz * back - fx * r;
@@ -20104,7 +20200,7 @@
         if (riding) {
           // Rose on the seat, moving with it
           riding.g.updateMatrix();
-          girl.g.position.copy(_seat.set(0, 0.13, -0.32).applyMatrix4(riding.g.matrix));
+          girl.g.position.copy(_seat.set(0, 0.06, -0.38).applyMatrix4(riding.g.matrix));
           girl.g.quaternion.copy(riding.g.quaternion);
           skiEmit(riding, dt);
         }
