@@ -4941,6 +4941,7 @@
         if (nearVehicle === "parked") return takeParked(nearParked);
         if (girl.rest) return standUp();
         if (nearVehicle === "plane") return enterPlane();
+        if (nearVehicle === "ski") return enterCar(nearSki);
         if (nearVehicle === "boat") return enterCar(boat);
         if (nearMusic === "piano") return openPianoPanel();
         if (nearMusic === "vinyl") return toggleVinyl();
@@ -15373,16 +15374,19 @@
         setRideClass();
         if (document.pointerLockElement) document.exitPointerLock(); // free the mouse for the radio
         drv.speed = 0;
-        girl.g.visible = false;
+        girl.g.visible = !!rig.ski; // (on a jet ski she rides in plain sight)
+        if (rig.ski) skiPose();
         yaw = drv.yaw + Math.PI;
         pitch = -0.16;
         vehHud.style.display = "block";
         promptEl.classList.remove("show");
-        if (!rig.boat) startEngine(); // (the swan is pedalled - no engine)
+        if (!rig.boat || rig.ski) startEngine(); // (the swan is pedalled - no engine)
         radioOn("car"); // 📻
         track(
-          rig.boat
-            ? "🦢 Took the swan boat"
+          rig.ski
+            ? "🚤 Took a jet ski"
+            : rig.boat
+              ? "🦢 Took the swan boat"
             : rig.vip
               ? "🚗 Riding the VIP car"
               : "🚗 Borrowed a car from the street",
@@ -15423,7 +15427,8 @@
         stopEngine();
         radioOff();
         track("🚗 Parked the car");
-        if (drv.boat) dockBoat(); // 🦢 the swan glides back to its jetty, she steps onto the boards
+        if (drv.ski) parkSki(drv); // 🚤 back to its spot, she's on the sand beside it
+        else if (drv.boat) dockBoat(); // 🦢 the swan glides back to its jetty, she steps onto the boards
       }
       function enterPlane() {
         vehMode = "plane";
@@ -15603,9 +15608,12 @@
         // a pedal boat is gentler; ⚡ / Shift boosts hard; in the air the car is
         // twice as fast. The cars pull 30% harder and run 30% faster than they
         // first did (the swan boat as it was)
-        const fast = drv.boat ? 1 : 1.3,
+        const fast = drv.boat && !drv.ski ? 1 : 1.3,
           top =
-            (boost ? 64 : 38) * fast * (drv.boat ? 0.45 : 1) * (inAir ? 2 : 1);
+            (boost ? 64 : 38) *
+            fast *
+            (drv.ski ? 0.8 : drv.boat ? 0.45 : 1) * // (a jet ski is quick)
+            (inAir ? 2 : 1);
         if (thr)
           drv.speed +=
             16 *
@@ -15754,7 +15762,23 @@
             w.pivot.rotation.z =
               (w.pivot.position.x > 0 ? -1 : 1) * drv.fold * (Math.PI / 2);
         }
-        if (drv.boat) {
+        if (drv.ski) {
+          // 🚤 the jet ski noses up as it gets going and leans hard into turns
+          const sp = Math.abs(drv.speed),
+            tt = nowS();
+          drv.lean +=
+            (-drv.steer * Math.min(1, sp / 8) * 0.9 - drv.lean) *
+            Math.min(1, dt * 5);
+          drv.g.position.y =
+            Math.sin(tt * 2.1) * 0.05 * (1 - Math.min(1, sp / 10)) +
+            Math.min(0.12, sp * 0.008);
+          drv.g.rotation.set(
+            -Math.min(0.14, sp * 0.007) + Math.sin(tt * 1.7) * 0.02,
+            drv.yaw,
+            drv.lean,
+            "YXZ",
+          );
+        } else if (drv.boat) {
           // bobbing on the swell, leaning into the turns
           drv.g.position.y = Math.sin(nowS() * 1.7) * 0.07;
           drv.g.rotation.z = -drv.steer * 0.22 + Math.sin(nowS() * 1.3) * 0.03;
@@ -16125,6 +16149,8 @@
             nearVehicle = "street";
           else if (girl.pos.distanceTo(plane.pos) < 10) nearVehicle = "plane";
           else if (girl.pos.distanceTo(boat.pos) < 6.5) nearVehicle = "boat";
+          else if ((nearSki = SKIS.find((s) => girl.pos.distanceTo(s.pos) < 5.5)))
+            nearVehicle = "ski";
           else if (girl.pos.y < 1.5) {
             // 🚗 every parked car on the street can be driven
             nearParked = nearestParked(girl.pos, 3.9);
@@ -16181,6 +16207,10 @@
                   ? isTouch
                     ? "🦢 Swan boat"
                     : "🦢 F: Swan boat"
+                  : nearVehicle === "ski"
+                    ? isTouch
+                      ? "🚤 Jet ski"
+                      : "🚤 F: Jet ski"
                   : isTouch
                     ? "🚗 Drive"
                     : "🚗 F: Drive";
@@ -16207,7 +16237,7 @@
           const exitHint = isTouch ? "" : " · F للنزول";
           const txt =
             vehMode === "car"
-              ? `${drv.boat ? "🦢 Swan boat · " : (drv.jet ? "🚀 " : "🚗 ") + (drv.vip ? "Rose VIP · " : "")}${kmh} km/h${drv.pos.y > 0.6 ? ` · ⬆ ${Math.round(drv.pos.y)}m` : ""}${exitHint}`
+              ? `${drv.ski ? "🚤 Jet ski · " : drv.boat ? "🦢 Swan boat · " : (drv.jet ? "🚀 " : "🚗 ") + (drv.vip ? "Rose VIP · " : "")}${kmh} km/h${drv.pos.y > 0.6 ? ` · ⬆ ${Math.round(drv.pos.y)}m` : ""}${exitHint}`
               : `🛩️ Rose Plane · ${kmh} km/h · ⬆ ${Math.max(0, Math.round(plane.pos.y - PLANE_GEAR))}m${exitHint}`;
           if (txt !== lastVehHud) {
             vehHud.textContent = txt;
@@ -16233,6 +16263,8 @@
                       ? "💿"
                       : nearVehicle === "boat"
                         ? "🦢"
+                        : nearVehicle === "ski"
+                          ? "🚤"
                         : girl.rest
                           ? "🌸"
                           : nearResort
@@ -19743,6 +19775,384 @@
         screenBurst(["🦢", "💗"], 8);
       }
 
+      // ---- 🚤 two jet skis on the sea: one off the south beach beside the pier,
+      // one off the west coast. They ride like the swan boat but fast, with Rose
+      // astride; they lift their noses as they get going and lean hard into the
+      // turns, a foamy wake spreads and fades behind them and spray flies off
+      // the tail and the bow. Getting off, she's back on the sand by its spot.
+      const SKI_SPOTS = [
+        // (x, z on the water · its nose · paint · where she stands on the sand)
+        [PIER.x - 30, LAND_Z0 - 3.5, Math.PI, 0xff4f93, PIER.x - 30, LAND_Z0 + 3],
+        [LAND_X0 - 3.5, 16, -Math.PI / 2, 0x26c6da, LAND_X0 + 3, 16],
+      ];
+      const SKIS = SKI_SPOTS.map(([x, z, yaw, col, gx, gz]) => {
+        const g = new THREE.Group();
+        // the hull: a side profile - a long pointed nose, the deck rising to the
+        // bars, a flat stern - extruded and rounded; white under the waterline
+        // stripe, its own colour above (vertex colours: one mesh)
+        const sh = new THREE.Shape();
+        sh.moveTo(-1.35, 0.05);
+        sh.lineTo(-1.4, 0.5);
+        sh.quadraticCurveTo(-1.38, 0.62, -1.2, 0.62);
+        sh.lineTo(0.35, 0.66);
+        sh.quadraticCurveTo(0.9, 0.95, 1.35, 0.72);
+        sh.quadraticCurveTo(1.85, 0.5, 2.0, 0.3);
+        sh.quadraticCurveTo(1.7, 0.02, 1.2, 0.0);
+        sh.lineTo(-1.35, 0.05);
+        const hull = new THREE.ExtrudeGeometry(sh, {
+          depth: 0.86,
+          bevelEnabled: true,
+          bevelThickness: 0.12,
+          bevelSize: 0.1,
+          bevelSegments: 3,
+          curveSegments: 10,
+        });
+        hull.rotateY(-Math.PI / 2); // (the profile runs along z, nose = +z)
+        hull.translate(0.43, 0, 0);
+        const paint = new THREE.Color(col),
+          white = new THREE.Color(0xf6f4f8),
+          hp = hull.attributes.position,
+          hc = new Float32Array(hp.count * 3);
+        for (let i = 0; i < hp.count; i++) {
+          const c = hp.getY(i) < 0.3 ? white : paint;
+          hc.set([c.r, c.g, c.b], i * 3);
+        }
+        hull.setAttribute("color", new THREE.BufferAttribute(hc, 3));
+        rmesh(
+          hull,
+          new THREE.MeshStandardMaterial({
+            vertexColors: true,
+            roughness: 0.22,
+            metalness: 0.3,
+            emissive: col,
+            emissiveIntensity: 0.12,
+          }),
+          0,
+          0,
+          0,
+          g,
+        );
+        // neon stripes along both sides
+        const NEON = SM(col, 1.6);
+        for (const sx of [-1, 1])
+          rbox(0.04, 0.06, 2.5, sx * 0.555, 0.42, 0.15, NEON, g);
+        // the seat, the bars on their column, a little windscreen
+        const seat = rmesh(
+          new THREE.CapsuleGeometry(0.2, 0.85, 6, 12).rotateX(Math.PI / 2),
+          RM(0x2b1d2e, { roughness: 0.55 }),
+          0,
+          0.82,
+          -0.45,
+          g,
+        );
+        seat.scale.x = 1.35;
+        const DARK = RM(0x3a3440, { roughness: 0.4, metalness: 0.5 });
+        const col_ = rmesh(
+          new THREE.CylinderGeometry(0.06, 0.07, 0.5, 10),
+          DARK,
+          0,
+          0.91,
+          0.43,
+          g,
+        );
+        col_.rotation.x = Math.atan2(-0.25, 0.42);
+        const bars = rmesh(
+          new THREE.CylinderGeometry(0.035, 0.035, 0.78, 10),
+          RM(0xdfe3ea, { roughness: 0.2, metalness: 0.9 }),
+          0,
+          1.14,
+          0.29,
+          g,
+        );
+        bars.rotation.z = Math.PI / 2;
+        for (const sx of [-1, 1]) {
+          const grip = rmesh(
+            new THREE.CylinderGeometry(0.05, 0.05, 0.16, 10),
+            RM(0x1a1420, { roughness: 0.7 }),
+            sx * 0.36,
+            1.14,
+            0.29,
+            g,
+          );
+          grip.rotation.z = Math.PI / 2;
+        }
+        const screen = new THREE.Mesh(
+          new THREE.PlaneGeometry(0.5, 0.26),
+          new THREE.MeshStandardMaterial({
+            color: 0x9fdcff,
+            transparent: true,
+            opacity: 0.45,
+            roughness: 0.1,
+            metalness: 0.2,
+            side: THREE.DoubleSide,
+          }),
+        );
+        screen.position.set(0, 1.0, 0.62);
+        screen.rotation.x = -0.95;
+        g.add(screen);
+        // a glowing heart on the nose, a headlight, a tail light
+        const heart = rmesh(
+          new THREE.ExtrudeGeometry(heartShape(), { depth: 0.04, bevelEnabled: false })
+            .translate(0, 0.95, 0)
+            .scale(0.11, 0.11, 1),
+          SM(0xffffff, 1.4),
+          0,
+          0.86,
+          1.18,
+          g,
+        );
+        heart.rotation.x = -1.25;
+        const headMat = RM(0x3a2a10, {
+          emissive: 0xfff0c8,
+          emissiveIntensity: 0.4,
+        });
+        rmesh(new THREE.SphereGeometry(0.07, 10, 8), headMat, 0, 0.6, 1.83, g);
+        const tailMat = RM(0x400818, { emissive: 0xff2040, emissiveIntensity: 0.9 });
+        const tail = rbox(0.3, 0.06, 0.05, 0, 0.55, -1.42, tailMat, g);
+        const home = new THREE.Vector3(x, 0, z);
+        g.position.copy(home);
+        g.rotation.y = yaw;
+        scene.add(g);
+        return {
+          g,
+          pos: home.clone(),
+          yaw,
+          speed: 0,
+          steer: 0,
+          wheels: [],
+          lamps: [],
+          tail,
+          tailMat,
+          headMat,
+          paint: NEON,
+          vip: false,
+          boat: true, // (it stays on the water, like the swan)
+          ski: true,
+          lean: 0,
+          home,
+          homeYaw: yaw,
+          stand: new THREE.Vector3(gx, 0, gz),
+        };
+      });
+      let nearSki = null; // the jet ski within her reach
+      // Rose astride: knees bent, hands forward on the bars, leaning in
+      function skiPose() {
+        girl.legL.rotation.set(-1.45, 0, 0);
+        girl.legR.rotation.set(-1.45, 0, 0);
+        girl.kneeL.rotation.x = girl.kneeR.rotation.x = 1.5;
+        girl.ankleL.rotation.x = girl.ankleR.rotation.x = 0;
+        girl.armL.rotation.x = girl.armR.rotation.x = -1.05;
+        girl.elbowL.rotation.x = girl.elbowR.rotation.x = -0.45;
+        girl.body.rotation.set(0.22, 0, 0);
+        girl.body.position.y = 0;
+        girl.pony.rotation.x = 0.35; // her curls streaming back
+      }
+      // getting off: the jet ski goes back to its spot, she's on the sand by it
+      function parkSki(s) {
+        s.pos.copy(s.home);
+        s.yaw = s.homeYaw;
+        s.speed = s.steer = s.lean = 0;
+        s.g.position.copy(s.pos);
+        s.g.rotation.set(0, s.yaw, 0);
+        girl.pos.copy(s.stand);
+        girl.yaw = s.homeYaw;
+        girl.g.rotation.set(0, girl.yaw, 0);
+        screenBurst(["🚤", "🌊", "💗"], 8);
+      }
+      // 🌊 the wake: a ribbon of foam laid down behind the stern, spreading and
+      // fading (newest first: x, z, sideways x, sideways z, age, strength)
+      const WAKE_N = 48,
+        WAKE_LIFE = 2.6;
+      const wakeP = [];
+      const wakePos = new Float32Array(WAKE_N * 6),
+        wakeCol = new Float32Array(WAKE_N * 8);
+      const wakeGeo = new THREE.BufferGeometry();
+      wakeGeo.setAttribute(
+        "position",
+        new THREE.BufferAttribute(wakePos, 3).setUsage(THREE.DynamicDrawUsage),
+      );
+      wakeGeo.setAttribute(
+        "color",
+        new THREE.BufferAttribute(wakeCol, 4).setUsage(THREE.DynamicDrawUsage),
+      );
+      {
+        const idx = [];
+        for (let i = 0; i < WAKE_N - 1; i++) {
+          const a = i * 2;
+          idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+        }
+        wakeGeo.setIndex(idx);
+      }
+      const wakeMesh = new THREE.Mesh(
+        wakeGeo,
+        new THREE.MeshBasicMaterial({
+          vertexColors: true,
+          transparent: true,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+        }),
+      );
+      wakeMesh.frustumCulled = false;
+      wakeMesh.visible = false;
+      scene.add(wakeMesh);
+      // 💦 the spray: drops thrown up off the tail (a rooster tail) and fanned
+      // out off the bow - soft white points that fall back and fade
+      const SPRAY_N = 160;
+      const sprayPos = new Float32Array(SPRAY_N * 3),
+        sprayCol = new Float32Array(SPRAY_N * 4),
+        sprayVel = new Float32Array(SPRAY_N * 3),
+        sprayAge = new Float32Array(SPRAY_N).fill(1),
+        sprayLife = new Float32Array(SPRAY_N);
+      const sprayGeo = new THREE.BufferGeometry();
+      sprayGeo.setAttribute(
+        "position",
+        new THREE.BufferAttribute(sprayPos, 3).setUsage(THREE.DynamicDrawUsage),
+      );
+      sprayGeo.setAttribute(
+        "color",
+        new THREE.BufferAttribute(sprayCol, 4).setUsage(THREE.DynamicDrawUsage),
+      );
+      const sprayTex = (() => {
+        const cv = document.createElement("canvas");
+        cv.width = cv.height = 32;
+        const c = cv.getContext("2d"),
+          gr = c.createRadialGradient(16, 16, 0, 16, 16, 16);
+        gr.addColorStop(0, "rgba(255,255,255,1)");
+        gr.addColorStop(0.45, "rgba(240,250,255,0.55)");
+        gr.addColorStop(1, "rgba(255,255,255,0)");
+        c.fillStyle = gr;
+        c.fillRect(0, 0, 32, 32);
+        return new THREE.CanvasTexture(cv);
+      })();
+      const sprayPts = new THREE.Points(
+        sprayGeo,
+        new THREE.PointsMaterial({
+          size: 0.55,
+          map: sprayTex,
+          vertexColors: true,
+          transparent: true,
+          depthWrite: false,
+        }),
+      );
+      sprayPts.frustumCulled = false;
+      sprayPts.visible = false;
+      scene.add(sprayPts);
+      let sprayI = 0,
+        wakeAcc = 0,
+        skiRipT = 0;
+      const _seat = new THREE.Vector3();
+      function skiEmit(s, dt) {
+        const sp = Math.abs(s.speed),
+          fx = Math.sin(s.yaw),
+          fz = Math.cos(s.yaw),
+          k = Math.min(1, sp / 16);
+        wakeAcc += dt;
+        if (sp > 1.2 && wakeAcc > 0.05) {
+          wakeAcc = 0;
+          wakeP.unshift([s.pos.x - fx * 1.3, s.pos.z - fz * 1.3, fz, -fx, 0, k]);
+          if (wakeP.length > WAKE_N) wakeP.pop();
+        }
+        const n = sp > 2 ? Math.min(8, Math.floor(sp * dt * 9 + Math.random())) : 0;
+        for (let j = 0; j < n; j++) {
+          const i = sprayI++ % SPRAY_N,
+            side = Math.random() < 0.5 ? -1 : 1,
+            o = i * 3;
+          if (j % 3 === 2 && sp > 7) {
+            // off the bow, fanned out sideways
+            const v = 2 + sp * 0.12;
+            sprayPos[o] = s.pos.x + fx * 0.9 + fz * side * 0.55;
+            sprayPos[o + 1] = 0.25;
+            sprayPos[o + 2] = s.pos.z + fz * 0.9 - fx * side * 0.55;
+            sprayVel[o] = fz * side * v - fx * 1.5;
+            sprayVel[o + 1] = 1.4 + sp * 0.06;
+            sprayVel[o + 2] = -fx * side * v - fz * 1.5;
+            sprayLife[i] = 0.45 + Math.random() * 0.25;
+          } else {
+            // the rooster tail, up and back off the stern
+            const r = (Math.random() - 0.5) * 1.6,
+              back = 1.5 + sp * 0.22;
+            sprayPos[o] = s.pos.x - fx * 1.45;
+            sprayPos[o + 1] = 0.35;
+            sprayPos[o + 2] = s.pos.z - fz * 1.45;
+            sprayVel[o] = -fx * back + fz * r;
+            sprayVel[o + 1] = 2.2 + sp * 0.16 + Math.random();
+            sprayVel[o + 2] = -fz * back - fx * r;
+            sprayLife[i] = 0.6 + Math.random() * 0.5;
+          }
+          sprayAge[i] = 0;
+        }
+        // rings on the water round her, slow or fast
+        skiRipT += dt;
+        if (sp > 0.5 && skiRipT > 0.22) {
+          skiRipT = 0;
+          poolRipple(s.pos.x - fx * 1.2, s.pos.z - fz * 1.2, 1.4 + k, 0.05);
+        }
+      }
+      function updateSkis(dt, t) {
+        const riding = vehMode === "car" && drv.ski ? drv : null;
+        SKIS.forEach((s, i) => {
+          if (s === riding) return;
+          // waiting at its spot, rocking on the swell
+          s.g.position.y = Math.sin(t * 1.5 + i * 2) * 0.05;
+          s.g.rotation.set(
+            Math.sin(t * 1.1 + i) * 0.02,
+            s.yaw,
+            Math.sin(t * 1.3 + i) * 0.04,
+            "YXZ",
+          );
+        });
+        if (riding) {
+          // Rose on the seat, moving with it
+          riding.g.updateMatrix();
+          girl.g.position.copy(_seat.set(0, 0.13, -0.32).applyMatrix4(riding.g.matrix));
+          girl.g.quaternion.copy(riding.g.quaternion);
+          skiEmit(riding, dt);
+        }
+        // the spray falls and fades
+        let live = 0;
+        const lit = 1 - 0.45 * uNight.value;
+        for (let i = 0; i < SPRAY_N; i++) {
+          const o = i * 3;
+          if (sprayAge[i] >= sprayLife[i]) {
+            sprayCol[i * 4 + 3] = 0;
+            continue;
+          }
+          sprayAge[i] += dt;
+          sprayVel[o + 1] -= 9.8 * dt;
+          sprayPos[o] += sprayVel[o] * dt;
+          sprayPos[o + 1] += sprayVel[o + 1] * dt;
+          sprayPos[o + 2] += sprayVel[o + 2] * dt;
+          if (sprayPos[o + 1] < 0) sprayAge[i] = sprayLife[i];
+          sprayCol.set([lit, lit, lit, 0.85 * Math.max(0, 1 - sprayAge[i] / sprayLife[i])], i * 4);
+          live++;
+        }
+        if (live || sprayPts.visible) {
+          sprayGeo.attributes.position.needsUpdate = true;
+          sprayGeo.attributes.color.needsUpdate = true;
+        }
+        sprayPts.visible = live > 0;
+        // the wake spreads and fades
+        for (const w of wakeP) w[4] += dt;
+        while (wakeP.length && wakeP[wakeP.length - 1][4] > WAKE_LIFE) wakeP.pop();
+        const n = wakeP.length;
+        wakeMesh.visible = n > 1;
+        if (n > 1) {
+          for (let i = 0; i < n; i++) {
+            const [x, z, px, pz, age, k] = wakeP[i],
+              hw = 0.4 + age * 1.4,
+              a = k * Math.pow(1 - age / WAKE_LIFE, 1.5) * 0.75;
+            wakePos.set(
+              [x + px * hw, 0.04, z + pz * hw, x - px * hw, 0.04, z - pz * hw],
+              i * 6,
+            );
+            wakeCol.set([lit, lit, lit, a, lit, lit, lit, a], i * 8);
+          }
+          wakeGeo.setDrawRange(0, (n - 1) * 6);
+          wakeGeo.attributes.position.needsUpdate = true;
+          wakeGeo.attributes.color.needsUpdate = true;
+        }
+      }
+
       // ---- resting: loungers, hammocks, the spa bed, a dinner table, the dance floor
       function rest(r) {
         girl.rest = r;
@@ -23239,6 +23649,7 @@
         updateJetSound();
         updateCakeWay(dt, t);
         updateGate(dt, t);
+        updateSkis(dt, t);
         updateCakeGuide(dt, t);
         updateLove(dt, t);
         updateCinema();
@@ -24827,7 +25238,7 @@
           k = Math.max(0.75, Math.min(1.3, s / 0.44)); // marker size
         openPanel(`<h2 class="map-h">🗺️ خريطة Rose World</h2>
     <canvas id="map-cv" style="width:${cw}px;height:${ch}px"></canvas>
-    <div class="map-key"><span><i class="me"></i> انتي هون</span><span><i class="sp"></i> مفاجآت</span><span>🎂 كيكتك</span><span>🎹 الموسيقى</span><span>🚗 السيارة</span><span>🛩️ الطيارة</span><span><i class="sky"></i> جسر السيارة</span></div>`);
+    <div class="map-key"><span><i class="me"></i> انتي هون</span><span><i class="sp"></i> مفاجآت</span><span>🎂 كيكتك</span><span>🎹 الموسيقى</span><span>🚗 السيارة</span><span>🛩️ الطيارة</span><span>🚤 موتور مائي</span><span><i class="sky"></i> جسر السيارة</span></div>`);
         panelCard.classList.add("map");
         track("🗺️ Opened the map");
         // north up: +z at the top, so +x runs to the left (a turn, not a mirror)
@@ -24944,6 +25355,8 @@
         icon("🎹", HALL.cx, HALL.cz, 14 * k);
         icon("🏮", LANT_STAND.x, LANT_STAND.z, 11 * k, false);
         if (!(vehMode === "car" && drv === boat)) icon("🦢", boat.pos.x, boat.pos.z, 12 * k, false);
+        for (const s of SKIS)
+          if (!(vehMode === "car" && drv === s)) icon("🚤", s.pos.x, s.pos.z, 12 * k, false);
         if (!driving(car)) icon("🚗", car.pos.x, car.pos.z, 14 * k);
         if (vehMode !== "plane") icon("🛩️", plane.pos.x, plane.pos.z, 14 * k);
         for (const sp of surprises)
@@ -25231,6 +25644,9 @@
         put(LANT_STAND.x, LANT_STAND.z, "#ff9a4a", 2.6); // 🏮 sky lanterns
         if (!(vehMode === "car" && drv === boat))
           put(boat.pos.x, boat.pos.z, "#ffffff", 2.4); // 🦢
+        for (const s of SKIS)
+          if (!(vehMode === "car" && drv === s))
+            put(s.pos.x, s.pos.z, "#7fe8ff", 2.4); // 🚤
 
         // north tick + her arrow (she always points up)
         radarG.fillStyle = "rgba(255, 220, 235, 0.75)";
