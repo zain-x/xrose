@@ -10334,7 +10334,7 @@
         balloons.push(b);
       }
       // 💥 the pop shoves her car, plane or herself away from the balloon (x,y,z:
-      // from the balloon to her) - a shove that dies away in half a second
+      // from the balloon to her) - a strong shove that dies away in about a second
       function balloonKick(x, y, z) {
         let hl = Math.hypot(x, z);
         if (hl < 0.3) {
@@ -10348,22 +10348,25 @@
           nz = z / hl,
           up = y >= 0 ? 1 : -0.5; // (popped from below: a bump up; from above: down)
         if (vehMode === "car") {
-          drv.kx = nx * 16;
-          drv.kz = nz * 16;
-          drv.speed *= 0.35;
-          if (drv.flames && (drv.jet || drv.pos.y > 0.6)) drv.vy += 6 * up;
+          drv.kx = nx * 30;
+          drv.kz = nz * 30;
+          drv.speed *= 0.2;
+          if (drv.flames && (drv.jet || drv.pos.y > 0.6)) drv.vy += 9 * up;
         } else if (vehMode === "plane") {
-          plane.kx = nx * 20;
-          plane.kz = nz * 20;
+          plane.kx = nx * 36;
+          plane.kz = nz * 36;
           if (!plane.grounded) {
-            plane.vy += 7 * up;
-            plane.roll += (Math.random() < 0.5 ? -1 : 1) * 0.5; // a wobble
+            plane.vy += 11 * up;
+            // a wobble that banks her away from the balloon (a +roll turns her
+            // toward -right, right = (cos yaw, -sin yaw))
+            const side = nx * Math.cos(plane.yaw) - nz * Math.sin(plane.yaw);
+            plane.roll -= Math.sign(side || 1) * 0.8;
           }
-          plane.speed *= 0.85;
+          plane.speed *= 0.8;
         } else {
-          vel.x += nx * 10;
-          vel.z += nz * 10;
-          vel.y = Math.max(vel.y, 7);
+          vel.x += nx * 17;
+          vel.z += nz * 17;
+          vel.y = Math.max(vel.y, 9);
           girl.grounded = false;
         }
       }
@@ -10372,7 +10375,7 @@
         if (!r.kx && !r.kz) return;
         r.pos.x += r.kx * dt;
         r.pos.z += r.kz * dt;
-        const f = Math.exp(-dt * 4);
+        const f = Math.exp(-dt * 3);
         r.kx *= f;
         r.kz *= f;
         if (Math.abs(r.kx) + Math.abs(r.kz) < 0.2) r.kx = r.kz = 0;
