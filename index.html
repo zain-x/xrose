@@ -23928,32 +23928,12 @@
         b.setLineDash([]);
         b.fillStyle = "#c99a68"; // the birthday pier out to the cake
         b.fillRect(PIER.x - PIER.hw, PIER.z0 - PIER.len, PIER.hw * 2, PIER.len + 8);
-        // names and places, in screen pixels
+        // places and names, in screen pixels - the places go down first and the
+        // names are fitted round them
         b.setTransform(dpr, 0, 0, dpr, 0, 0);
         b.textAlign = "center";
         b.textBaseline = "middle";
         b.shadowColor = "rgba(0, 0, 0, 0.75)";
-        b.shadowBlur = 3;
-        b.fillStyle = "#fff";
-        const fs = Math.round(Math.max(9, Math.min(13, 11 * k))),
-          boxes = [];
-        b.font = `600 ${fs}px system-ui, sans-serif`;
-        const label = (t, px, py) => {
-          const w = (b.measureText(t)?.width || t.length * fs * 0.55) / 2 + 2;
-          // a name that would run into one already written moves a line up or
-          // down - or, on a very small map, is left out
-          for (const dy of [0, -fs * 1.3, fs * 1.3]) {
-            const y = py + dy;
-            if (boxes.some((q) => Math.abs(q[0] - px) < q[2] + w && Math.abs(q[1] - y) < fs))
-              continue;
-            boxes.push([px, y, w]);
-            b.fillText(t, px, y);
-            return;
-          }
-        };
-        for (const d of ["downtown", "park", "air", "rose", "sky", "garden", "marina"])
-          if (mids[d]) label(`${DISTRICTS[d].icon} ${DISTRICTS[d].ar}`, X(mids[d].lx), Y(mids[d].lz));
-        label(`${DISTRICTS.resort.icon} ${DISTRICTS.resort.ar}`, X(PEN_CX), Y(PEN_CZ + 18));
         b.shadowBlur = 0;
         const placed = [];
         const icon = (e, x, z, size, disc = true) => {
@@ -23985,6 +23965,42 @@
         if (vehMode !== "plane") icon("🛩️", plane.pos.x, plane.pos.z, 14 * k);
         for (const sp of surprises)
           if (!sp.gone && sp.found) icon(sp.icon, sp.center.x, sp.center.z, 13 * k);
+        b.shadowBlur = 3;
+        b.fillStyle = "#fff";
+        const fs = Math.round(Math.max(9, Math.min(13, 11 * k))),
+          boxes = [];
+        b.font = `600 ${fs}px system-ui, sans-serif`;
+        const label = (t, px, py) => {
+          const w = (b.measureText(t)?.width || t.length * fs * 0.55) / 2 + 2;
+          // a name never runs into one already written (on a very small map it
+          // is left out instead), and moves up or down to where it covers the
+          // least of the places
+          let best = null,
+            bestHit = Infinity;
+          for (const dy of [0, -fs * 1.3, fs * 1.3, -fs * 2, fs * 2]) {
+            const y = py + dy;
+            if (boxes.some((q) => Math.abs(q[0] - px) < q[2] + w && Math.abs(q[1] - y) < fs))
+              continue;
+            let hit = 0;
+            for (const q of placed) {
+              const r = q[2] * 0.72;
+              hit +=
+                Math.max(0, r + w - Math.abs(q[0] - px)) *
+                Math.max(0, r + fs / 2 - Math.abs(q[1] - y));
+            }
+            if (hit < bestHit) {
+              best = y;
+              bestHit = hit;
+              if (!hit) break;
+            }
+          }
+          if (best === null) return;
+          boxes.push([px, best, w]);
+          b.fillText(t, px, best);
+        };
+        for (const d of ["downtown", "park", "air", "rose", "sky", "garden", "marina"])
+          if (mids[d]) label(`${DISTRICTS[d].icon} ${DISTRICTS[d].ar}`, X(mids[d].lx), Y(mids[d].lz));
+        label(`${DISTRICTS.resort.icon} ${DISTRICTS.resort.ar}`, X(PEN_CX), Y(PEN_CZ + 18));
         // live: the hidden surprises pulse, and so does she
         const fp = focusPos(),
           rig = vehMode === "plane" ? plane : vehMode === "car" && drv ? drv : girl,
