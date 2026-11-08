@@ -14557,6 +14557,23 @@
         if (typeof saved.shuffle === "boolean") radio.shuffle = saved.shuffle;
         if (saved.newsIdx >= 0) radio.newsIdx = saved.newsIdx | 0;
       } catch (e) {}
+      // 🔀 the shuffle round goes on from visit to visit: the songs still to
+      // come are kept by name, so every song plays once before any comes back
+      // (songs taken off the list since are simply skipped)
+      try {
+        const left = JSON.parse(localStorage.getItem("roseFM-bag") || "[]"),
+          at = new Map(RADIO_SONGS.map((s) => [s.id, s.i]));
+        if (Array.isArray(left))
+          radio.bag = left.map((id) => at.get(id)).filter((i) => i >= 0);
+      } catch (e) {}
+      function radioSaveBag() {
+        try {
+          localStorage.setItem(
+            "roseFM-bag",
+            JSON.stringify(radio.bag.map((i) => RADIO_SONGS[i].id)),
+          );
+        } catch (e) {}
+      }
       function radioSave() {
         try {
           localStorage.setItem(
@@ -14753,12 +14770,16 @@
             const j = (Math.random() * (i + 1)) | 0;
             [radio.bag[i], radio.bag[j]] = [radio.bag[j], radio.bag[i]];
           }
+          radioSaveBag();
         }
         return radio.bag[radio.bag.length - 1];
       }
       function pickNext() {
         const i = peekNext();
-        if (radio.shuffle) radio.bag.pop();
+        if (radio.shuffle) {
+          radio.bag.pop();
+          radioSaveBag();
+        }
         return i;
       }
       // 📥 a song is fetched quietly ahead of time - the one coming next while
@@ -14801,6 +14822,7 @@
           if (radio.hist.length > 60) radio.hist.shift();
         }
         radio.bag = radio.bag.filter((k) => k !== i);
+        radioSaveBag();
         radio.idx = i;
         radio.paused = false;
         if (!isMix(i)) radio.mixRun = false;
