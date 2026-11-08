@@ -311,9 +311,10 @@
       }
       .map-key {
         margin-top: 8px;
-        font-size: 11.5px;
-        line-height: 1.7;
-        color: #f3cfe0;
+        font-size: 13px;
+        font-weight: 600;
+        line-height: 1.75;
+        color: #fff2f8;
       }
       .map-key i {
         display: inline-block;
@@ -15850,8 +15851,8 @@
       // 🌊 how far past the coastline she may fly (the cake's pier reaches 78 m out):
       // there the plane turns back by itself, and it hands her the controls again
       // only once it is close to the shore - so it can't flip back and forth there
-      const PLANE_SEA = 110,
-        PLANE_HOME = 40;
+      const PLANE_SEA = 170,
+        PLANE_HOME = 60;
       function updatePlane(dt) {
         let pitchIn = 0,
           rollIn = 0,
@@ -24774,14 +24775,15 @@
         MAP_X1 = LAND_X1 + 30,
         MAP_Z0 = CAKE.z - 30,
         MAP_Z1 = RES_PEN.z1 + 30;
+      // (deep tones, so the white names and the places stand out on them)
       const MAP_COL = {
-        downtown: "#c86b98",
-        rose: "#f29bb8",
-        sky: "#a99bf0",
-        marina: "#7fc3e0",
-        garden: "#f0cf78",
-        park: "#7fcf8f",
-        air: "#aab0c4",
+        downtown: "#8a3d68",
+        rose: "#a8486f",
+        sky: "#5a4ca6",
+        marina: "#2d6d8c",
+        garden: "#866b2c",
+        park: "#3b7d4a",
+        air: "#4a5064",
       };
       const MAP_EMOJI = '"Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif';
       function openMap() {
@@ -24808,10 +24810,10 @@
         const b = base.getContext("2d");
         // the island, in metres
         b.setTransform(-s * dpr, 0, 0, -s * dpr, MAP_X1 * s * dpr, MAP_Z1 * s * dpr);
-        b.fillStyle = "#1b5d86";
+        b.fillStyle = "#0c2236"; // the sea
         b.fillRect(MAP_X0, MAP_Z0, MAP_X1 - MAP_X0, MAP_Z1 - MAP_Z0);
-        b.fillStyle = "#f1d9a6";
-        b.strokeStyle = "rgba(90, 205, 225, 0.45)"; // the shallows
+        b.fillStyle = "#6e5c43"; // the sand
+        b.strokeStyle = "rgba(70, 170, 210, 0.35)"; // the shallows
         b.lineWidth = 16;
         for (const [x0, z0, x1, z1, r] of [
           [LAND_X0, LAND_Z0, LAND_X1, LAND_Z1, ISLE_R],
@@ -24821,7 +24823,7 @@
           b.stroke();
           b.fill();
         }
-        b.fillStyle = "#fff4f8"; // the streets
+        b.fillStyle = "#26212f"; // the streets
         b.fillRect(CITY_X0, CITY_Z0, CITY_X1 - CITY_X0, CITY_Z1 - CITY_Z0);
         const mids = {}; // each district's lots, for where its name goes
         for (let gx = ISLE.gx0; gx <= ISLE.gx1; gx++)
@@ -24855,7 +24857,7 @@
           mids.air.lx = 6 * TILE;
           mids.air.lz = RUNWAY_Z;
         }
-        b.fillStyle = "#59606f"; // the runway, with its centre line
+        b.fillStyle = "#1c1f27"; // the runway, with its centre line
         b.fillRect(-5 * TILE + ROAD_HW, RUNWAY_Z - 7, 14 * TILE - 2 * ROAD_HW, 14);
         b.strokeStyle = "rgba(255, 255, 255, 0.8)";
         b.lineWidth = 1.6;
@@ -24878,7 +24880,7 @@
           }
           b.stroke();
         }
-        b.fillStyle = "#c99a68"; // the birthday pier out to the cake
+        b.fillStyle = "#9a7048"; // the birthday pier out to the cake
         b.fillRect(PIER.x - PIER.hw, PIER.z0 - PIER.len, PIER.hw * 2, PIER.len + 8);
         // places and names, in screen pixels - the places go down first and the
         // names are fitted round them
@@ -24917,38 +24919,58 @@
         if (vehMode !== "plane") icon("🛩️", plane.pos.x, plane.pos.z, 14 * k);
         for (const sp of surprises)
           if (!sp.gone && sp.found) icon(sp.icon, sp.center.x, sp.center.z, 13 * k);
-        b.shadowBlur = 3;
+        // the names: bold white with a dark outline - readable on any colour
+        b.shadowBlur = 0;
         b.fillStyle = "#fff";
-        const fs = Math.round(Math.max(9, Math.min(13, 11 * k))),
+        b.strokeStyle = "rgba(12, 6, 20, 0.9)";
+        b.lineWidth = 3.5;
+        b.lineJoin = "round";
+        const fs = Math.round(Math.max(11, Math.min(15, 12.5 * k))),
           boxes = [];
-        b.font = `600 ${fs}px system-ui, sans-serif`;
+        b.font = `700 ${fs}px system-ui, sans-serif`;
         const label = (t, px, py) => {
           const w = (b.measureText(t)?.width || t.length * fs * 0.55) / 2 + 2;
           // a name never runs into one already written (on a very small map it
-          // is left out instead), and moves up or down to where it covers the
-          // least of the places
+          // is left out instead), and moves up or down - or a little aside - to
+          // where it covers the least of the places
           let best = null,
             bestHit = Infinity;
-          for (const dy of [0, -fs * 1.3, fs * 1.3, -fs * 2, fs * 2]) {
-            const y = py + dy;
-            if (boxes.some((q) => Math.abs(q[0] - px) < q[2] + w && Math.abs(q[1] - y) < fs))
+          for (const [ox, oy] of [
+            [0, 0],
+            [0, -1.3],
+            [0, 1.3],
+            [0, -2],
+            [0, 2],
+            [0, -2.7],
+            [0, 2.7],
+            [-0.8, 0],
+            [0.8, 0],
+            [-0.8, -1.3],
+            [0.8, -1.3],
+            [-0.8, 1.3],
+            [0.8, 1.3],
+          ]) {
+            const x = Math.max(w, Math.min(cw - w, px + ox * w)),
+              y = py + oy * fs;
+            if (boxes.some((q) => Math.abs(q[0] - x) < q[2] + w && Math.abs(q[1] - y) < fs))
               continue;
             let hit = 0;
             for (const q of placed) {
               const r = q[2] * 0.72;
               hit +=
-                Math.max(0, r + w - Math.abs(q[0] - px)) *
+                Math.max(0, r + w - Math.abs(q[0] - x)) *
                 Math.max(0, r + fs / 2 - Math.abs(q[1] - y));
             }
             if (hit < bestHit) {
-              best = y;
+              best = [x, y];
               bestHit = hit;
               if (!hit) break;
             }
           }
           if (best === null) return;
-          boxes.push([px, best, w]);
-          b.fillText(t, px, best);
+          boxes.push([best[0], best[1], w]);
+          b.strokeText(t, best[0], best[1]);
+          b.fillText(t, best[0], best[1]);
         };
         for (const d of ["downtown", "park", "air", "rose", "sky", "garden", "marina"])
           if (mids[d]) label(`${DISTRICTS[d].icon} ${DISTRICTS[d].ar}`, X(mids[d].lx), Y(mids[d].lz));
@@ -24975,6 +24997,9 @@
             g.arc(X(sp.center.x), Y(sp.center.z), (3.6 + 1.4 * pu) * k, 0, 7);
             g.fillStyle = `rgba(255, 30, 45, ${(0.55 + 0.45 * pu).toFixed(3)})`;
             g.fill();
+            g.lineWidth = 1.5;
+            g.strokeStyle = "rgba(255, 255, 255, 0.85)"; // (a white rim on the dark map)
+            g.stroke();
           }
           const ph = (now / 1100) % 1;
           g.beginPath();
