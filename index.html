@@ -20242,6 +20242,8 @@
         show: false,
         showT: 0,
       };
+      // 🌹 the gate of Rose World's moving parts (built with the pier, below)
+      const GATE = { x: 0, z: 0, near: null, acc: 0 };
       // the show plays over the open sea, straight out from the cake
       const SHOW_X = CAKE.x,
         SHOW_Z = CAKE.z - 170;
@@ -20733,17 +20735,39 @@
           sg.rotation.y = ry;
           P.add(sg);
         }
-        // 🌹 the gate of Rose World: two tall rose-pink steel towers and a lattice
-        // beam with the name, where the pier meets the city - right in view when
-        // she turns round from her cake to the city. Merged: 3 draw calls + signs
+        // 🌹 the gate of Rose World where the pier lands: a giant heart she drives
+        // through into the city - a rose-pink steel heart truss with gold braces
+        // and a ring of rainbow lights chasing up its sides, the name hung in its
+        // middle and a glowing heart in its dip; candy lollipops either side with
+        // rainbow bunting strung to the heart, balloons at its feet and sparkles
+        // drifting round it. Right ahead when she turns from her cake to the city
         {
           const GX = PIER.x,
             GZ = PIER.z0 + 8, // on the sand past the pier, over her car's spot
-            SPAN = 13, // the towers stand ±13 m from the middle
-            H = 34;
+            SX = 1.2, // the heart is 38 m wide and 31 m tall…
+            SY = 1.55,
+            TC = 2.25, // …its point under the sand: its sides land ±9 m out
+            FZ = 0.9; // its truss: a front tube and a back tube
+          // the classic heart curve: t = 0 at the dip, ±π at the point
+          const hy = (t) =>
+            13 * Math.cos(t) -
+            5 * Math.cos(2 * t) -
+            2 * Math.cos(3 * t) -
+            Math.cos(4 * t);
+          const Y0 = -SY * hy(TC);
+          const heartAt = (t, z, v = new THREE.Vector3()) =>
+            v.set(GX + SX * 16 * Math.sin(t) ** 3, SY * hy(t) + Y0, z);
+          // one side of the heart, from its foot (u = 0) up to the dip (u = 1)
+          const side = (s, z) => {
+            const c = new THREE.Curve();
+            c.getPoint = (u, v = new THREE.Vector3()) =>
+              heartAt(s * TC * (1 - u), z, v);
+            return c;
+          };
           const pinks = [],
             golds = [],
-            bulbs = [];
+            candy = [],
+            swirls = [];
           const up = new THREE.Vector3(0, 1, 0),
             d = new THREE.Vector3(),
             q = new THREE.Quaternion(),
@@ -20762,62 +20786,125 @@
               ),
             );
           };
-          // the towers: four corner posts leaning in as they rise, a gold ring
-          // and crossed braces every 3 m, a gold ball on top
-          const hw = (y) => 1.6 - (0.7 * y) / H; // a tower's half-width at y
-          const FACES = [
-            [-1, -1, 1, -1],
-            [1, -1, 1, 1],
-            [1, 1, -1, 1],
-            [-1, 1, -1, -1],
-          ];
-          for (const sx of [-1, 1]) {
-            const cx = GX + sx * SPAN,
-              C = (y, i, j) => [cx + i * hw(y), y, GZ + j * hw(y)];
-            for (const [i, j] of FACES) bar(pinks, C(0, i, j), C(H, i, j), 0.42);
-            for (let y = 0; y < H; y += 3)
-              for (const [i, j, i2, j2] of FACES) {
-                bar(golds, C(y + 3, i, j), C(y + 3, i2, j2), 0.2);
-                bar(pinks, C(y, i, j), C(y + 3, i2, j2), 0.14);
-                bar(pinks, C(y, i2, j2), C(y + 3, i, j), 0.14);
-              }
-            bulbs.push(new THREE.SphereGeometry(0.85, 16, 12).translate(cx, H + 0.8, GZ));
+          // the heart: two tubes, gold rungs and crossed braces between them
+          // every ~2 m, a bulb every 1.25 m on each face (u: how far up its side)
+          const lights = [];
+          const f0 = new THREE.Vector3(),
+            f1 = new THREE.Vector3(),
+            b0 = new THREE.Vector3(),
+            b1 = new THREE.Vector3();
+          for (const s of [-1, 1]) {
+            const front = side(s, GZ - FZ),
+              back = side(s, GZ + FZ);
+            pinks.push(
+              new THREE.TubeGeometry(front, 90, 0.55, 10, false),
+              new THREE.TubeGeometry(back, 90, 0.55, 10, false),
+            );
+            const n = Math.round(front.getLength() / 2);
+            for (let k = 0; k <= n; k++) {
+              front.getPointAt(k / n, f0);
+              back.getPointAt(k / n, b0);
+              bar(golds, f0.toArray(), b0.toArray(), 0.18);
+              if (k === n) break;
+              front.getPointAt((k + 1) / n, f1);
+              back.getPointAt((k + 1) / n, b1);
+              if (k % 2) bar(golds, b0.toArray(), f1.toArray(), 0.14);
+              else bar(golds, f0.toArray(), b1.toArray(), 0.14);
+            }
+            const m = Math.round(front.getLength() / 1.25);
+            for (let k = 0; k <= m; k++) {
+              if (k === m && s > 0) break; // (one bulb at the dip, not two)
+              front.getPointAt(k / m, f0);
+              lights.push(
+                [f0.x, f0.y, GZ - FZ - 0.6, k / m],
+                [f0.x, f0.y, GZ + FZ + 0.6, k / m],
+              );
+            }
+            // a gold plinth under each foot
+            const foot = heartAt(s * TC, GZ);
+            golds.push(
+              new THREE.CylinderGeometry(1.5, 1.8, 1.2, 20).translate(
+                foot.x,
+                0.6,
+                GZ,
+              ),
+            );
             AIR_SOLIDS.push({
-              x0: cx - 1.8,
-              x1: cx + 1.8,
+              x0: foot.x - 1.8,
+              x1: foot.x + 1.8,
               z0: GZ - 1.8,
               z1: GZ + 1.8,
-              h: H + 2,
+              h: 3,
             });
           }
-          // the beam: a lattice girder on each side, a row of bulbs under it
-          const X0 = GX - SPAN,
-            X1 = GX + SPAN,
-            YT = H - 0.6,
-            YB = H - 5.6,
-            N = 12;
-          for (const j of [-1, 1]) {
-            const z = GZ + j * 0.95;
-            bar(pinks, [X0, YT, z], [X1, YT, z], 0.45);
-            bar(pinks, [X0, YB, z], [X1, YB, z], 0.45);
-            for (let k = 0; k < N; k++) {
-              const xa = X0 + (k / N) * (X1 - X0),
-                xb = X0 + ((k + 1) / N) * (X1 - X0);
-              bar(golds, [xb, YB, z], [xb, YT, z], 0.18);
-              bar(golds, [xa, k % 2 ? YB : YT, z], [xb, k % 2 ? YT : YB, z], 0.16);
-            }
-            for (let x = X0 + 2; x < X1 - 1; x += 1.6)
-              bulbs.push(
-                new THREE.SphereGeometry(0.16, 8, 6).translate(x, YB - 0.4, z + j * 0.1),
+          const dip = heartAt(0, GZ);
+          for (const z of [GZ - FZ, GZ + FZ])
+            pinks.push(
+              new THREE.SphereGeometry(0.75, 14, 10).translate(dip.x, dip.y, z),
+            );
+          // 🍭 a giant lollipop each side: a candy-striped stick, a rainbow
+          // swirl in a gold rim and a gold ball on top
+          const POP_X = 30,
+            POP_Z = GZ - 3,
+            POP_H = 17,
+            POP_R = 4.2;
+          for (const s of [-1, 1]) {
+            const x = GX + s * POP_X;
+            candy.push(
+              new THREE.CylinderGeometry(0.32, 0.32, POP_H, 12).translate(
+                x,
+                POP_H / 2,
+                POP_Z + 0.45,
+              ),
+            );
+            for (const z of [-0.3, 0.3])
+              swirls.push(
+                new THREE.CircleGeometry(POP_R, 48).translate(x, POP_H, POP_Z + z),
               );
+            golds.push(
+              new THREE.TorusGeometry(POP_R, 0.36, 10, 48).translate(
+                x,
+                POP_H,
+                POP_Z,
+              ),
+              new THREE.SphereGeometry(0.55, 14, 10).translate(
+                x,
+                POP_H + POP_R + 0.75,
+                POP_Z,
+              ),
+            );
+            AIR_SOLIDS.push({
+              x0: x - 0.6,
+              x1: x + 0.6,
+              z0: POP_Z - 0.2,
+              z1: POP_Z + 1.1,
+              h: POP_H,
+            });
           }
-          for (let x = X0; x <= X1 + 0.01; x += 4)
-            bar(golds, [x, YT, GZ - 0.95], [x, YT, GZ + 0.95], 0.16);
+          // the balloons' little gold weights on the sand
+          const BAL = [];
+          for (const s of [-1, 1]) {
+            const ax = GX + s * 12.5,
+              az = GZ - 2.5;
+            golds.push(new THREE.BoxGeometry(0.6, 0.5, 0.6).translate(ax, 0.25, az));
+            for (let k = 0; k < 7; k++) {
+              const a = k * 0.9 + (s > 0 ? 0.4 : 0);
+              BAL.push({
+                ax,
+                az,
+                x: ax + Math.cos(a) * (k ? 1.25 : 0),
+                y: 7.4 + ((k * 0.73) % 2.1),
+                z: az + Math.sin(a) * (k ? 1.25 : 0),
+                ph: k * 1.7 + s,
+              });
+            }
+          }
+          // the meshes
           const GATE_PINK = new THREE.MeshStandardMaterial({
             color: 0xff4f93,
-            metalness: 0.55,
-            roughness: 0.35,
-            emissive: 0x8a1446,
+            metalness: 0.45,
+            roughness: 0.3,
+            emissive: 0xc0185a,
             emissiveIntensity: 0.55,
           });
           const GATE_GOLD = new THREE.MeshStandardMaterial({
@@ -20827,64 +20914,328 @@
             emissive: 0x6a4410,
             emissiveIntensity: 0.5,
           });
+          const stripeTex = bdayTex(64, 256, (g, w, hh) => {
+            g.fillStyle = "#fff6fa";
+            g.fillRect(0, 0, w, hh);
+            g.fillStyle = "#ff3d86";
+            for (let y = -w; y < hh + w; y += 32) {
+              g.beginPath();
+              g.moveTo(0, y);
+              g.lineTo(w, y + w * 0.6);
+              g.lineTo(w, y + w * 0.6 + 14);
+              g.lineTo(0, y + 14);
+              g.fill();
+            }
+          });
+          stripeTex.wrapS = stripeTex.wrapT = THREE.RepeatWrapping;
+          stripeTex.repeat.set(1, 6);
+          // the swirl: six rainbow arms with white between them, drawn once
+          const swirlTex = (() => {
+            const S = 256,
+              cv = document.createElement("canvas");
+            cv.width = cv.height = S;
+            const g = cv.getContext("2d"),
+              img = g.createImageData(S, S),
+              ARMS = [0.93, 0.06, 0.14, 0.36, 0.52, 0.76];
+            const hsl = (hh, l) => {
+              const a = Math.min(l, 1 - l) * 0.95,
+                f = (n) => {
+                  const k = (n + hh * 12) % 12;
+                  return 255 * (l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)));
+                };
+              return [f(0), f(8), f(4)];
+            };
+            for (let y = 0; y < S; y++)
+              for (let x = 0; x < S; x++) {
+                const dx = x - S / 2 + 0.5,
+                  dy = y - S / 2 + 0.5,
+                  r = Math.hypot(dx, dy) / (S / 2),
+                  i = (y * S + x) * 4;
+                const f = (Math.atan2(dy, dx) / (2 * Math.PI) + r * 1.4 + 2) % 1,
+                  arm = Math.floor(f * 6),
+                  c =
+                    (f * 6) % 1 < 0.24
+                      ? [255, 248, 251]
+                      : hsl(ARMS[arm], 0.6 + 0.08 * (1 - r));
+                img.data[i] = c[0];
+                img.data[i + 1] = c[1];
+                img.data[i + 2] = c[2];
+                img.data[i + 3] = 255;
+              }
+            g.putImageData(img, 0, 0);
+            const t = new THREE.CanvasTexture(cv);
+            t.colorSpace = THREE.SRGBColorSpace;
+            return t;
+          })();
           for (const [list, mat, shadow] of [
             [pinks, GATE_PINK, true],
             [golds, GATE_GOLD, true],
-            [bulbs, SM(0xffd9a0, 2.2), false],
+            [
+              candy,
+              new THREE.MeshStandardMaterial({
+                map: stripeTex,
+                roughness: 0.35,
+                emissive: 0x401020,
+                emissiveIntensity: 0.4,
+              }),
+              true,
+            ],
+            [
+              swirls,
+              new THREE.MeshStandardMaterial({
+                map: swirlTex,
+                emissiveMap: swirlTex,
+                emissive: 0xffffff,
+                emissiveIntensity: 0.35,
+                roughness: 0.3,
+                side: THREE.DoubleSide,
+              }),
+              false,
+            ],
           ]) {
-            const m = new THREE.Mesh(mergeGeometries(list), mat);
+            const mm = new THREE.Mesh(mergeGeometries(list), mat);
             for (const g of list) g.dispose();
-            m.castShadow = shadow;
-            P.add(m);
+            mm.castShadow = shadow;
+            P.add(mm);
           }
-          // the name across the beam, on both faces
+          // 💡 the rainbow bulbs (and their glow at night) - they chase up both
+          // sides to the dip, see updateGate
+          const bulbs = new THREE.InstancedMesh(
+            new THREE.SphereGeometry(0.24, 10, 8),
+            new THREE.MeshBasicMaterial({ toneMapped: false }),
+            lights.length,
+          );
+          const glow = glowPoints(lights.length);
+          lights.forEach(([x, y, z], i) => {
+            dummy.position.set(x, y, z);
+            dummy.rotation.set(0, 0, 0);
+            dummy.scale.set(1, 1, 1);
+            dummy.updateMatrix();
+            bulbs.setMatrixAt(i, dummy.matrix);
+            bulbs.setColorAt(i, tmpColor.setHex(0xffffff));
+            glow.pos.set([x, y, z], i * 3);
+            glow.size[i] = 1.3;
+            glow.alpha[i] = 0.85;
+          });
+          glow.dirty();
+          P.add(bulbs);
+          // 🚩 rainbow bunting: two strings each side, from the heart out to the
+          // lollipop (a sagging string, a pennant every 1.15 m)
+          const RAINBOW = [
+            0xff4f93, 0xff8a3d, 0xffd23f, 0x5fd068, 0x38c8e8, 0x5b7cff, 0xa86bff,
+          ];
+          const strPts = [],
+            flagAt = [];
+          for (const s of [-1, 1])
+            for (const [t, b, sagM] of [
+              [1.65, [GX + s * POP_X, POP_H - POP_R - 0.8, POP_Z], 1.2],
+              [1.2, [GX + s * POP_X, POP_H + POP_R + 0.75, POP_Z], 1.5],
+            ]) {
+              const a = heartAt(s * t, GZ - FZ - 0.5),
+                len = Math.hypot(b[0] - a.x, b[1] - a.y, b[2] - a.z),
+                n = 24,
+                at = (u) => [
+                  a.x + (b[0] - a.x) * u,
+                  a.y + (b[1] - a.y) * u - sagM * 4 * u * (1 - u),
+                  a.z + (b[2] - a.z) * u,
+                ];
+              for (let k = 0; k < n; k++) strPts.push(...at(k / n), ...at((k + 1) / n));
+              const nf = Math.floor(len / 1.15);
+              for (let k = 1; k < nf; k++) flagAt.push(at(k / nf));
+            }
+          const strGeo = new THREE.BufferGeometry();
+          strGeo.setAttribute(
+            "position",
+            new THREE.Float32BufferAttribute(strPts, 3),
+          );
+          P.add(
+            new THREE.LineSegments(
+              strGeo,
+              new THREE.LineBasicMaterial({ color: 0xfff2f8 }),
+            ),
+          );
+          const flagGeo = new THREE.BufferGeometry();
+          flagGeo.setAttribute(
+            "position",
+            new THREE.Float32BufferAttribute(
+              [-0.45, 0, 0, 0.45, 0, 0, 0, -1, 0],
+              3,
+            ),
+          );
+          flagGeo.computeVertexNormals();
+          const flags = new THREE.InstancedMesh(
+            flagGeo,
+            new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }),
+            flagAt.length,
+          );
+          flagAt.forEach(([x, y, z], i) => {
+            dummy.position.set(x, y, z);
+            dummy.updateMatrix();
+            flags.setMatrixAt(i, dummy.matrix);
+            flags.setColorAt(i, tmpColor.setHex(RAINBOW[i % RAINBOW.length]));
+          });
+          P.add(flags);
+          // 🎈 the balloons, tied to their weights (they bob - see updateGate)
+          const balloons = new THREE.InstancedMesh(
+            new THREE.SphereGeometry(0.85, 16, 12).scale(1, 1.18, 1),
+            new THREE.MeshStandardMaterial({
+              roughness: 0.22,
+              metalness: 0.1,
+              emissive: 0x2a1a22,
+            }),
+            BAL.length,
+          );
+          BAL.forEach((b, i) =>
+            balloons.setColorAt(i, tmpColor.setHex(RAINBOW[(i * 3) % 7])),
+          );
+          const balStr = new THREE.BufferGeometry();
+          balStr.setAttribute(
+            "position",
+            new THREE.BufferAttribute(new Float32Array(BAL.length * 6), 3),
+          );
+          const balLines = new THREE.LineSegments(
+            balStr,
+            new THREE.LineBasicMaterial({ color: 0xffffff }),
+          );
+          balLines.frustumCulled = false;
+          P.add(balloons, balLines);
+          // ✨ sparkles drifting up round the heart
+          const sparks = glowPoints(90),
+            sp = [];
+          for (let i = 0; i < sparks.n; i++) {
+            sp.push([
+              GX + (Math.random() - 0.5) * 34,
+              GZ + (Math.random() - 0.5) * 8,
+              Math.random() * 30,
+              0.6 + Math.random() * 1.1,
+              Math.random() * 6.283,
+            ]);
+            tmpColor.setHex(RAINBOW[i % 7]);
+            sparks.col.set([tmpColor.r, tmpColor.g, tmpColor.b], i * 3);
+            sparks.size[i] = 0.35 + Math.random() * 0.3;
+          }
+          // the name, hung in the heart's middle from its dip
           const cv = document.createElement("canvas");
           cv.width = 1024;
-          cv.height = 216;
+          cv.height = 232;
           const sgc = cv.getContext("2d");
-          rrPath(sgc, 6, 6, 1012, 204, 40);
-          sgc.fillStyle = "#3a0f30";
+          rrPath(sgc, 7, 7, 1010, 218, 46);
+          const bg = sgc.createLinearGradient(0, 0, 0, 232);
+          bg.addColorStop(0, "#5a1648");
+          bg.addColorStop(1, "#2a0a26");
+          sgc.fillStyle = bg;
           sgc.fill();
-          sgc.lineWidth = 8;
-          sgc.strokeStyle = "#ffd166";
+          const rim = sgc.createLinearGradient(0, 0, 1024, 0);
+          ["#ff4f93", "#ff8a3d", "#ffd23f", "#5fd068", "#38c8e8", "#a86bff", "#ff4f93"].forEach((c, k, a) =>
+            rim.addColorStop(k / (a.length - 1), c),
+          );
+          sgc.lineWidth = 12;
+          sgc.strokeStyle = rim;
           sgc.stroke();
           sgc.textAlign = "center";
           sgc.textBaseline = "middle";
           sgc.shadowColor = "#ff5c9a";
-          sgc.shadowBlur = 26;
+          sgc.shadowBlur = 28;
           sgc.fillStyle = "#fff2f8";
-          sgc.font = `800 104px "Segoe UI", Tahoma, Arial, sans-serif`;
-          sgc.fillText("ROSE WORLD", 512, 86);
+          sgc.font = `800 112px "Segoe UI", Tahoma, Arial, sans-serif`;
+          sgc.fillText("ROSE WORLD", 512, 92);
           sgc.direction = "rtl";
           sgc.fillStyle = "#ffd166";
-          sgc.font = `700 52px "Segoe UI", Tahoma, Arial, sans-serif`;
-          sgc.fillText("♥ عالم روز ♥", 512, 168);
+          sgc.font = `700 54px "Segoe UI", Tahoma, Arial, sans-serif`;
+          sgc.fillText("♥ عالم روز ♥", 512, 180);
           const tex = new THREE.CanvasTexture(cv);
           tex.colorSpace = THREE.SRGBColorSpace;
           tex.anisotropy = 4;
-          const signGeo = new THREE.PlaneGeometry(20, 4.2),
+          const SIGN_Y = dip.y - 4.6,
+            signGeo = new THREE.PlaneGeometry(17, 3.85),
             signMat = new THREE.MeshBasicMaterial({ map: tex, transparent: true });
           for (const j of [-1, 1]) {
             const sg = new THREE.Mesh(signGeo, signMat);
-            sg.position.set(GX, (YT + YB) / 2, GZ + j * 1.3);
+            sg.position.set(GX, SIGN_Y, GZ + j * 0.06);
             sg.rotation.y = j < 0 ? Math.PI : 0; // (one faces the pier, one the city)
             P.add(sg);
           }
-          // and a big glowing heart on top
+          // its two gold chains up to the dip
+          const chains = [];
+          for (const sx of [-6, 6])
+            bar(chains, [GX + sx, SIGN_Y + 1.9, GZ], [dip.x, dip.y - 0.6, GZ], 0.12);
+          P.add(new THREE.Mesh(mergeGeometries(chains), GATE_GOLD));
+          // and a glowing heart sitting in the dip
           const heart = new THREE.Mesh(
             new THREE.ExtrudeGeometry(heartShape(), {
-              depth: 0.4,
+              depth: 0.5,
               bevelEnabled: true,
-              bevelThickness: 0.08,
-              bevelSize: 0.08,
+              bevelThickness: 0.1,
+              bevelSize: 0.1,
               bevelSegments: 2,
-            }).translate(0, 0.95, -0.2),
+            }).translate(0, 0.95, -0.25),
             SM(0xff2f6d, 1.8),
           );
-          heart.scale.setScalar(1.8);
-          heart.position.set(GX, H + 1.9, GZ);
+          heart.scale.setScalar(1.25);
+          heart.position.set(GX, dip.y + 1.6, GZ);
           P.add(heart);
+          Object.assign(GATE, {
+            x: GX,
+            z: GZ,
+            bulbs,
+            glow,
+            u: lights.map((l) => l[3]),
+            balloons,
+            balStr,
+            BAL,
+            sparks,
+            sp,
+          });
         }
+      }
+      // 🌹 the gate's bulbs chase up its sides in a rainbow, its balloons bob and
+      // the sparkles drift up - only while she's anywhere near it
+      function updateGate(dt, t) {
+        const G = GATE,
+          near =
+            Math.hypot(camera.position.x - G.x, camera.position.z - G.z) < 700;
+        if (near !== G.near) {
+          G.near = near;
+          G.glow.pts.visible = G.sparks.pts.visible = near;
+        }
+        if (!near) return;
+        G.acc += dt;
+        if (G.acc >= 1 / 30) {
+          G.acc = 0;
+          const col = G.glow.col;
+          for (let i = 0; i < G.u.length; i++) {
+            tmpColor.setHSL((((G.u[i] * 1.4 - t * 0.35) % 1) + 1) % 1, 1, 0.6);
+            G.bulbs.setColorAt(i, tmpColor);
+            col[i * 3] = tmpColor.r;
+            col[i * 3 + 1] = tmpColor.g;
+            col[i * 3 + 2] = tmpColor.b;
+          }
+          G.bulbs.instanceColor.needsUpdate = true;
+          G.glow.dirty();
+        }
+        const str = G.balStr.attributes.position.array;
+        G.BAL.forEach((b, i) => {
+          const x = b.x + Math.sin(t * 0.9 + b.ph) * 0.22,
+            y = b.y + Math.sin(t * 1.3 + b.ph) * 0.25,
+            z = b.z + Math.cos(t * 0.8 + b.ph) * 0.18;
+          dummy.position.set(x, y, z);
+          dummy.rotation.set(0, 0, Math.sin(t * 0.9 + b.ph) * 0.06);
+          dummy.scale.set(1, 1, 1);
+          dummy.updateMatrix();
+          G.balloons.setMatrixAt(i, dummy.matrix);
+          str.set([b.ax, 0.5, b.az, x, y - 1.0, z], i * 6);
+        });
+        G.balloons.instanceMatrix.needsUpdate = true;
+        G.balStr.attributes.position.needsUpdate = true;
+        const S = G.sparks;
+        for (let i = 0; i < S.n; i++) {
+          const [x, z, y0, v, ph] = G.sp[i];
+          S.pos[i * 3] = x + Math.sin(t * 0.5 + ph) * 0.8;
+          S.pos[i * 3 + 1] = 0.8 + ((y0 + t * v) % 30);
+          S.pos[i * 3 + 2] = z;
+          S.alpha[i] = 0.4 + 0.4 * Math.sin(t * 2.6 + ph * 3);
+        }
+        S.dirty();
       }
       const allLit = () => CAKE.flames.every((f) => f.lit);
       function relightCandles() {
@@ -22775,6 +23126,7 @@
         updateFootsteps();
         updateJetSound();
         updateCakeWay(dt, t);
+        updateGate(dt, t);
         updateCakeGuide(dt, t);
         updateLove(dt, t);
         updateCinema();
