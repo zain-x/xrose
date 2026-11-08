@@ -4740,19 +4740,17 @@
         "بحبك لأنك أمان قلبي مهما صار",
       ];
       // 🌠 the wishing star's wishes - dealt in a random order, never the same one
-      // twice until she has read them all (remembered between visits; "2" keys
-      // since the list went from 16 wishes to 11)
+      // twice until she has read them all (remembered between visits)
       const WISHES = [
         "بتمنى إنك تشوفي حالك بالعيون اللي بتحبك، وتعرفي قديش انتي إنسانة مميزة.",
         "بتمنى تعرفي انه في حدا بيفهمك حتى باللحظات اللي بتعجزي فيها عن التعبير.",
         "بتمنى إنك تضلي تضحكي ضحكتك الحلوة، لأنها من الأشياء اللي بتخلي الدنيا أحلى. وخاصة دنيتي",
-        "بتمنى إنك تحسي بالأمان الكافي بكل حالاتك وتفاصيلك.",
+        "بتمنى كل ايامك تكون راحة وامان وسعادة ونجاح",
         "بتمنى إنك تعرفي إن تفاصيلك الصغيرة إلها جمال يمكن إنتي نفسك ما بتنتبهي عليها.",
         "بتمنى إنك تعيشي حب يخلي قلبك مرتاح، وتكوني فيه حرة وقريبة بنفس الوقت.",
         "بتمنى إنك تحققي كل أحلامك، ويكون إلي نصيب أفرح معك فيها",
         "أحلى الاماني انه روحك بالاصل حلوة بكل هدوئها وجنونها وتناقضاتها.",
         "بتمنى إنك تضلي متل النجمة، تلمعي بطريقتك الخاصة، حتى لو ما انتبه كل العالم لضوّك.",
-        "بتمنى إنك تعرفي إن أجمل الأشياء بالحياة هي اللي بنختار نهتم فيها ونحافظ عليها من قلبنا",
         "بتمنى إنك تكوني سعيدة سعادة حقيقية، من النوع اللي بيبين بعيونك قبل ابتسامتك.",
       ];
       const MOODS = [
@@ -4881,27 +4879,27 @@
         screenBurst(["💝", "💗", "💞", "✨"]);
         track(`💝 Reason: ${r}`);
       }
+      // the wishes still to come this round, saved by their words - so when the
+      // list is edited, a saved round just drops the ones that are gone
       let wishBag = null;
       function nextWish() {
         if (!wishBag) {
           try {
             wishBag = JSON.parse(
-              localStorage.getItem("rose-wish-bag2") || "null",
+              localStorage.getItem("rose-wish-left") || "null",
             );
           } catch (e) {}
-          if (
-            !Array.isArray(wishBag) ||
-            wishBag.some((i) => !(i >= 0 && i < WISHES.length))
-          )
-            wishBag = [];
+          wishBag = Array.isArray(wishBag)
+            ? wishBag.filter((w) => WISHES.includes(w))
+            : [];
         }
-        let last = -1;
+        let last = null;
         try {
-          last = +(localStorage.getItem("rose-wish-last2") ?? -1);
+          last = localStorage.getItem("rose-wish-last-text");
         } catch (e) {}
         if (!wishBag.length) {
           // a fresh shuffle of all of them - and never the last one first
-          wishBag = WISHES.map((_, i) => i);
+          wishBag = [...WISHES];
           for (let i = wishBag.length - 1; i > 0; i--) {
             const j = (Math.random() * (i + 1)) | 0;
             [wishBag[i], wishBag[j]] = [wishBag[j], wishBag[i]];
@@ -4912,14 +4910,14 @@
               wishBag[0],
             ];
         }
-        const i = wishBag.pop();
+        const w = wishBag.pop();
         if (!wishBag.length) wishAskNext = true; // that was the last one → her turn next
         try {
-          localStorage.setItem("rose-wish-bag2", JSON.stringify(wishBag));
-          localStorage.setItem("rose-wish-last2", String(i));
+          localStorage.setItem("rose-wish-left", JSON.stringify(wishBag));
+          localStorage.setItem("rose-wish-last-text", w);
           localStorage.setItem("rose-wish-ask", wishAskNext ? "1" : "0");
         } catch (e) {}
-        return WISHES[i];
+        return w;
       }
       // once she has read them all, the star asks for hers - no button, just the
       // question; the next time she comes, a new round begins
@@ -4956,7 +4954,7 @@
           return;
         }
         const w = nextWish();
-        // where she is in the round: « أمنية 3 من 11 » and a row of little stars
+        // where she is in the round: « أمنية 3 من 10 » and a row of little stars
         const n = WISHES.length - wishBag.length,
           N = WISHES.length;
         const dots = WISHES.map(
