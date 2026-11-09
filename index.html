@@ -2961,6 +2961,10 @@
       // lots empty (they're built later, see "ROSE PLAZAS & STREET CAFÉS").
       // 🎹 the Rosmantic Music hall (built in the "ROSMANTIC MUSIC" section)
       const MUSIC_LOT = [-1, -2];
+      // 🚁 Rose Heliport: a tower of its own between the wishing star's plaza and
+      // the next one, a helipad on its flat roof (see "ROSE HELIPORT")
+      const HELI_LOT = [1, -2],
+        HELI_H = 46.5;
       // 🌠 the wishing star's own little plaza, right beside the music hall
       const WISH_LOT = [0, -2];
       const PLAZA_LOTS = [
@@ -3047,6 +3051,24 @@
         if (inAirport(gx, gz)) return null; // ✈️ Rose Airfield - a clearing in the towers
         if (inPark(gx, gz)) return null; // 🌳 Rose Park - a WIDE green clearing with the playgrounds
         if (clearedLot(gx, gz)) return null; // 🌹 a rose plaza or a street café lives here
+        if (gx === HELI_LOT[0] && gz === HELI_LOT[1]) {
+          // 🚁 the heliport: square, flat-topped, pale pink with pink neon
+          const c = tmpColor.setHex(BODY[6]);
+          return {
+            x: gx * TILE + TILE / 2,
+            z: gz * TILE + TILE / 2,
+            fw: BUILD,
+            fd: BUILD,
+            topW: BUILD,
+            topD: BUILD,
+            roof: HELI_H,
+            neon: NEON[0],
+            body: [c.r, c.g, c.b],
+            tiers: [{ w: BUILD, d: BUILD, h: HELI_H }],
+            masts: [],
+            heli: true,
+          };
+        }
         const ds = DISTRICT_STYLE[districtLot(gx, gz)];
         if (hash(gx, gz, 1) < ds.empty) return null; // the odd empty lot - open sky
         const h1 = hash(gx, gz, 2);
@@ -3925,6 +3947,8 @@
               );
 
             // ♥ floating روز / Rose sign - each building gets one of the colourful variants
+            // (the heliport has its name on its walls - its roof is the helipad)
+            if (spec.heli) continue;
             const lv = (hash(gx, gz, 12) * LABEL_MATS.length) | 0;
             const sign = new THREE.Sprite(LABEL_MATS[lv]);
             const lw = 16,
@@ -4941,6 +4965,7 @@
         if (nearVehicle === "parked") return takeParked(nearParked);
         if (girl.rest) return standUp();
         if (nearVehicle === "plane") return enterPlane();
+        if (nearVehicle === "heli") return enterCar(heli);
         if (nearVehicle === "ski") return enterCar(nearSki);
         if (nearVehicle === "boat") return enterCar(boat);
         if (nearMusic === "piano") return openPianoPanel();
@@ -10353,6 +10378,11 @@
           drv.kz = nz * 30;
           drv.speed *= 0.2;
           if (drv.flames && (drv.jet || drv.pos.y > 0.6)) drv.vy += 9 * up;
+          if (drv.heli) {
+            drv.vx *= 0.3;
+            drv.vz *= 0.3;
+            drv.vy += 6 * up;
+          }
         } else if (vehMode === "plane") {
           plane.kx = nx * 36;
           plane.kz = nz * 36;
@@ -15380,10 +15410,12 @@
         pitch = -0.16;
         vehHud.style.display = "block";
         promptEl.classList.remove("show");
-        if (!rig.boat || rig.ski) startEngine(); // (the swan is pedalled - no engine)
+        if ((!rig.boat || rig.ski) && !rig.heli) startEngine(); // (the swan is pedalled - no engine; the helicopter has its rotor)
         radioOn("car"); // 📻
         track(
-          rig.ski
+          rig.heli
+            ? "🚁 Flying the Rose helicopter"
+            : rig.ski
             ? "🚤 Took a jet ski"
             : rig.boat
               ? "🦢 Took the swan boat"
@@ -15569,6 +15601,7 @@
           }
       }
       function updateCar(dt) {
+        if (drv.heli) return updateHeli(dt); // 🚁 a helicopter flies its own way
         let thr = 0,
           brk = 0,
           steerIn = 0,
@@ -16175,6 +16208,7 @@
           else if (streetCar.active && girl.pos.distanceTo(streetCar.pos) < 4.2)
             nearVehicle = "street";
           else if (girl.pos.distanceTo(plane.pos) < 10) nearVehicle = "plane";
+          else if (girl.pos.distanceTo(heli.pos) < 6) nearVehicle = "heli";
           else if (girl.pos.distanceTo(boat.pos) < 6.5) nearVehicle = "boat";
           else if ((nearSki = SKIS.find((s) => girl.pos.distanceTo(s.pos) < 5.5)))
             nearVehicle = "ski";
@@ -16238,6 +16272,10 @@
                     ? isTouch
                       ? "🚤 Jet ski"
                       : "🚤 F: Jet ski"
+                  : nearVehicle === "heli"
+                    ? isTouch
+                      ? "🚁 Rose Helicopter"
+                      : "🚁 F: Rose Helicopter"
                   : isTouch
                     ? "🚗 Drive"
                     : "🚗 F: Drive";
@@ -16264,7 +16302,7 @@
           const exitHint = isTouch ? "" : " · F للنزول";
           const txt =
             vehMode === "car"
-              ? `${drv.ski ? "🚤 Jet ski · " : drv.boat ? "🦢 Swan boat · " : (drv.jet ? "🚀 " : "🚗 ") + (drv.vip ? "Rose VIP · " : "")}${kmh} km/h${drv.pos.y > 0.6 ? ` · ⬆ ${Math.round(drv.pos.y)}m` : ""}${exitHint}`
+              ? `${drv.heli ? "🚁 Rose Heli · " : drv.ski ? "🚤 Jet ski · " : drv.boat ? "🦢 Swan boat · " : (drv.jet ? "🚀 " : "🚗 ") + (drv.vip ? "Rose VIP · " : "")}${kmh} km/h${drv.pos.y > 0.6 ? ` · ⬆ ${Math.round(drv.pos.y)}m` : ""}${exitHint}`
               : `🛩️ Rose Plane · ${kmh} km/h · ⬆ ${Math.max(0, Math.round(plane.pos.y - PLANE_GEAR))}m${exitHint}`;
           if (txt !== lastVehHud) {
             vehHud.textContent = txt;
@@ -16292,6 +16330,8 @@
                         ? "🦢"
                         : nearVehicle === "ski"
                           ? "🚤"
+                          : nearVehicle === "heli"
+                            ? "🚁"
                         : girl.rest
                           ? "🌸"
                           : nearResort
@@ -16676,7 +16716,8 @@
                   1,
                 );
             }
-            // ---- rooftops
+            // ---- rooftops (the heliport's is all helipad)
+            if (spec.heli) continue;
             const H = spec.roof;
             if (!spec.masts.length && H >= 70 && hash(gx, gz, 70) < 0.35) {
               const r = Math.min(spec.topW, spec.topD) * 0.46;
@@ -20249,6 +20290,554 @@
         }
       }
 
+      // ============================================================================
+      // 🚁 ROSE HELIPORT - a tower near the start with a helipad on its roof and
+      // Rose's own helicopter waiting on it; a lift at its door takes her up and
+      // down. The helicopter flies simply and smoothly: W / S (or the stick)
+      // forward & back, A / D turn, Space / ▲ climb, C / ▼ down, Shift / ⚡
+      // faster - let go and it holds its place in the air. It noses down into
+      // its flight and banks into turns, sets down on any roof, skyway or street,
+      // keeps out of the towers and turns back at the edge of the world.
+      // ============================================================================
+      const PAD = (() => {
+        const s = towerSpec(HELI_LOT[0], HELI_LOT[1]);
+        return { x: s.x, z: s.z, y: s.roof, half: s.fw / 2 };
+      })();
+      {
+        // the helipad: the big H in its rings, with lights round its edge
+        const pad = new THREE.Mesh(
+          new THREE.CircleGeometry(7.4, 48).rotateX(-Math.PI / 2),
+          new THREE.MeshStandardMaterial({
+            map: padTex,
+            emissiveMap: padTex,
+            emissive: 0xffffff,
+            emissiveIntensity: 0.55,
+            roughness: 0.7,
+          }),
+        );
+        pad.position.set(PAD.x, PAD.y + 0.05, PAD.z);
+        pad.receiveShadow = true;
+        scene.add(pad);
+        const lights = [];
+        for (let k = 0; k < 16; k++) {
+          const a = (k / 16) * Math.PI * 2;
+          lights.push(
+            new THREE.SphereGeometry(0.14, 8, 6).translate(
+              PAD.x + Math.cos(a) * 7.9,
+              PAD.y + 0.15,
+              PAD.z + Math.sin(a) * 7.9,
+            ),
+          );
+        }
+        scene.add(new THREE.Mesh(mergeGeometries(lights), SM(0xbfffd0, 2.2)));
+        // ROSE in pink neon high on its north and south walls
+        const cv = document.createElement("canvas");
+        cv.width = 1024;
+        cv.height = 288;
+        const g = cv.getContext("2d");
+        g.textAlign = "center";
+        g.textBaseline = "middle";
+        g.shadowColor = "#ff3d86";
+        g.shadowBlur = 34;
+        g.fillStyle = "#fff0f6";
+        g.font = `900 176px "Segoe UI", Tahoma, Arial, sans-serif`;
+        g.fillText("ROSE", 512, 118);
+        g.fillStyle = "#ffd166";
+        g.shadowColor = "#ffb000";
+        g.font = `700 58px "Segoe UI", Tahoma, Arial, sans-serif`;
+        g.fillText("♥ HELIPORT ♥", 512, 236);
+        const tex = new THREE.CanvasTexture(cv);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.anisotropy = 4;
+        const signGeo = new THREE.PlaneGeometry(15, 4.2),
+          signMat = new THREE.MeshBasicMaterial({
+            map: tex,
+            transparent: true,
+            depthWrite: false,
+            toneMapped: false,
+          });
+        for (const s of [1, -1]) {
+          const sg = new THREE.Mesh(signGeo, signMat);
+          sg.position.set(PAD.x, PAD.y - 4.2, PAD.z + s * (PAD.half + 0.15));
+          sg.rotation.y = s > 0 ? 0 : Math.PI;
+          scene.add(sg);
+        }
+        // the lift door at the foot of its north wall (toward the street)
+        const door = new THREE.Mesh(
+          new THREE.BoxGeometry(2.4, 3.1, 0.12),
+          SM(0xffb3d1, 0.9),
+        );
+        door.position.set(PAD.x, 1.55, PAD.z + PAD.half + 0.06);
+        scene.add(door);
+        const ds = textPlane(
+          "المصعد ↑ مهبط الطيارة",
+          "LIFT ↑ HELIPAD",
+          4.2,
+          1.2,
+          "#4a1238",
+          "#fff2f8",
+          "#ff9ec2",
+        );
+        ds.position.set(PAD.x, 3.9, PAD.z + PAD.half + 0.14);
+        scene.add(ds);
+      }
+      // 🛗 the lift: up to the helipad, or back down to the door
+      function liftTo(up) {
+        girl.pos.set(PAD.x, up ? PAD.y + 0.05 : 0, PAD.z + (up ? PAD.half - 2.2 : PAD.half + 2.2));
+        vel.set(0, 0, 0);
+        girl.grounded = false;
+        girl.climbing = false;
+        girl.yaw = up ? Math.PI : 0; // (facing the helicopter / the street)
+        yaw = girl.yaw + Math.PI; // (the camera behind her)
+        screenBurst(["🛗", "✨"], 8);
+        if (up)
+          bdayCaption("🚁 Rose Heliport", "the helicopter is yours - fly it!", 3);
+        track(up ? "🛗 Took the lift up to the helipad" : "🛗 Took the lift down");
+      }
+      RESORT_SPOTS.push(
+        {
+          x: PAD.x,
+          z: PAD.z + PAD.half + 2.2,
+          r: 2.6,
+          icon: "🛗",
+          label: () => "Lift to the helipad",
+          use: () => liftTo(true),
+        },
+        {
+          x: PAD.x,
+          z: PAD.z + PAD.half - 2.2,
+          y: PAD.y,
+          r: 2.4,
+          icon: "🛗",
+          label: () => "Lift down",
+          use: () => liftTo(false),
+        },
+      );
+      // the helicopter: pearl white with a rose-pink belt, tail and fin, a tinted
+      // bubble canopy, gold skids, « ROSE ♥ » down both sides of the tail boom,
+      // a heart on the nose and blinking lights (nose = +Z, skids at y = 0)
+      const heli = (() => {
+        const g = new THREE.Group();
+        const WHITE_H = new THREE.MeshStandardMaterial({
+          color: 0xfdfbfd,
+          roughness: 0.3,
+          metalness: 0.2,
+          emissive: 0x3a3038,
+          emissiveIntensity: 0.4,
+        });
+        const sph = (sx, sy, sz, x, y, z) =>
+          new THREE.SphereGeometry(1, 28, 18).scale(sx, sy, sz).translate(x, y, z);
+        const whites = [
+          sph(1.15, 1.05, 2.0, 0, 1.55, 0.2), // the cabin
+          sph(0.55, 0.32, 1.05, 0, 2.5, -0.6), // the engine cowling
+          new THREE.CylinderGeometry(0.16, 0.34, 4.6, 14)
+            .rotateX(Math.PI / 2)
+            .translate(0, 1.85, -3.4), // the tail boom
+        ];
+        const pinks = [
+          sph(1.17, 0.36, 2.03, 0, 1.15, 0.2), // the belt round the cabin
+          new THREE.BoxGeometry(0.1, 1.35, 0.85).translate(0, 2.45, -5.6), // the fin
+          new THREE.BoxGeometry(1.6, 0.08, 0.45).translate(0, 1.9, -5.0), // the tailplane
+        ];
+        const golds = [
+          new THREE.CylinderGeometry(0.12, 0.16, 0.5, 12).translate(0, 2.75, 0.1), // the mast
+        ];
+        for (const sx of [-1, 1]) {
+          golds.push(
+            new THREE.CylinderGeometry(0.06, 0.06, 3.4, 10)
+              .rotateX(Math.PI / 2)
+              .translate(sx * 0.95, 0.12, 0.1), // a skid
+            new THREE.CylinderGeometry(0.06, 0.06, 0.45, 10)
+              .rotateX(-0.9)
+              .translate(sx * 0.95, 0.25, 1.95), // its turned-up toe
+          );
+          for (const z of [-0.8, 0.9])
+            golds.push(
+              new THREE.CylinderGeometry(0.05, 0.05, 0.95, 8)
+                .rotateZ(sx * 0.35)
+                .translate(sx * 0.8, 0.55, z), // a strut
+            );
+        }
+        const add = (list, mat, shadow = true) => {
+          const m = new THREE.Mesh(mergeGeometries(list), mat);
+          for (const q of list) q.dispose();
+          m.castShadow = shadow;
+          g.add(m);
+          return m;
+        };
+        add(whites, WHITE_H);
+        add(pinks, PLANE_PINK);
+        add(golds, PLANE_GOLD);
+        add([sph(1.05, 0.82, 1.25, 0, 1.78, 0.95)], PLANE_GLASS); // the canopy
+        // the main rotor: four long blades on a hub, and a soft disc as it spins
+        const rotor = new THREE.Group();
+        rotor.position.set(0, 3.02, 0.1);
+        const blades = [new THREE.CylinderGeometry(0.22, 0.22, 0.18, 12)];
+        for (let k = 0; k < 4; k++)
+          blades.push(
+            new THREE.BoxGeometry(0.28, 0.05, 5.0)
+              .translate(0, 0, 2.6)
+              .rotateY((k * Math.PI) / 2),
+          );
+        const BLADE = new THREE.MeshStandardMaterial({
+          color: 0x3a3440,
+          roughness: 0.5,
+          metalness: 0.4,
+        });
+        rotor.add(new THREE.Mesh(mergeGeometries(blades), BLADE));
+        const disc = new THREE.Mesh(
+          new THREE.CircleGeometry(5.2, 40).rotateX(-Math.PI / 2),
+          new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            transparent: true,
+            opacity: 0,
+            depthWrite: false,
+          }),
+        );
+        rotor.add(disc);
+        g.add(rotor);
+        const tailRotor = new THREE.Group();
+        tailRotor.position.set(0.16, 2.4, -5.65);
+        tailRotor.add(
+          new THREE.Mesh(
+            mergeGeometries([
+              new THREE.BoxGeometry(0.05, 1.15, 0.13),
+              new THREE.BoxGeometry(0.05, 0.13, 1.15),
+            ]),
+            BLADE,
+          ),
+        );
+        g.add(tailRotor);
+        // « ROSE ♥ » down both sides of the tail boom
+        const cv = document.createElement("canvas");
+        cv.width = 512;
+        cv.height = 128;
+        const c = cv.getContext("2d");
+        c.textAlign = "center";
+        c.textBaseline = "middle";
+        c.fillStyle = "#ff3d86";
+        c.font = `900 92px "Segoe UI", Tahoma, Arial, sans-serif`;
+        c.fillText("ROSE ♥", 256, 68);
+        const nameTex = new THREE.CanvasTexture(cv);
+        nameTex.colorSpace = THREE.SRGBColorSpace;
+        const nameMat = new THREE.MeshBasicMaterial({
+          map: nameTex,
+          transparent: true,
+          depthWrite: false,
+        });
+        for (const sx of [-1, 1]) {
+          const n = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 0.5), nameMat);
+          n.position.set(sx * 0.3, 1.86, -2.9);
+          n.rotation.y = sx * (Math.PI / 2);
+          g.add(n);
+        }
+        // a glowing heart on the nose, a red beacon, red & green side lights
+        const heart = new THREE.Mesh(
+          new THREE.ExtrudeGeometry(heartShape(), { depth: 0.06, bevelEnabled: false })
+            .translate(0, 0.95, 0)
+            .scale(0.22, 0.22, 1),
+          SM(0xff2f6d, 1.6),
+        );
+        heart.position.set(0, 1.25, 2.12);
+        g.add(heart);
+        const beaconMat = RM(0x400818, { emissive: 0xff2040, emissiveIntensity: 0.4 });
+        const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 8), beaconMat);
+        beacon.position.set(0, 2.05, -2.3);
+        g.add(beacon);
+        for (const [sx, col] of [
+          [1, 0xff3040],
+          [-1, 0x40ff80],
+        ]) {
+          const l = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), SM(col, 2));
+          l.position.set(sx * 1.15, 1.45, 0.3);
+          g.add(l);
+        }
+        const yaw0 = Math.PI; // (nose toward the lift and the street… turned on the pad)
+        const pos = new THREE.Vector3(PAD.x, PAD.y, PAD.z - 1);
+        g.position.copy(pos);
+        g.rotation.y = yaw0;
+        scene.add(g);
+        return {
+          g,
+          pos,
+          yaw: yaw0,
+          speed: 0,
+          steer: 0,
+          wheels: [],
+          lamps: [],
+          tail: beacon,
+          tailMat: beaconMat,
+          headMat: beaconMat,
+          paint: PLANE_PINK,
+          vip: false,
+          heli: true,
+          vx: 0,
+          vy: 0,
+          vz: 0,
+          yawRate: 0,
+          spool: 0,
+          grounded: true,
+          tiltX: 0,
+          tiltZ: 0,
+          rotor,
+          tailRotor,
+          disc,
+          beaconMat,
+          homing: false,
+        };
+      })();
+      // the helicopter's body keeps out of the towers (and the music hall, the
+      // gate's feet…); just under a roof's edge it rises onto the roof
+      function heliCollide(p, r) {
+        let hit = false;
+        const gx0 = Math.floor(p.x / TILE),
+          gz0 = Math.floor(p.z / TILE);
+        for (let gx = gx0 - 1; gx <= gx0 + 1; gx++)
+          for (let gz = gz0 - 1; gz <= gz0 + 1; gz++) {
+            const spec = towerSpec(gx, gz);
+            if (!spec) continue;
+            for (const t of spec.tiers) {
+              if (p.y >= t.h - 0.3) continue;
+              const hw = t.w / 2 + r,
+                hd = t.d / 2 + r,
+                dx = p.x - spec.x,
+                dz = p.z - spec.z;
+              if (Math.abs(dx) >= hw || Math.abs(dz) >= hd) continue;
+              if (t.h - p.y < 1.5) {
+                p.y = t.h;
+                continue;
+              }
+              const px = dx >= 0 ? hw - dx : -(hw + dx),
+                pz = dz >= 0 ? hd - dz : -(hd + dz);
+              if (Math.abs(px) < Math.abs(pz)) p.x += px;
+              else p.z += pz;
+              hit = true;
+            }
+          }
+        if (p.y < HALL.h + 0.5 && hallPush(p, r)) hit = true;
+        if (airPush(p, r)) hit = true;
+        return hit;
+      }
+      // what it sets down on under (x, z): a roof, a skyway, the street - and over
+      // the sea it only hovers, 1.5 m up
+      const heliFloor = (p) =>
+        Math.max(
+          roofUnder(p.x, p.z, p.y),
+          skyUnder(p.x, p.z, p.y, 0.5),
+          coastDist(p.x, p.z) > -1 ? 1.5 : 0,
+        );
+      // ✈ flying it (from updateCar while she's at the controls)
+      function updateHeli(dt) {
+        const H = heli;
+        let fwd = 0,
+          turn = 0,
+          lift = 0,
+          boost = false;
+        if (!uiPaused) {
+          fwd =
+            (keys["KeyW"] || keys["ArrowUp"] ? 1 : 0) -
+            (keys["KeyS"] || keys["ArrowDown"] ? 1 : 0) -
+            joyY;
+          turn =
+            (keys["KeyA"] || keys["ArrowLeft"] ? 1 : 0) -
+            (keys["KeyD"] || keys["ArrowRight"] ? 1 : 0) -
+            joyX;
+          lift =
+            (keys["Space"] || touchUp ? 1 : 0) -
+            (keys["KeyC"] || keys["ControlLeft"] || touchDown ? 1 : 0);
+          boost = keys["ShiftLeft"] || keys["ShiftRight"] || touchBoost;
+        }
+        fwd = clamp(fwd, -1, 1);
+        turn = clamp(turn, -1, 1);
+        // 🌊 the edge of Rose World, as for the plane and the boats
+        const sea = coastDist(H.pos.x, H.pos.z);
+        if (!H.homing && sea > PLANE_SEA) {
+          H.homing = true;
+          bdayCaption("↩️ Rose World", "the helicopter turns back to the island", 3);
+        } else if (H.homing && sea < PLANE_HOME) H.homing = false;
+        if (H.homing) {
+          let dyaw = Math.atan2(LAND_CX - H.pos.x, LAND_CZ - H.pos.z) - H.yaw;
+          dyaw = Math.atan2(Math.sin(dyaw), Math.cos(dyaw));
+          turn = clamp(dyaw * 2.5, -1, 1);
+          fwd = Math.max(fwd, 0.8);
+        }
+        // the rotor runs up as she takes the controls (≈1.7 s)
+        H.spool = Math.min(1, H.spool + dt * 0.6);
+        // turning: a smooth yaw rate (gentler on the ground)
+        H.yawRate += (turn * (H.grounded ? 0.6 : 1.4) - H.yawRate) * Math.min(1, dt * 4);
+        H.yaw += H.yawRate * dt;
+        // lifting off: climb, or just fly away
+        if (H.grounded && (lift > 0 || Math.abs(fwd) > 0.2) && H.spool > 0.75) {
+          H.grounded = false;
+          H.vy = Math.max(H.vy, 3.5);
+        }
+        const fx = Math.sin(H.yaw),
+          fz = Math.cos(H.yaw);
+        if (H.grounded) H.vx = H.vy = H.vz = 0;
+        else {
+          // it eases toward the speed she asks for - and holds still when she lets go
+          const vmax = boost ? 52 : 30,
+            k = Math.min(1, dt * (fwd ? 1.1 : 1.6));
+          H.vx += (fx * fwd * vmax - H.vx) * k;
+          H.vz += (fz * fwd * vmax - H.vz) * k;
+          H.vy += (lift * (lift > 0 ? 9 : 7) - H.vy) * Math.min(1, dt * 2.5);
+        }
+        H.pos.x += H.vx * dt;
+        H.pos.y += H.vy * dt;
+        H.pos.z += H.vz * dt;
+        applyKick(H, dt); // 🎈💥 shoved by a balloon she burst
+        if (heliCollide(H.pos, 3.2)) {
+          const hs = Math.hypot(H.vx, H.vz);
+          if (hs > 15 && nowS() - lastCrashT > 1.2) {
+            lastCrashT = nowS();
+            screenBurst(["💥", "💫"], 6);
+          }
+          H.vx *= 0.3;
+          H.vz *= 0.3;
+        }
+        if (H.pos.y > 300) {
+          H.pos.y = 300;
+          H.vy = Math.min(0, H.vy);
+        }
+        const floor = heliFloor(H.pos);
+        if (H.pos.y <= floor) {
+          if (H.vy < -7 && nowS() - lastCrashT > 1.2) {
+            lastCrashT = nowS();
+            screenBurst(["💥", "💫"], 6);
+          }
+          H.pos.y = floor;
+          H.vy = Math.max(0, H.vy);
+          // set down softly onto its skids (never on the water)
+          if (lift <= 0 && Math.abs(fwd) < 0.1 && Math.hypot(H.vx, H.vz) < 4 && coastDist(H.pos.x, H.pos.z) < -1)
+            H.grounded = true;
+        }
+        H.speed = Math.hypot(H.vx, H.vz);
+        heliPose(dt, fwd);
+        // the chase camera: behind and above, settling back behind it
+        const recent = nowS() - lastLookT < 1.3;
+        yaw = angLerp(yaw, H.yaw + Math.PI, dt * (recent ? 0.6 : 2.6));
+        pitch += (-0.22 - pitch) * Math.min(1, dt * (recent ? 0.4 : 2));
+        pitch = clamp(pitch, -1.1, 0.6);
+        const tx = H.pos.x,
+          ty = H.pos.y + 2.2,
+          tz = H.pos.z,
+          cp = Math.cos(pitch),
+          d = 15;
+        camera.position.set(
+          tx + Math.sin(yaw) * cp * d,
+          ty + Math.sin(-pitch) * d * 0.6 + 1.5,
+          tz + Math.cos(yaw) * cp * d,
+        );
+        pushOutPoint(camera.position, 0.7);
+        if (camera.position.y < 1.3) camera.position.y = 1.3;
+        camera.lookAt(tx, ty, tz);
+      }
+      // its look: nose down into its flight, banked into turns, level on the
+      // ground; the rotors spin with the engine, the beacon blinks
+      function heliPose(dt, fwd) {
+        const H = heli,
+          fx = Math.sin(H.yaw),
+          fz = Math.cos(H.yaw),
+          vf = H.vx * fx + H.vz * fz;
+        const tx = H.grounded ? 0 : clamp((vf / 30) * 0.22 + fwd * 0.06, -0.3, 0.3),
+          tz = H.grounded
+            ? 0
+            : clamp(-H.yawRate * Math.min(1, Math.abs(vf) / 15) * 0.35, -0.4, 0.4);
+        H.tiltX += (tx - H.tiltX) * Math.min(1, dt * 3);
+        H.tiltZ += (tz - H.tiltZ) * Math.min(1, dt * 3);
+        H.g.position.copy(H.pos);
+        H.g.rotation.set(H.tiltX, H.yaw, H.tiltZ, "YXZ");
+        H.rotor.rotation.y += H.spool * 26 * dt;
+        H.tailRotor.rotation.x += H.spool * 40 * dt;
+        H.disc.material.opacity = 0.16 * H.spool * H.spool;
+        H.beaconMat.emissiveIntensity = H.spool > 0.05 && nowS() % 1.2 < 0.15 ? 3 : 0.4;
+      }
+      // left alone: on the ground the rotor winds down; left in the air it lets
+      // itself down gently onto whatever is below - and over the sea it first
+      // flies itself back over the land
+      function heliIdle(dt) {
+        const H = heli;
+        if (!H.grounded) {
+          const overSea = coastDist(H.pos.x, H.pos.z) > -6;
+          if (overSea) {
+            const dx = LAND_CX - H.pos.x,
+              dz = LAND_CZ - H.pos.z,
+              dl = Math.hypot(dx, dz) || 1,
+              k = Math.min(1, dt * 1.2);
+            H.vx += ((dx / dl) * 12 - H.vx) * k;
+            H.vz += ((dz / dl) * 12 - H.vz) * k;
+            H.yaw = angLerp(H.yaw, Math.atan2(dx, dz), Math.min(1, dt * 2));
+          } else {
+            const k = Math.exp(-dt * 1.5);
+            H.vx *= k;
+            H.vz *= k;
+          }
+          H.vy += ((overSea ? (H.pos.y < 8 ? 2 : 0) : -4) - H.vy) * Math.min(1, dt * 2);
+          H.pos.x += H.vx * dt;
+          H.pos.y += H.vy * dt;
+          H.pos.z += H.vz * dt;
+          heliCollide(H.pos, 3.2);
+          const floor = heliFloor(H.pos);
+          if (H.pos.y <= floor) {
+            H.pos.y = floor;
+            H.vy = 0;
+            if (coastDist(H.pos.x, H.pos.z) < -1) H.grounded = true;
+          }
+        } else H.spool = Math.max(0, H.spool - dt * 0.25);
+        H.yawRate *= Math.exp(-dt * 3);
+        H.speed = 0;
+        heliPose(dt, 0);
+      }
+      // 🔊 the rotor's beat: filtered noise, pulsed by the blades
+      let heliSrc = null,
+        heliGain = null,
+        heliLfo = null;
+      function heliSound() {
+        const ctx = hallCtx,
+          H = heli;
+        if (!ctx) return;
+        const d = Math.hypot(camera.position.x - H.pos.x, camera.position.z - H.pos.z),
+          want =
+            radioQuiet() || H.spool < 0.02
+              ? 0
+              : H.spool * 0.05 * clamp(1 - (d - 20) / 180, 0, 1);
+        if (!heliSrc) {
+          if (want <= 0) return;
+          const n = ctx.sampleRate * 2,
+            buf = ctx.createBuffer(1, n, ctx.sampleRate),
+            dd = buf.getChannelData(0);
+          for (let i = 0; i < n; i++) dd[i] = Math.random() * 2 - 1;
+          heliSrc = ctx.createBufferSource();
+          heliSrc.buffer = buf;
+          heliSrc.loop = true;
+          const lp = ctx.createBiquadFilter();
+          lp.type = "lowpass";
+          lp.frequency.value = 420;
+          const pulse = ctx.createGain();
+          pulse.gain.value = 0.55;
+          heliLfo = ctx.createOscillator();
+          heliLfo.frequency.value = 10;
+          const depth = ctx.createGain();
+          depth.gain.value = 0.45;
+          heliLfo.connect(depth);
+          depth.connect(pulse.gain);
+          heliGain = ctx.createGain();
+          heliGain.gain.value = 0;
+          heliSrc.connect(lp);
+          lp.connect(pulse);
+          pulse.connect(heliGain);
+          heliGain.connect(ctx.destination);
+          heliSrc.start();
+          heliLfo.start();
+        }
+        heliGain.gain.setTargetAtTime(want, ctx.currentTime, 0.2);
+        heliLfo.frequency.setTargetAtTime(6 + 7 * H.spool, ctx.currentTime, 0.3);
+      }
+      function updateHeliWorld(dt) {
+        if (!(vehMode === "car" && drv === heli)) heliIdle(dt);
+        heliSound();
+      }
+
       // ---- resting: loungers, hammocks, the spa bed, a dinner table, the dance floor
       function rest(r) {
         girl.rest = r;
@@ -23746,6 +24335,7 @@
         updateCakeWay(dt, t);
         updateGate(dt, t);
         updateSkis(dt, t);
+        updateHeliWorld(dt);
         updateCakeGuide(dt, t);
         updateLove(dt, t);
         updateCinema();
@@ -25334,7 +25924,7 @@
           k = Math.max(0.75, Math.min(1.3, s / 0.44)); // marker size
         openPanel(`<h2 class="map-h">🗺️ خريطة Rose World</h2>
     <canvas id="map-cv" style="width:${cw}px;height:${ch}px"></canvas>
-    <div class="map-key"><span><i class="me"></i> انتي هون</span><span><i class="sp"></i> مفاجآت</span><span>🎂 كيكتك</span><span>🎹 الموسيقى</span><span>🚗 السيارة</span><span>🛩️ الطيارة</span><span>🚤 موتور مائي</span><span><i class="sky"></i> جسر السيارة</span></div>`);
+    <div class="map-key"><span><i class="me"></i> انتي هون</span><span><i class="sp"></i> مفاجآت</span><span>🎂 كيكتك</span><span>🎹 الموسيقى</span><span>🚗 السيارة</span><span>🛩️ الطيارة</span><span>🚤 موتور مائي</span><span>🚁 الهليكوبتر</span><span><i class="sky"></i> جسر السيارة</span></div>`);
         panelCard.classList.add("map");
         track("🗺️ Opened the map");
         // north up: +z at the top, so +x runs to the left (a turn, not a mirror)
@@ -25453,6 +26043,7 @@
         if (!(vehMode === "car" && drv === boat)) icon("🦢", boat.pos.x, boat.pos.z, 12 * k, false);
         for (const s of SKIS)
           if (!(vehMode === "car" && drv === s)) icon("🚤", s.pos.x, s.pos.z, 12 * k, false);
+        if (!driving(heli)) icon("🚁", heli.pos.x, heli.pos.z, 14 * k);
         if (!driving(car)) icon("🚗", car.pos.x, car.pos.z, 14 * k);
         if (vehMode !== "plane") icon("🛩️", plane.pos.x, plane.pos.z, 14 * k);
         for (const sp of surprises)
@@ -25487,6 +26078,14 @@
             [0.8, -1.3],
             [-0.8, 1.3],
             [0.8, 1.3],
+            [0, -3.4],
+            [0, 3.4],
+            [-1.6, 0],
+            [1.6, 0],
+            [-1.6, -2],
+            [1.6, -2],
+            [-1.6, 2],
+            [1.6, 2],
           ]) {
             const x = Math.max(w, Math.min(cw - w, px + ox * w)),
               y = py + oy * fs;
@@ -25743,6 +26342,7 @@
         for (const s of SKIS)
           if (!(vehMode === "car" && drv === s))
             put(s.pos.x, s.pos.z, "#7fe8ff", 2.4); // 🚤
+        if (!driving(heli)) put(heli.pos.x, heli.pos.z, "#ff9ec2", 2.6); // 🚁
 
         // north tick + her arrow (she always points up)
         radarG.fillStyle = "rgba(255, 220, 235, 0.75)";
