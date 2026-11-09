@@ -4021,6 +4021,7 @@
             dummy.updateMatrix();
             poles.setMatrixAt(m, dummy.matrix);
             heads.setMatrixAt(m, dummy.matrix);
+            knockLamp(poles, heads, m, dummy.matrix); // (a car can knock it over)
             m++;
           }
         }
@@ -4261,6 +4262,18 @@
       const keys = {};
       addEventListener("keydown", (e) => {
         keys[e.code] = true;
+        // (riding, Space climbs - it never presses a button she clicked, like the
+        // radio's ⏭)
+        if (
+          e.code === "Space" &&
+          vehMode !== "walk" &&
+          document.activeElement &&
+          document.activeElement !== document.body &&
+          !/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)
+        ) {
+          document.activeElement.blur();
+          e.preventDefault();
+        }
       });
       addEventListener("keyup", (e) => {
         keys[e.code] = false;
@@ -5803,8 +5816,14 @@
       // ────────────────────────────────────────────────────────────────────────────
       const decorRoot = new THREE.Group();
       scene.add(decorRoot);
-      // ⛱️ every umbrella a car or the plane can knock over (see «⛱️ knocked over»)
+      // ⛱️ every umbrella, palm and street lamp a car or the plane can knock over
+      // (see «⛱️ knocked over»)
       const UMBRELLAS = [];
+      // what each kind of thing takes to knock over: the speed it needs, how much
+      // it slows the car, its pole's (or trunk's) radius, its puff on the screen
+      const KN_UMB = { min: 2, slow: 0.96, poleR: 0.1, fx: ["⛱️", "💨"] },
+        KN_PALM = { min: 5, slow: 0.82, poleR: 0.32, fx: ["🌴", "💨", "🍃"] },
+        KN_LAMP = { min: 5, slow: 0.86, poleR: 0.15, fx: ["💡", "💥"] };
       const lotC = (g) => g * TILE + TILE / 2;
 
       const STONE_MAT = new THREE.MeshStandardMaterial({
@@ -15443,6 +15462,14 @@
         drv.speed = 0;
         girl.g.visible = !!rig.ski; // (on a jet ski she rides in plain sight)
         if (rig.ski) skiPose();
+        if (rig.heli)
+          bdayCaption(
+            "🚁 Rose Helicopter",
+            isTouch
+              ? "▲ up · ▼ down · the stick flies & turns · ⚡ faster"
+              : "Space / E up · C / Q down · W A S D fly · Shift faster",
+            6,
+          );
         yaw = drv.yaw + Math.PI;
         pitch = -0.16;
         vehHud.style.display = "block";
@@ -15803,6 +15830,11 @@
         // bounce if she drove into one
         if (drv.pos.y < HALL.h + 0.5 && hallPush(drv.pos, 1.05, true))
           drv.speed *= 0.4; // the music hall
+        // 💥 driving fast into a parked car sends it flying (slower, it's a bump)
+        if (!drv.boat && drv.pos.y < 2 && Math.abs(drv.speed) > 9) {
+          const hit = parkedHit(drv.pos, 1.05);
+          if (hit && launchCar(hit, drv)) drv.speed *= 0.6;
+        }
         const bump =
           (drv.pos.y < 2 ? pushOffCars(drv.pos, 1.05) : null) ||
           skyPillarPush(drv.pos, 1.05);
@@ -16201,6 +16233,7 @@
         }
 
         updateUmbrellas(dt);
+        flyCars(dt); // 💥 thrown cars, a shoved plane
         // beams + floating icons only while parked
         const carParked = !driving(car);
         carBeam.visible = carParked;
@@ -16864,6 +16897,258 @@
       }
       const _headOff = new THREE.Color(0.32, 0.3, 0.28),
         _tailOff = new THREE.Color(0.35, 0.02, 0.03);
+      // ---- 💥 a car (or the plane) driving fast into a parked car sends it flying:
+      // it tumbles, lands, slides, rights itself onto its wheels and stays where
+      // it ended up (a car she can still take). Her own idle cars and the parked
+      // plane are shoved aside instead. Up to FLY_MAX at once, in pools of their
+      // own - hidden while none fly
+      const FLY_MAX = 6,
+        flying = [],
+        flyFleet = {};
+      for (const k in fleet)
+        flyFleet[k] = makePool(
+          fleet[k].geometry,
+          fleet[k].material,
+          FLY_MAX,
+          !!fleet[k].instanceColor,
+          k === "body",
+        );
+      // take a parked car (or one she left) off the street
+      function removeParked(t) {
+        if (t.extra !== undefined) extraCars.splice(t.extra, 1);
+        else {
+          takenParked.add(t.key);
+          const gx = t.dir ? t.n : t.m,
+            gz = t.dir ? t.m : t.n;
+          propCache.delete(Math.floor(gx / CHUNK) + "," + Math.floor(gz / CHUNK));
+        }
+        propKey = ""; // (re-pour the parked cars)
+      }
+      // the car standing where p is (r: p's radius): a street car, one she left,
+      // or her own idle car ({ rig })
+      function parkedHit(p, r) {
+        const R = 1.05 + r;
+        const near = (x, z, yaw) => {
+          const fx = Math.sin(yaw) * 1.2,
+            fz = Math.cos(yaw) * 1.2;
+          return (
+            Math.hypot(p.x - x - fx, p.z - z - fz) < R ||
+            Math.hypot(p.x - x + fx, p.z - z + fz) < R
+          );
+        };
+        const n0 = Math.round(p.z / TILE),
+          m0 = Math.floor(p.x / TILE),
+          n1 = Math.round(p.x / TILE),
+          m1 = Math.floor(p.z / TILE);
+        for (let m = m0 - 1; m <= m0 + 1; m++) {
+          const pc = parkedAt(0, m, n0);
+          if (pc && near(pc.x, pc.z, pc.yaw)) return pc;
+        }
+        for (let m = m1 - 1; m <= m1 + 1; m++) {
+          const pc = parkedAt(1, m, n1);
+          if (pc && near(pc.x, pc.z, pc.yaw)) return pc;
+        }
+        for (let i = 0; i < extraCars.length; i++) {
+          const e = extraCars[i];
+          if (Math.abs(e.x - p.x) < 9 && Math.abs(e.z - p.z) < 9 && near(e.x, e.z, e.yaw)) {
+            e.extra = i;
+            return e;
+          }
+        }
+        for (const rig of [car, streetCar])
+          if (
+            !driving(rig) &&
+            rig.pos.y > -50 &&
+            rig.pos.y < 2 &&
+            near(rig.pos.x, rig.pos.z, rig.yaw)
+          )
+            return { rig };
+        return null;
+      }
+      // throw it the way `by` (the car or the plane) was going; false if it can't
+      function launchCar(t, by) {
+        const fx = Math.sin(by.yaw),
+          fz = Math.cos(by.yaw),
+          sp = Math.abs(by.speed),
+          sg = Math.sign(by.speed) || 1;
+        if (t.rig) {
+          // her own car: shoved and turned, not thrown
+          t.rig.kx = fx * sg * sp * 0.7;
+          t.rig.kz = fz * sg * sp * 0.7;
+          t.rig.spinV = (Math.random() < 0.5 ? -1 : 1) * (1 + sp * 0.06);
+          umbrellaThud(sp, ["💥", "🚗", "💫"]);
+          return true;
+        }
+        if (flying.length >= FLY_MAX) return false;
+        removeParked(t);
+        const dx = t.x - by.pos.x,
+          dz = t.z - by.pos.z,
+          dl = Math.hypot(dx, dz) || 1,
+          vh = sp * (0.75 + Math.random() * 0.2);
+        flying.push({
+          x: t.x,
+          y: 0,
+          z: t.z,
+          yaw: t.yaw,
+          rx: 0,
+          rz: 0,
+          vx: (fx * sg * 0.8 + (dx / dl) * 0.35) * vh,
+          vy: clamp(3 + sp * 0.32, 4, 15),
+          vz: (fz * sg * 0.8 + (dz / dl) * 0.35) * vh,
+          wy: (Math.random() - 0.5) * (2 + sp * 0.2),
+          wx: (Math.random() - 0.5) * sp * 0.15,
+          wz: (Math.random() - 0.5) * sp * 0.22,
+          col: t.col,
+          settle: 0,
+        });
+        umbrellaThud(sp, ["💥", "🚗", "💫"]);
+        track("💥 Sent a parked car flying");
+        return true;
+      }
+      // is p (a car's middle) touching the parked plane? (its body & wings)
+      function planeTouch(p) {
+        const dx = p.x - plane.pos.x,
+          dz = p.z - plane.pos.z,
+          s = Math.sin(plane.yaw),
+          c = Math.cos(plane.yaw),
+          lz = dx * s + dz * c,
+          lx = Math.abs(dx * c - dz * s);
+        return (
+          (lx < 0.85 + 1.2 && lz > -6.6 - 1.2 && lz < 5.0 + 1.2) ||
+          (lx < 7.0 + 1.2 && lz > -1.9 - 1.2 && lz < 0.65 + 1.2)
+        );
+      }
+      const _flyM = new THREE.Matrix4(),
+        _flyE = new THREE.Euler(),
+        _flyO = new THREE.Vector3(),
+        _flyP = new THREE.Vector3();
+      const PLANE_PTS = [
+        [0, 4.5],
+        [6.5, -0.6],
+        [-6.5, -0.6],
+        [3.2, -0.6],
+        [-3.2, -0.6],
+      ];
+      function flyCars(dt) {
+        // the plane rolling along low throws parked cars too
+        if (vehMode === "plane" && plane.pos.y - PLANE_GEAR < 2.5 && plane.speed > 6) {
+          const s = Math.sin(plane.yaw),
+            c = Math.cos(plane.yaw);
+          for (const [lx, lz] of PLANE_PTS) {
+            _flyP.set(plane.pos.x + s * lz + c * lx, 0, plane.pos.z + c * lz - s * lx);
+            const t = parkedHit(_flyP, 0.4);
+            if (t && launchCar(t, plane)) plane.speed *= 0.85;
+          }
+        }
+        // a car driven into the parked plane shoves it round
+        if (
+          vehMode === "car" &&
+          !drv.boat &&
+          !drv.heli &&
+          plane.grounded &&
+          drv.pos.y < 2.5 &&
+          Math.abs(drv.speed) > 4 &&
+          nowS() - (plane.hitT || 0) > 0.6 &&
+          planeTouch(drv.pos)
+        ) {
+          const sp = Math.abs(drv.speed),
+            sg = Math.sign(drv.speed);
+          plane.hitT = nowS();
+          plane.kx = Math.sin(drv.yaw) * sg * sp * 0.85;
+          plane.kz = Math.cos(drv.yaw) * sg * sp * 0.85;
+          plane.spinV = (Math.random() < 0.5 ? -1 : 1) * (0.7 + sp * 0.06);
+          drv.speed *= 0.4;
+          umbrellaThud(sp, ["💥", "🛩️", "💫"]);
+        }
+        // her idle cars and the parked plane, sliding and turning to a stop
+        for (const r of [car, streetCar])
+          if (!driving(r) && (r.kx || r.kz || r.spinV)) {
+            applyKick(r, dt);
+            r.yaw += (r.spinV || 0) * dt;
+            r.spinV = Math.abs(r.spinV) < 0.02 ? 0 : r.spinV * Math.exp(-dt * 3);
+            keepOnLand(r.pos, 2.4, false);
+            pushOutPoint(r.pos, 1.2);
+            r.g.position.copy(r.pos);
+            r.g.rotation.set(0, r.yaw, 0);
+          }
+        if (vehMode !== "plane" && plane.grounded && (plane.kx || plane.kz || plane.spinV)) {
+          applyKick(plane, dt);
+          plane.yaw += (plane.spinV || 0) * dt;
+          plane.spinV =
+            Math.abs(plane.spinV) < 0.02 ? 0 : plane.spinV * Math.exp(-dt * 2.5);
+          keepOnLand(plane.pos, 2, false);
+          plane.g.position.copy(plane.pos);
+          plane.g.rotation.set(-plane.pitch, plane.yaw, plane.roll, "YXZ");
+        }
+        if (!flying.length) {
+          if (flyFleet.body.visible)
+            for (const k in flyFleet) flyFleet[k].visible = false;
+          return;
+        }
+        // the thrown cars: fly, land, bounce, slide, right themselves
+        for (let j = flying.length - 1; j >= 0; j--) {
+          const q = flying[j];
+          q.vy -= 15 * dt; // (a little floaty - it's a game)
+          q.x += q.vx * dt;
+          q.y += q.vy * dt;
+          q.z += q.vz * dt;
+          q.yaw += q.wy * dt;
+          q.rx += q.wx * dt;
+          q.rz += q.wz * dt;
+          // towers and the shore stop it
+          _flyP.set(q.x, q.y, q.z);
+          pushOutPoint(_flyP, 1.6);
+          keepOnLand(_flyP, 2.4, false);
+          if (_flyP.x !== q.x || _flyP.z !== q.z) {
+            q.vx *= -0.3;
+            q.vz *= -0.3;
+          }
+          q.x = _flyP.x;
+          q.z = _flyP.z;
+          if (q.y <= 0) {
+            q.y = 0;
+            q.vy = q.vy < -4 ? -q.vy * 0.3 : 0;
+            const k = Math.max(0, 1 - 5 * dt);
+            q.vx *= k;
+            q.vz *= k;
+            q.wy *= k;
+            q.wx *= k;
+            q.wz *= k;
+          }
+          if (!q.y && !q.vy && Math.hypot(q.vx, q.vz) < 1) {
+            // back onto its wheels, and parked where it stopped
+            q.settle += dt;
+            const k = Math.min(1, dt * 6);
+            q.rx = angLerp(q.rx, 0, k);
+            q.rz = angLerp(q.rz, 0, k);
+            if (q.settle > 0.6) {
+              extraCars.push({ x: q.x, z: q.z, yaw: q.yaw, col: q.col });
+              if (extraCars.length > EXTRA_MAX) extraCars.shift();
+              propKey = "";
+              flying.splice(j, 1);
+            }
+          }
+        }
+        // draw them, turning round their middle (0.75 m up)
+        for (let j = 0; j < flying.length; j++) {
+          const q = flying[j];
+          _flyM.makeRotationFromEuler(_flyE.set(q.rx, q.yaw, q.rz, "YXZ"));
+          _flyO.set(0, -0.75, 0).applyMatrix4(_flyM);
+          _flyM.setPosition(q.x + _flyO.x, q.y + 0.75 + _flyO.y, q.z + _flyO.z);
+          for (const k in flyFleet) flyFleet[k].setMatrixAt(j, _flyM);
+          flyFleet.body.setColorAt(j, tmpColor.setHex(q.col));
+          flyFleet.head.setColorAt(j, _headOff);
+          flyFleet.tail.setColorAt(j, _tailOff);
+        }
+        for (const k in flyFleet) {
+          const im = flyFleet[k];
+          im.visible = true;
+          im.count = flying.length;
+          im.instanceMatrix.needsUpdate = true;
+          if (im.instanceColor) im.instanceColor.needsUpdate = true;
+        }
+      }
+
       let propKey = "";
       function updateStreetProps() {
         if (propKey === "island") return; // (reset to "" when she takes a parked car)
@@ -16957,15 +17242,7 @@
       function takeParked(t) {
         if (!t) return;
         // lift this car off the street…
-        if (t.extra !== undefined) extraCars.splice(t.extra, 1);
-        else {
-          takenParked.add(t.key);
-          const gx = t.dir ? t.n : t.m,
-            gz = t.dir ? t.m : t.n;
-          propCache.delete(
-            Math.floor(gx / CHUNK) + "," + Math.floor(gz / CHUNK),
-          );
-        }
+        removeParked(t);
         // …park the one she had before in its place on the kerb…
         if (streetCar.active) stashStreetCar();
         propKey = ""; // re-pour the parked cars next frame
@@ -17446,8 +17723,18 @@
           tp.setX(i, tp.getX(i) + y * y * 1.1);
         }
         trunk.computeVertexNormals();
-        isleIM(trunk, PALM_TRUNK_MAT, palms, true);
-        isleIM(PALM_CROWN_GEO, PALM_LEAF_MAT, fronds, true);
+        // 🌴 (a car or the plane can knock them over too)
+        addKnockables(
+          palms,
+          [
+            isleIM(trunk, PALM_TRUNK_MAT, palms, true),
+            isleIM(PALM_CROWN_GEO, PALM_LEAF_MAT, fronds, true),
+          ],
+          7,
+          2.6,
+          8.6,
+          KN_PALM,
+        );
         // beach umbrellas: a pole and a candy-coloured canopy
         const umbPole = new THREE.CylinderGeometry(0.05, 0.05, 2.6, 6);
         umbPole.translate(0, 1.3, 0);
@@ -17470,8 +17757,14 @@
         uCols.forEach((c, i) => umb.setColorAt(i, tmpColor.setHex(c)));
         addUmbrellas(umbrellas, [umbP, umb]);
         // the promenade's lamps - the same posts as the streets'
-        isleIM(poleGeo, lampPoleMat, lamps);
-        isleIM(headGeo, lampHeadMat, lamps);
+        addKnockables(
+          lamps,
+          [isleIM(poleGeo, lampPoleMat, lamps), isleIM(headGeo, lampHeadMat, lamps)],
+          6.9,
+          0.7,
+          7.2,
+          KN_LAMP,
+        );
       }
 
       // ---- 🌉 the pier: wooden boards out over the water, rails & little lamps ------
@@ -18613,7 +18906,7 @@
       // tumbling onto the sand (stood back up once she's long gone)
       // one umbrella: its standing matrix m (base on the ground), the canopy's rim
       // height & radius, its top; write(m) puts a new matrix on it
-      function umbrellaOf(m, rimY, rimR, topY, write) {
+      function umbrellaOf(m, rimY, rimR, topY, write, kind = KN_UMB) {
         const x = m.elements[12],
           z = m.elements[14];
         return {
@@ -18626,6 +18919,7 @@
           topY,
           rest: Math.atan2(rimY, rimR) + 0.05, // lying on its pole's foot and the canopy's rim
           write,
+          kind,
           st: 0, // 0 standing · 1 tumbling · 2 down
           t: 0,
           px: x,
@@ -18655,6 +18949,46 @@
           ),
         );
       }
+      // palms and lamps drawn by instanced meshes: list = their standing
+      // matrices, ims = the meshes that draw them (sizes scale with each one)
+      function addKnockables(list, ims, rimY, rimR, topY, kind) {
+        list.forEach((m, i) => {
+          const s = Math.hypot(m.elements[0], m.elements[1], m.elements[2]);
+          UMBRELLAS.push(
+            umbrellaOf(
+              m,
+              rimY * s,
+              rimR * s,
+              topY * s,
+              (mm) => {
+                for (const im of ims) {
+                  im.setMatrixAt(i, mm);
+                  im.instanceMatrix.needsUpdate = true;
+                }
+              },
+              kind,
+            ),
+          );
+        });
+      }
+      // a city block's street lamp (pole & head instances i of its meshes)
+      function knockLamp(poles, heads, i, m) {
+        UMBRELLAS.push(
+          umbrellaOf(
+            m,
+            6.9,
+            0.7,
+            7.2,
+            (mm) => {
+              poles.setMatrixAt(i, mm);
+              heads.setMatrixAt(i, mm);
+              poles.instanceMatrix.needsUpdate = true;
+              heads.instanceMatrix.needsUpdate = true;
+            },
+            KN_LAMP,
+          ),
+        );
+      }
       const _uM = new THREE.Matrix4(),
         _uR = new THREE.Matrix4(),
         _uA = new THREE.Vector3();
@@ -18667,16 +19001,19 @@
         [0.15, -7.0, -4.2, 0, 1.75], // the fin
         [2.45, -6.95, -5.65, 1.6, 1.85], // the T-tail
       ];
-      // anything standing in the vehicle's way goes over, thrown the way it's going
+      // anything standing in the vehicle's way goes over, thrown the way it's
+      // going (if it's going fast enough for that thing); returns how much it
+      // slows the vehicle (1: nothing hit)
       function knockUmbrellas(p, yaw, speed, parts) {
         const sp = Math.abs(speed);
-        if (sp < 2) return 0;
+        if (sp < 2) return 1;
         const fx = Math.sin(yaw),
           fz = Math.cos(yaw),
           sg = Math.sign(speed);
-        let n = 0;
+        let slow = 1,
+          puff = null;
         for (const u of UMBRELLAS) {
-          if (u.st) continue;
+          if (u.st || sp < u.kind.min) continue;
           const dx = u.x - p.x,
             dz = u.z - p.z;
           if (Math.abs(dx) > 12 || Math.abs(dz) > 12) continue;
@@ -18688,7 +19025,7 @@
               t = p.y + y1;
             if (b > u.topY || t < 0) continue;
             // the pole, from the sand to the top - or the canopy's wide disc
-            const r = t > u.rimY ? u.rimR : 0.1;
+            const r = t > u.rimY ? u.rimR : u.kind.poleR;
             if (lx < hw + r && lz > z0 - r && lz < z1 + r) {
               hit = true;
               break;
@@ -18717,18 +19054,19 @@
             spin: 0,
             spinV: (Math.random() - 0.5) * (3 + sp * 0.2),
           });
-          n++;
+          if (u.kind.slow <= slow) puff = u.kind.fx;
+          slow = Math.min(slow, u.kind.slow);
         }
-        if (n) umbrellaThud(sp);
-        return n;
+        if (puff) umbrellaThud(sp, puff);
+        return slow;
       }
       let umbNoise = null,
         umbThudT = -9;
       // a soft canvas « whump » and a little ⛱️ puff on the screen
-      function umbrellaThud(sp) {
+      function umbrellaThud(sp, fx = KN_UMB.fx) {
         if (nowS() - umbThudT < 0.15) return;
         umbThudT = nowS();
-        screenBurst(["⛱️", "💨"], 3);
+        screenBurst(fx, 3);
         const ctx = hallCtx;
         if (!ctx || ctx.state !== "running") return;
         if (!umbNoise) {
@@ -18759,12 +19097,8 @@
         src.stop(now + 0.3);
       }
       function updateUmbrellas(dt) {
-        if (
-          vehMode === "car" &&
-          !drv.boat &&
-          knockUmbrellas(drv.pos, drv.yaw, drv.speed, CAR_HIT)
-        )
-          drv.speed *= 0.96;
+        if (vehMode === "car" && !drv.boat)
+          drv.speed *= knockUmbrellas(drv.pos, drv.yaw, drv.speed, CAR_HIT);
         knockUmbrellas(plane.pos, plane.yaw, plane.speed, PLANE_HIT);
         const now = nowS();
         for (const u of UMBRELLAS) {
@@ -20679,9 +21013,19 @@
             (keys["KeyA"] || keys["ArrowLeft"] ? 1 : 0) -
             (keys["KeyD"] || keys["ArrowRight"] ? 1 : 0) -
             joyX;
+          // up: Space / E / R / PageUp (▲) · down: C / Q / Ctrl / PageDown (▼)
           lift =
-            (keys["Space"] || touchUp ? 1 : 0) -
-            (keys["KeyC"] || keys["ControlLeft"] || touchDown ? 1 : 0);
+            (keys["Space"] || keys["KeyE"] || keys["KeyR"] || keys["PageUp"] || touchUp
+              ? 1
+              : 0) -
+            (keys["KeyC"] ||
+            keys["KeyQ"] ||
+            keys["ControlLeft"] ||
+            keys["ControlRight"] ||
+            keys["PageDown"] ||
+            touchDown
+              ? 1
+              : 0);
           boost = keys["ShiftLeft"] || keys["ShiftRight"] || touchBoost;
         }
         fwd = clamp(fwd, -1, 1);
