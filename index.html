@@ -15467,7 +15467,7 @@
             "🚁 Rose Helicopter",
             isTouch
               ? "▲ up · ▼ down · the stick flies & turns · ⚡ faster"
-              : "Space / E up · C / Q down · W A S D fly · Shift faster",
+              : "↑ up · ↓ down · W A S D fly · Shift faster",
             6,
           );
         yaw = drv.yaw + Math.PI;
@@ -20665,7 +20665,7 @@
       // 🚁 ROSE HELIPORT - a tower near the start with a helipad on its roof and
       // Rose's own helicopter waiting on it; a lift at its door takes her up and
       // down. The helicopter flies simply and smoothly: W / S (or the stick)
-      // forward & back, A / D turn, Space / ▲ climb, C / ▼ down, Shift / ⚡
+      // forward & back, A / D turn, ↑ / ▲ climb, ↓ / ▼ down, Shift / ⚡
       // faster - let go and it holds its place in the air. It noses down into
       // its flight and banks into turns, sets down on any roof, skyway or street,
       // keeps out of the towers and turns back at the edge of the world.
@@ -21005,27 +21005,16 @@
           lift = 0,
           boost = false;
         if (!uiPaused) {
-          fwd =
-            (keys["KeyW"] || keys["ArrowUp"] ? 1 : 0) -
-            (keys["KeyS"] || keys["ArrowDown"] ? 1 : 0) -
-            joyY;
+          // W / S (or the stick) forward & back · A / D or ← / → turn
+          fwd = (keys["KeyW"] ? 1 : 0) - (keys["KeyS"] ? 1 : 0) - joyY;
           turn =
             (keys["KeyA"] || keys["ArrowLeft"] ? 1 : 0) -
             (keys["KeyD"] || keys["ArrowRight"] ? 1 : 0) -
             joyX;
-          // up: Space / E / R / PageUp (▲) · down: C / Q / Ctrl / PageDown (▼)
+          // ↑ / PageUp (▲) up · ↓ / PageDown (▼) down
           lift =
-            (keys["Space"] || keys["KeyE"] || keys["KeyR"] || keys["PageUp"] || touchUp
-              ? 1
-              : 0) -
-            (keys["KeyC"] ||
-            keys["KeyQ"] ||
-            keys["ControlLeft"] ||
-            keys["ControlRight"] ||
-            keys["PageDown"] ||
-            touchDown
-              ? 1
-              : 0);
+            (keys["ArrowUp"] || keys["PageUp"] || touchUp ? 1 : 0) -
+            (keys["ArrowDown"] || keys["PageDown"] || touchDown ? 1 : 0);
           boost = keys["ShiftLeft"] || keys["ShiftRight"] || touchBoost;
         }
         fwd = clamp(fwd, -1, 1);
