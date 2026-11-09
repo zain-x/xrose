@@ -1517,22 +1517,43 @@
         justify-content: center;
         text-align: center;
         direction: rtl;
-        background: radial-gradient(
-          circle,
-          rgba(80, 14, 40, 0.95),
-          rgba(14, 2, 8, 0.98)
-        );
+        padding: 16px;
+        background: rgba(14, 2, 8, 0.55); /* (the world still shows round it) */
       }
       #kissreward.show {
         display: flex;
       }
+      /* a card of its own size in the middle - never the whole screen */
       #kissreward .k-card {
         color: #ffe6ef;
-        max-width: 460px;
-        padding: 24px;
+        width: min(360px, 100%);
+        max-height: 88vh;
+        overflow-y: auto;
+        padding: 22px 20px 18px;
+        border-radius: 22px;
+        background: radial-gradient(
+          circle at 50% 18%,
+          rgba(96, 20, 56, 0.97),
+          rgba(30, 5, 20, 0.97)
+        );
+        border: 1px solid rgba(255, 150, 190, 0.45);
+        box-shadow:
+          0 18px 60px rgba(0, 0, 0, 0.55),
+          0 0 40px rgba(255, 80, 140, 0.35);
+      }
+      /* (above the beating kiss, so it can always be clicked) */
+      #kissreward .panel-close {
+        z-index: 2;
+        top: 10px;
+        left: 10px;
+        width: 38px;
+        height: 38px;
+        font-size: 18px;
       }
       #kissreward .big-kiss {
-        font-size: clamp(90px, 28vw, 150px);
+        display: inline-block;
+        pointer-events: none;
+        font-size: clamp(56px, 16vw, 84px);
         filter: drop-shadow(0 8px 28px rgba(255, 60, 110, 0.8));
         animation: kissBeat 0.9s ease-in-out infinite;
       }
@@ -1552,13 +1573,13 @@
         }
       }
       #kissreward h1 {
-        font-size: clamp(24px, 7vw, 34px);
+        font-size: clamp(20px, 5.5vw, 27px);
         color: #ff7da0;
         text-shadow: 0 0 26px rgba(255, 70, 120, 0.9);
         margin: 8px 0 12px;
       }
       #kissreward p {
-        font-size: 17px;
+        font-size: 15px;
         line-height: 1.95;
         color: #f6d4e2;
       }
@@ -1575,9 +1596,9 @@
       #kissreward .k-opt {
         cursor: pointer;
         user-select: none;
-        font-size: 19px;
+        font-size: 17px;
         color: #fff;
-        padding: 11px 18px;
+        padding: 10px 16px;
         border-radius: 30px;
         background: rgba(255, 90, 140, 0.22);
         border: 1px solid rgba(255, 170, 200, 0.55);
@@ -1599,8 +1620,8 @@
         opacity: 0.45;
       }
       #kissreward p.k-how {
-        margin-top: 16px;
-        font-size: 15px;
+        margin-top: 14px;
+        font-size: 14px;
         line-height: 1.8;
       }
     </style>
@@ -10602,6 +10623,16 @@
         ["voice", "🎙️ 2 بوسة بالفويس"],
         ["real", "💋 1 بوسة حقيقية"],
       ];
+      // closing the balance card: its ✕, a click outside it, or Esc
+      function closeKissReward() {
+        const el = document.getElementById("kissreward");
+        if (!el.classList.contains("show")) return;
+        el.classList.remove("show");
+        resumeUI();
+      }
+      addEventListener("keydown", (e) => {
+        if (e.code === "Escape") closeKissReward();
+      });
       function kissReward() {
         const el = document.getElementById("kissreward"),
           card = document.getElementById("kissreward-card");
@@ -10612,11 +10643,10 @@
           <p class="k-how" dir="ltr">📸 Take a screenshot of the choice you chose</p>`;
         el.classList.add("show");
         pauseUI();
-        const close = () => {
-          el.classList.remove("show");
-          resumeUI();
-        };
-        document.getElementById("kissClose").addEventListener("click", close);
+        document
+          .getElementById("kissClose")
+          .addEventListener("click", closeKissReward);
+        el.onclick = (e) => e.target === el && closeKissReward(); // (outside the card)
         const opts = document.getElementById("kissOpts");
         for (const o of opts.querySelectorAll(".k-opt"))
           o.addEventListener("click", () => {
