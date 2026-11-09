@@ -3186,8 +3186,10 @@
       attribute vec3 aDims;      // building world size (w,h,d)
       attribute vec2 aSeed;      // per-building randomness
       attribute vec3 aNeon;      // per-tower pastel-neon hue
+      attribute float aBase;     // the height this box stands on (a tier on the one below)
       varying vec3 vLP;
       varying vec3 vDims;
+      varying float vBase;
       varying vec3 vONormal;
       varying vec2 vSeed;
       varying vec3 vNeon;`,
@@ -3195,7 +3197,7 @@
           .replace(
             "#include <begin_vertex>",
             `#include <begin_vertex>
-      vLP = position; vDims = aDims; vONormal = normal; vSeed = aSeed; vNeon = aNeon;`,
+      vLP = position; vDims = aDims; vONormal = normal; vSeed = aSeed; vNeon = aNeon; vBase = aBase;`,
           );
 
         shader.uniforms.uNight = uNight;
@@ -3209,6 +3211,7 @@
       varying vec3 vONormal;
       varying vec2 vSeed;
       varying vec3 vNeon;
+      varying float vBase;
       uniform float uNight;
       uniform float uTime;
       float rnd(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233))) * 43758.5453123); }
@@ -3228,7 +3231,7 @@
       float nGlow = 0.4 + 0.6 * uNight;                   // neon never fully sleeps (dusk city)
       // the wall's own coordinates in metres, and how many metres one pixel
       // covers (worked out before any branch, so the derivatives are sound)
-      float wh = vLP.y * vDims.y;                         // metres up the wall
+      float wh = vLP.y * vDims.y + vBase;                 // metres up from the street
       float wu = (an.x > an.z) ? (vLP.z + 0.5) * vDims.z : (vLP.x + 0.5) * vDims.x;
       float fwU = max(fwidth(wu), 1e-4), fwH = max(fwidth(wh), 1e-4);
       if (an.y < 0.5) {                                   // ---- vertical facade ----
@@ -3279,6 +3282,12 @@
         // (far off: the share of rooms lit, not one room blinking on and off)
         lit = mix(lit, 1.0 / (1.0 + exp(8.7 * (litT - 0.5))), farG);
 
+        // at night the moonlight alone would turn every tower the same dark
+        // grey-blue: a soft floodlight wash in its own colour (strongest near the
+        // street, fading up the wall) keeps the purples, pinks & blues after dark
+        totalEmissiveRadiance += diffuseColor.rgb * (1.0 - glazed) * uNight
+                               * mix(0.3, 0.13, smoothstep(0.0, 60.0, wh));
+
         // the glazing bar darker than the cladding
         diffuseColor.rgb = mix(concrete, concrete * 0.5, max(pane - glazed, 0.0));
         // unlit glass mirrors the sky (lighter up each pane) and is glossy, so it
@@ -3309,7 +3318,7 @@
         float parapet = smoothstep(0.42, 0.5, edge);      // raised rim around the deck
         diffuseColor.rgb *= mix(0.38, 0.72, parapet);
         totalEmissiveRadiance += parapet * vNeon * 1.1 * nGlow; // neon crown rim
-        if (vDims.y > 55.0) {                             // blinking red aviation beacon
+        if (vDims.y + vBase > 55.0) {                     // blinking red aviation beacon
           float beacon = step(edge, 0.09);
           float blink = step(0.5, fract(uTime * 0.45 + vSeed.x));
           totalEmissiveRadiance += beacon * blink * vec3(2.2, 0.04, 0.04);
@@ -3955,9 +3964,14 @@
           new Float32Array(MAX_PER_CHUNK * 3),
           3,
         );
+        const aBase = new THREE.InstancedBufferAttribute(
+          new Float32Array(MAX_PER_CHUNK),
+          1,
+        );
         geo.setAttribute("aDims", aDims);
         geo.setAttribute("aSeed", aSeed);
         geo.setAttribute("aNeon", aNeon);
+        geo.setAttribute("aBase", aBase);
 
         const bodies = new THREE.InstancedMesh(geo, bodyMat, MAX_PER_CHUNK);
         bodies.castShadow = true;
@@ -3968,9 +3982,10 @@
         );
 
         let n = 0;
-        const put = (x, z, w, h, d, sx, sy, neon, body) => {
+        const put = (x, z, w, h, d, sx, sy, neon, body, y0 = 0) => {
           if (n >= MAX_PER_CHUNK) return;
-          dummy.position.set(x, 0, z);
+          dummy.position.set(x, y0, z);
+          aBase.setX(n, y0);
           dummy.scale.set(w, h, d);
           dummy.rotation.set(0, 0, 0);
           dummy.updateMatrix();
@@ -3991,21 +4006,28 @@
             const s1 = hash(gx, gz, 9) * 17.0;
             const s2 = hash(gx, gz, 10) * 23.0;
 
-            // telescoping tiers - all from the ground so setbacks read as terraces
-            for (const t of spec.tiers)
-              put(spec.x, spec.z, t.w, t.h, t.d, s1, s2, spec.neon, spec.body);
-            // needle masts on the crown corners
+            // telescoping tiers, each standing on the one below (setbacks read as
+            // terraces). Never one box inside another: a wall hidden a few metres
+            // behind a visible one flickers through it on phones (their depth
+            // buffer is coarse far off) - the window grid shimmered as she moved
+            let y0 = 0;
+            for (const t of spec.tiers) {
+              put(spec.x, spec.z, t.w, t.h - y0, t.d, s1, s2, spec.neon, spec.body, y0);
+              y0 = t.h;
+            }
+            // needle masts on the crown corners, rising from the roof
             for (const m of spec.masts)
               put(
                 spec.x + m.x,
                 spec.z + m.z,
                 m.w,
-                m.h,
+                m.h - y0,
                 m.w,
                 s1 + 3.7,
                 s2 + 1.3,
                 spec.neon,
                 spec.body,
+                y0,
               );
 
             // ♥ floating روز / Rose sign - each building gets one of the colourful variants
@@ -4028,6 +4050,7 @@
         aDims.needsUpdate = true;
         aSeed.needsUpdate = true;
         aNeon.needsUpdate = true;
+        aBase.needsUpdate = true;
         if (bodies.instanceColor) bodies.instanceColor.needsUpdate = true;
         group.add(bodies);
 
