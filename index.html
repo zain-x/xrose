@@ -279,6 +279,17 @@
         pointer-events: none;
         white-space: nowrap;
       }
+      /* 💋 once every kiss is in, the counter opens her balance card again */
+      #kisses.done {
+        pointer-events: auto;
+        cursor: pointer;
+        border-color: rgba(255, 160, 200, 0.9);
+        box-shadow: 0 0 12px rgba(255, 90, 150, 0.6);
+      }
+      /* (a narrow screen: « ROSE » over « WORLD ♥ », clear of the counter) */
+      #title.two h1 span {
+        display: block;
+      }
       /* 🗺️ the map button: a round pill just left of the 💋 counter (it rides
          along with the counter, whatever its width) */
       #map-btn {
@@ -1695,7 +1706,7 @@
     </div>
 
     <div id="title">
-      <h1>ROSE WORLD ♥</h1>
+      <h1>ROSE <span>WORLD ♥</span></h1>
     </div>
 
     <div id="stats"></div>
@@ -10607,6 +10618,34 @@
       const kissCountEl = document.getElementById("kiss-count");
       const kissGoalEl = document.getElementById("kiss-goal");
       if (kissGoalEl) kissGoalEl.textContent = KISS_GOAL;
+      // 🌹 the « ROSE WORLD ♥ » title (top right) never touches the 💋 counter
+      // (top centre): on a narrow screen it steps down in size, and onto two
+      // lines if it still must - checked again on a resize or a turn of the
+      // phone, and as the counter grows
+      const titleEl = document.getElementById("title"),
+        kissesEl = document.getElementById("kisses");
+      function fitTitle() {
+        const t = titleEl.querySelector("h1");
+        if (!t) return;
+        t.style.fontSize = "";
+        titleEl.classList.remove("two");
+        if (!titleEl.getClientRects().length || !kissesEl.getClientRects().length)
+          return; // (one of them hidden)
+        const clash = () =>
+          t.getBoundingClientRect().left <
+          kissesEl.getBoundingClientRect().right + 10;
+        const shrink = (min) => {
+          let fs = parseFloat(getComputedStyle(t).fontSize) || 18;
+          while (clash() && fs > min) t.style.fontSize = (fs -= 0.5) + "px";
+        };
+        shrink(13);
+        if (!clash()) return;
+        titleEl.classList.add("two");
+        t.style.fontSize = "";
+        shrink(10);
+      }
+      fitTitle();
+      addEventListener("resize", fitTitle);
       function seedKiss(k) {
         const cam = camera.position;
         for (let tries = 0; tries < 10; tries++) {
@@ -10678,13 +10717,14 @@
       addEventListener("keydown", (e) => {
         if (e.code === "Escape") closeKissReward();
       });
-      function kissReward() {
+      let kissPick = null; // (what she chose on the balance card)
+      function kissReward(again = false) {
         const el = document.getElementById("kissreward"),
           card = document.getElementById("kissreward-card");
         card.innerHTML = `<div class="panel-close" id="kissClose">✕</div>
           <div class="big-kiss">💋</div>
           <h1>رصيدك: ${KISS_GOAL} بوسة</h1>
-          <div class="k-opts" id="kissOpts">${KISS_OPTIONS.map(([k, t]) => `<div class="k-opt" data-k="${k}">${t}</div>`).join("")}</div>
+          <div class="k-opts${kissPick ? " picked" : ""}" id="kissOpts">${KISS_OPTIONS.map(([k, t]) => `<div class="k-opt${k === kissPick ? " on" : ""}" data-k="${k}">${t}</div>`).join("")}</div>
           <p class="k-how" dir="ltr">📸 Take a screenshot of the choice you chose</p>`;
         el.classList.add("show");
         pauseUI();
@@ -10698,9 +10738,16 @@
             for (const q of opts.querySelectorAll(".k-opt"))
               q.classList.toggle("on", q === o);
             opts.classList.add("picked");
+            kissPick = o.dataset.k;
             screenBurst(["💋", "💗", "✨"], 12);
             track(`💋 Kiss balance: she picked «${o.textContent}»`);
           });
+        if (again) {
+          // (opened again from the counter: a little puff, not the whole show)
+          screenBurst(["💋", "💗", "✨"], 10);
+          track(`💋 Opened the kiss balance again${kissPick ? ` («${kissPick}» picked)` : ""}`);
+          return;
+        }
         let n = 0;
         const iv = setInterval(() => {
           screenBurst(["💋", "💗", "❤️", "💕", "✨"], 24);
@@ -10708,6 +10755,11 @@
         }, 450);
         track(`💋 Collected ${KISS_GOAL} kisses: the balance card is open`);
       }
+      // 💋 tap the counter once they are all in → the balance card again
+      kissesEl.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (kissDone && !uiPaused) kissReward(true);
+      });
       function updateKisses(t) {
         if (!started) return;
         const cam = camera.position;
@@ -10728,10 +10780,13 @@
             if (!kissDone) {
               kissCount++;
               kissCountEl.textContent = kissCount;
+              if (kissCount === 10 || kissCount >= KISS_GOAL) setTimeout(fitTitle, 0); // (the counter grew)
               screenBurst(["💋", "💗"], 5);
               if (kissCount >= KISS_GOAL) {
                 kissDone = true;
                 kissCountEl.textContent = KISS_GOAL + " ❤";
+                kissesEl.classList.add("done"); // (tap it to see the balance again)
+                kissesEl.title = "رصيدك 💋";
                 kissReward();
               }
             }
