@@ -3200,42 +3200,61 @@
       varying vec3 vNeon;
       uniform float uNight;
       uniform float uTime;
-      float rnd(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233))) * 43758.5453123); }`,
+      float rnd(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233))) * 43758.5453123); }
+      // a repeating stripe (on between a and b of every unit) averaged over the
+      // w the pixel covers - crisp up close, its plain average far away, never
+      // flickering in between (the integral of the stripe, differenced)
+      float pInt(float x, float a, float b){ return floor(x) * (b - a) + clamp(fract(x) - a, 0.0, b - a); }
+      float pulseAA(float x, float a, float b, float w){
+        x = fract(x);
+        return (pInt(x + 0.5 * w, a, b) - pInt(x - 0.5 * w, a, b)) / w;
+      }`,
           )
           .replace(
             "#include <emissivemap_fragment>",
             `#include <emissivemap_fragment>
       vec3 an = abs(vONormal);
       float nGlow = 0.4 + 0.6 * uNight;                   // neon never fully sleeps (dusk city)
+      // the wall's own coordinates in metres, and how many metres one pixel
+      // covers (worked out before any branch, so the derivatives are sound)
+      float wh = vLP.y * vDims.y;                         // metres up the wall
+      float wu = (an.x > an.z) ? (vLP.z + 0.5) * vDims.z : (vLP.x + 0.5) * vDims.x;
+      float fwU = max(fwidth(wu), 1e-4), fwH = max(fwidth(wh), 1e-4);
       if (an.y < 0.5) {                                   // ---- vertical facade ----
-        float wh = vLP.y * vDims.y;                       // metres up the wall
         float faceW = (an.x > an.z) ? vDims.z : vDims.x;  // width of this face (m)
-        float wu = (an.x > an.z) ? (vLP.z + 0.5) * vDims.z : (vLP.x + 0.5) * vDims.x;
         float face = (an.x > an.z) ? 0.0 : 1.0;
 
-        // ---- vertical neon piping along every corner (+ a spine on wide faces)
+        // ---- vertical neon piping along every corner (+ a spine on wide faces),
+        // never thinner than about a pixel, so far off it stays one steady line
         float edgeU = min(wu, faceW - wu);
-        float pipe = 1.0 - smoothstep(0.08, 0.4, edgeU);
-        if (faceW > 9.5) pipe = max(pipe, 1.0 - smoothstep(0.05, 0.28, abs(wu - faceW * 0.5)));
+        float pipe = 1.0 - smoothstep(0.08, 0.08 + max(0.32, 1.2 * fwU), edgeU);
+        if (faceW > 9.5) pipe = max(pipe, 1.0 - smoothstep(0.05, 0.05 + max(0.23, 1.2 * fwU), abs(wu - faceW * 0.5)));
         // the piping is segmented - occasional dark gaps make it read as fixtures
         float seg = step(0.1, rnd(vec2(floor(wh / 9.0) + vSeed.x * 31.0, face + vSeed.y)));
 
         // a real storey (3.5 m) and bay (3.2 m): one big glazed opening per bay
         // over a solid spandrel panel, slim frames and a centre glazing bar -
-        // fewer, bigger windows, like real towers
+        // fewer, bigger windows, like real towers. Every edge is averaged over
+        // the pixel (no crawling or shimmer as she moves - phones draw without
+        // antialiasing), and far away the grid melts into its average shade
         const float CW = 3.2, CH = 3.5;
-        vec2 cell = vec2(fract(wu / CW), fract(wh / CH));
-        float fx = floor(wu / CW), fy = floor(wh / CH);
-        float pane = step(0.08, cell.x) * step(cell.x, 0.92)
-                   * step(0.30, cell.y) * step(cell.y, 0.93);
-        float ground = step(wh, CH * 1.4);                // ground floor = lobby / storefront
-        pane *= step(CH * 0.35, wh);                      // skip the base slab
-        float bar = 1.0 - step(0.012, abs(cell.x - 0.5)); // the centre glazing bar
-        float glazed = pane * (1.0 - bar);
+        vec2 cu = vec2(wu / CW, wh / CH);                 // in bays & storeys
+        vec2 dc = vec2(fwU / CW, fwH / CH);               // (one pixel, in the same)
+        vec2 cell = fract(cu);
+        float fx = floor(cu.x), fy = floor(cu.y);
+        float paneX = pulseAA(cu.x, 0.08, 0.92, dc.x);
+        float paneY = pulseAA(cu.y, 0.30, 0.93, dc.y);
+        float bar = pulseAA(cu.x, 0.488, 0.512, dc.x);    // the centre glazing bar
+        float above = smoothstep(CH * 0.35 - fwH, CH * 0.35 + fwH, wh); // skip the base slab
+        float pane = paneX * paneY * above;
+        float glazed = (paneX - bar) * paneY * above;
+        float ground = 1.0 - smoothstep(CH * 1.4 - fwH, CH * 1.4 + fwH, wh); // ground floor = lobby / storefront
+        // 0 while a window spans a few pixels, 1 once it is under about one
+        float farG = smoothstep(0.35, 0.9, max(dc.x, dc.y));
 
         // the cladding, with a slim darker floor slab at every storey (a little
         // deeper at night, so the neon and the lit windows still lead)
-        float slab = 1.0 - smoothstep(0.0, 0.06, cell.y);
+        float slab = pulseAA(cu.y, 0.0, 0.035, dc.y);
         vec3 concrete = diffuseColor.rgb * (1.0 - 0.28 * slab) * (1.0 - 0.3 * uNight);
 
         // some rooms lit - whole floors more often than not - fewer by day
@@ -3243,23 +3262,27 @@
         float rFloor = rnd(vec2(fy * 1.3 + vSeed.x * 7.0, face * 3.0 + 11.0));
         float rCol   = rnd(vec2(fx * 2.1 + vSeed.y * 5.0, face * 9.0 + 3.0));
         float litMix = 0.35 * rWin + 0.45 * rFloor + 0.20 * rCol;
-        float lit = step(mix(0.93, 0.6, uNight), litMix);
+        float litT = mix(0.93, 0.6, uNight);
+        float lit = step(litT, litMix);
         lit = max(lit, ground * step(0.5, rWin));         // lit lobbies
+        // (far off: the share of rooms lit, not one room blinking on and off)
+        lit = mix(lit, 1.0 / (1.0 + exp(8.7 * (litT - 0.5))), farG);
 
-        // frames darker than the cladding
-        diffuseColor.rgb = mix(concrete, concrete * 0.5, pane * (1.0 - glazed));
+        // the glazing bar darker than the cladding
+        diffuseColor.rgb = mix(concrete, concrete * 0.5, max(pane - glazed, 0.0));
         // unlit glass mirrors the sky (lighter up each pane) and is glossy, so it
         // catches the sun and the moon like real glazing
-        vec3 glass = mix(vec3(0.07, 0.08, 0.12), vec3(0.30, 0.38, 0.50), 0.25 + 0.35 * cell.y)
+        float upPane = mix(cell.y, 0.62, farG);
+        vec3 glass = mix(vec3(0.07, 0.08, 0.12), vec3(0.30, 0.38, 0.50), 0.25 + 0.35 * upPane)
                    * (1.0 - 0.55 * uNight);
         diffuseColor.rgb = mix(diffuseColor.rgb, glass, glazed * (1.0 - lit));
         roughnessFactor = mix(roughnessFactor, 0.16, glazed * (1.0 - lit));
 
         // most rooms glow warm white, some take the tower's own hue
-        float warm = step(0.3, rnd(vec2(fx * 1.7 + vSeed.x, fy * 0.6 + vSeed.y)));
+        float warm = mix(step(0.3, rnd(vec2(fx * 1.7 + vSeed.x, fy * 0.6 + vSeed.y))), 0.7, farG);
         vec3 wcol = mix(vNeon, vec3(1.0, 0.82, 0.62), warm * 0.8);
-        float dim = 0.55 + 0.45 * rnd(vec2(fx + fy * 2.0, vSeed.x + 1.0));
-        float ceilG = 0.72 + 0.28 * (cell.y - 0.3) / 0.63;
+        float dim = mix(0.55 + 0.45 * rnd(vec2(fx + fy * 2.0, vSeed.x + 1.0)), 0.775, farG);
+        float ceilG = 0.72 + 0.28 * (upPane - 0.3) / 0.63;
         totalEmissiveRadiance += glazed * lit * (1.0 - pipe) * wcol * 1.1 * dim * ceilG * (0.3 + 0.7 * uNight);
 
         // corner piping glow (drawn over the windows) - kept below the tone-map
@@ -3268,7 +3291,7 @@
 
         // thin horizontal accent ring every ~10 storeys on some towers
         float ringOn = step(0.45, rnd(vec2(vSeed.x * 3.1, vSeed.y * 5.3)));
-        float ring = step(fract(wh / 27.0), 0.016) * step(CH * 2.0, wh) * ringOn;
+        float ring = pulseAA(wh / 27.0, 0.0, 0.016, fwH / 27.0) * step(CH * 2.0, wh) * ringOn;
         totalEmissiveRadiance += ring * vNeon * 1.2 * nGlow;
       } else if (vONormal.y > 0.5) {                      // ---- rooftop ----
         float edge = max(abs(vLP.x), abs(vLP.z));
@@ -4768,8 +4791,10 @@
           (music && !music.paused) ||
           radioQuiet() ||
           cine.loud;
+        const ride = vehMode === "walk" ? 1 : 0.8; // (20% softer on a ride)
         ambV +=
-          ((quiet ? 0 : AMB_VOL) - ambV) * Math.min(1, dt * (quiet ? 3 : 1.2));
+          ((quiet ? 0 : AMB_VOL * ride) - ambV) *
+          Math.min(1, dt * (quiet ? 3 : 1.2));
         if (ambGain) ambGain.gain.value = ambV;
         else amb.volume = ambV;
         if (quiet && ambV < 0.01) {
@@ -4817,7 +4842,8 @@
           !(music && !music.paused) &&
           !radioQuiet();
         rainSongV +=
-          ((want ? RAINSONG_VOL : 0) - rainSongV) *
+          ((want ? RAINSONG_VOL * (vehMode === "walk" ? 1 : 0.8) : 0) -
+            rainSongV) *
           Math.min(1, dt * (want ? 1.5 : 3));
         if (rainSongGain) rainSongGain.gain.value = rainSongV;
         else rainSong.volume = rainSongV;
@@ -14582,7 +14608,7 @@
         [532.2, 564.4],
       ];
       const NEWS_FREQ = 87.7;
-      const RF_VOL = 0.85;
+      const RF_VOL = 0.68; // (0.85 - 20%: the radio's songs, heard on every ride)
       const RADIO_MUSIC = RADIO_SONGS.filter((s) => s.lang !== "mix");
       // 💗 the first song she hears each visit is « العام الجديد » - Fadl Shaker &
       // Sherine - and it always comes in at 0:27; every other song starts where it may
