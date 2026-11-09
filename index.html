@@ -15906,12 +15906,45 @@
           Math.sign(drv.speed) * Math.min(Math.abs(drv.speed), 0.9 * dt);
         if (Math.abs(drv.speed) < 0.03 && !thr && !brk) drv.speed = 0;
 
+        // 🏎️ drifting: fast (or on the handbrake, Space) with the wheel turned
+        // hard, the rear steps out - the car points into the bend while it
+        // slides on wider along its old line (drv.slip = the angle between the
+        // two), the tyres scrubbing speed. Easing off the wheel lets it grip
+        // again, steering into the slide catches it quicker
+        const sp = Math.abs(drv.speed);
+        let slipTo = 0;
+        if (!drv.boat && !drv.jet && !drv.onSky && drv.pos.y < 0.6 && drv.speed > 6) {
+          const hard = Math.abs(steerIn) > 0.55 ? Math.sign(steerIn) : 0,
+            k = Math.max(
+              clamp((sp - 19) / 18, 0, 1), // (from ~70 km/h, a full drift by ~130)
+              handbrake && sp > 9 ? 0.85 : 0,
+            );
+          if (hard && k > 0) slipTo = hard * (0.18 + 0.42 * k);
+        }
+        drv.slip = drv.slip || 0;
+        drv.slip +=
+          (slipTo - drv.slip) *
+          Math.min(
+            1,
+            dt *
+              (Math.abs(slipTo) > Math.abs(drv.slip) && slipTo * drv.slip >= 0
+                ? 3 // (it steps out quickly)
+                : drv.slip * steerIn < 0
+                  ? 4.5 // (counter-steering catches it)
+                  : 1.6),
+          );
+        const slipA = Math.abs(drv.slip);
+        if (slipA > 0.05) drv.speed -= drv.speed * 0.32 * slipA * dt;
+
         const maxSteer = 0.6 / (1 + Math.abs(drv.speed) * 0.05);
         drv.steer += (steerIn * maxSteer - drv.steer) * Math.min(1, dt * 7);
-        drv.yaw += drv.steer * (drv.speed / 2.9) * dt;
+        drv.yaw += drv.steer * (drv.speed / 2.9) * dt * (1 + 0.4 * slipA);
 
-        drv.pos.x += Math.sin(drv.yaw) * drv.speed * dt;
-        drv.pos.z += Math.cos(drv.yaw) * drv.speed * dt;
+        const head = drv.yaw - drv.slip; // the way it is really going
+        drv.pos.x += Math.sin(head) * drv.speed * dt;
+        drv.pos.z += Math.cos(head) * drv.speed * dt;
+        if (slipA > 0.12 && sp > 7) driftFx(drv, head, sp, slipA);
+        else drv.skidAt = null;
         applyKick(drv, dt); // 🎈💥 shoved by a balloon she burst
         // up & down: the jets climb, hover and descend; without them she falls
         // back to the street (or onto a roof she's over)
@@ -15995,16 +16028,25 @@
               screenBurst(["💥", "💫"], 6);
             }
             drv.speed *= -0.25;
+            drv.slip *= 0.3;
           } else drv.speed *= 0.95;
         }
 
+        // the body leans out of the bend (more in a drift)
+        drv.roll = drv.roll || 0;
+        drv.roll +=
+          ((drv.boat || drv.pos.y > 0.6
+            ? 0
+            : clamp(drv.steer * Math.abs(drv.speed) * 0.011 + drv.slip * 0.1, -0.1, 0.1)) -
+            drv.roll) *
+          Math.min(1, dt * 6);
         drv.g.position.copy(drv.pos);
-        drv.g.rotation.set(0, drv.yaw, 0);
+        drv.g.rotation.set(0, drv.yaw, drv.roll, "YXZ");
         if (drv.flames) {
           // nose up the ramps, nose down them
           drv.tilt +=
             ((drv.onSky ? skyPitch(drv) : 0) - drv.tilt) * Math.min(1, dt * 8);
-          drv.g.rotation.set(drv.tilt, drv.yaw, 0, "YXZ");
+          drv.g.rotation.set(drv.tilt, drv.yaw, drv.roll, "YXZ");
         }
         if (drv.flames) {
           // 🚀 the jets: flames grow with throttle & climb, wheels fold flat, and in
@@ -16104,7 +16146,11 @@
 
         // chase camera - mouse / touch peeks around, then settles behind the car
         const recent = nowS() - lastLookT < 1.3;
-        yaw = angLerp(yaw, drv.yaw + Math.PI, dt * (recent ? 0.6 : 3.4));
+        yaw = angLerp(
+          yaw,
+          drv.yaw - (drv.slip || 0) * 0.7 + Math.PI, // (in a drift: along the slide)
+          dt * (recent ? 0.6 : 3.4),
+        );
         pitch += (-0.16 - pitch) * Math.min(1, dt * (recent ? 0.4 : 2.2));
         pitch = Math.max(-1.1, Math.min(0.6, pitch));
         const tx = drv.pos.x,
@@ -16478,6 +16524,7 @@
 
         updateUmbrellas(dt);
         flyCars(dt); // 💥 thrown cars, a shoved plane
+        updateDriftFx(dt); // 🏎️ tyre smoke, the squeal
         // beams + floating icons only while parked
         const carParked = !driving(car);
         carBeam.visible = carParked;
@@ -20793,6 +20840,190 @@
         wakeAcc = 0,
         skiRipT = 0;
       const _seat = new THREE.Vector3();
+
+      // 🏎️ a drift's marks: dark rubber streaks laid on the road by the rear
+      // tyres (one instanced strip - the oldest are laid again first, so they
+      // stay a while like real ones), soft grey tyre smoke, and the squeal
+      const SKID_N = 360;
+      const skidMesh = new THREE.InstancedMesh(
+        new THREE.PlaneGeometry(0.26, 1).rotateX(-Math.PI / 2),
+        new THREE.MeshBasicMaterial({
+          color: 0x0c0a0e,
+          transparent: true,
+          opacity: 0.5,
+          depthWrite: false,
+          polygonOffset: true,
+          polygonOffsetFactor: -2,
+          polygonOffsetUnits: -4,
+        }),
+        SKID_N,
+      );
+      skidMesh.frustumCulled = false;
+      skidMesh.count = 0;
+      skidMesh.visible = false;
+      scene.add(skidMesh);
+      let skidI = 0;
+      const _skM = new THREE.Matrix4(),
+        _skQ = new THREE.Quaternion(),
+        _skP = new THREE.Vector3(),
+        _skS = new THREE.Vector3(),
+        _skY = new THREE.Vector3(0, 1, 0);
+      function skidLay(x0, z0, x1, z1, y) {
+        const dx = x1 - x0,
+          dz = z1 - z0,
+          len = Math.hypot(dx, dz);
+        if (len < 0.05 || len > 6) return;
+        _skQ.setFromAxisAngle(_skY, Math.atan2(dx, dz));
+        _skM.compose(
+          _skP.set((x0 + x1) / 2, y, (z0 + z1) / 2),
+          _skQ,
+          _skS.set(1, 1, len + 0.06),
+        );
+        skidMesh.setMatrixAt(skidI, _skM);
+        skidI = (skidI + 1) % SKID_N;
+        skidMesh.count = Math.min(SKID_N, skidMesh.count + 1);
+        skidMesh.visible = true;
+        skidMesh.instanceMatrix.needsUpdate = true;
+      }
+      const SMOKE_N = 90;
+      const smokePos = new Float32Array(SMOKE_N * 3),
+        smokeCol = new Float32Array(SMOKE_N * 4),
+        smokeVel = new Float32Array(SMOKE_N * 3),
+        smokeAge = new Float32Array(SMOKE_N).fill(9),
+        smokeLife = new Float32Array(SMOKE_N).fill(1);
+      const smokeGeo = new THREE.BufferGeometry();
+      smokeGeo.setAttribute(
+        "position",
+        new THREE.BufferAttribute(smokePos, 3).setUsage(THREE.DynamicDrawUsage),
+      );
+      smokeGeo.setAttribute(
+        "color",
+        new THREE.BufferAttribute(smokeCol, 4).setUsage(THREE.DynamicDrawUsage),
+      );
+      const smokePts = new THREE.Points(
+        smokeGeo,
+        new THREE.PointsMaterial({
+          size: 2.6,
+          map: sprayTex,
+          vertexColors: true,
+          transparent: true,
+          depthWrite: false,
+        }),
+      );
+      smokePts.frustumCulled = false;
+      smokePts.visible = false;
+      scene.add(smokePts);
+      let smokeI = 0,
+        driftK = 0, // how hard she is drifting this frame (0…1) - the squeal follows
+        sqLevel = 0,
+        sqGain = null,
+        sqBands = null;
+      // one frame of a drift: streaks behind both rear tyres, a puff or two
+      function driftFx(rig, head, sp, slipA) {
+        const c = Math.cos(rig.yaw),
+          s = Math.sin(rig.yaw),
+          y = rig.pos.y + 0.03,
+          at = (rig.skidAt = rig.skidAt || [null, null]);
+        driftK = Math.max(driftK, clamp(slipA * 1.9, 0, 1) * clamp(sp / 24, 0, 1));
+        for (let k = 0; k < 2; k++) {
+          // a rear wheel (±0.86 m across, 1.45 m back), in the world
+          const lx = k ? 0.86 : -0.86,
+            lz = -1.45,
+            x = rig.pos.x + c * lx + s * lz,
+            z = rig.pos.z - s * lx + c * lz;
+          const last = at[k];
+          if (!last) at[k] = [x, z];
+          else if (Math.hypot(x - last[0], z - last[1]) > 0.8) {
+            skidLay(last[0], last[1], x, z, y);
+            last[0] = x;
+            last[1] = z;
+          }
+          if (Math.random() < 0.55 * slipA + 0.1) {
+            const i = smokeI++ % SMOKE_N,
+              o = i * 3,
+              back = 0.12 * sp;
+            smokePos[o] = x;
+            smokePos[o + 1] = rig.pos.y + 0.35;
+            smokePos[o + 2] = z;
+            smokeVel[o] = -Math.sin(head) * back + (Math.random() - 0.5) * 2;
+            smokeVel[o + 1] = 0.6 + Math.random() * 0.8;
+            smokeVel[o + 2] = -Math.cos(head) * back + (Math.random() - 0.5) * 2;
+            smokeAge[i] = 0;
+            smokeLife[i] = 1.1 + Math.random() * 0.7;
+          }
+        }
+      }
+      // every frame: the smoke drifts up and fades; the squeal rises & dies away
+      function updateDriftFx(dt) {
+        let live = 0;
+        const lit = 0.88 - 0.5 * uNight.value;
+        for (let i = 0; i < SMOKE_N; i++) {
+          if (smokeAge[i] >= smokeLife[i]) {
+            smokeCol[i * 4 + 3] = 0;
+            continue;
+          }
+          const o = i * 3,
+            drag = Math.max(0, 1 - dt * 1.8);
+          smokeAge[i] += dt;
+          smokeVel[o] *= drag;
+          smokeVel[o + 2] *= drag;
+          smokeVel[o + 1] += (1.1 - smokeVel[o + 1]) * Math.min(1, dt * 2);
+          smokePos[o] += smokeVel[o] * dt;
+          smokePos[o + 1] += smokeVel[o + 1] * dt;
+          smokePos[o + 2] += smokeVel[o + 2] * dt;
+          const a = smokeAge[i] / smokeLife[i];
+          smokeCol.set(
+            [lit, lit, lit * 1.02, 0.38 * (1 - a) * Math.min(1, smokeAge[i] * 7)],
+            i * 4,
+          );
+          live++;
+        }
+        if (live || smokePts.visible) {
+          smokeGeo.attributes.position.needsUpdate = true;
+          smokeGeo.attributes.color.needsUpdate = true;
+        }
+        smokePts.visible = live > 0;
+        // 🔊 the tyres' squeal: noise through two narrow bands, wavering
+        const want = vehMode === "car" ? driftK : 0;
+        driftK = 0;
+        sqLevel += (want - sqLevel) * Math.min(1, dt * (want > sqLevel ? 10 : 5));
+        if (!sqGain) {
+          if (want < 0.05 || !engCtx) return;
+          try {
+            const ctx = engCtx,
+              n = ctx.sampleRate,
+              buf = ctx.createBuffer(1, n, n),
+              d = buf.getChannelData(0);
+            for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+            const src = ctx.createBufferSource();
+            src.buffer = buf;
+            src.loop = true;
+            sqGain = ctx.createGain();
+            sqGain.gain.value = 0;
+            sqBands = [1150, 2350].map((f) => {
+              const bp = ctx.createBiquadFilter();
+              bp.type = "bandpass";
+              bp.frequency.value = f;
+              bp.Q.value = 12;
+              src.connect(bp);
+              bp.connect(sqGain);
+              return bp;
+            });
+            sqGain.connect(ctx.destination);
+            src.start();
+          } catch (e) {
+            sqGain = null;
+            return;
+          }
+        }
+        try {
+          // (still heard over the ride's radio, a little softer)
+          sqGain.gain.value = sqLevel * (radioQuiet() ? 0.9 : 1.4);
+          const wob = Math.sin(nowS() * 21) * 50 + Math.sin(nowS() * 7.3) * 30;
+          sqBands[0].frequency.value = 1050 + sqLevel * 200 + wob;
+          sqBands[1].frequency.value = 2200 + sqLevel * 350 + wob * 2;
+        } catch (e) {}
+      }
       // 💦 one drop of spray, and a step of the foamy wake (for the plane)
       function sprayAt(x, y, z, vx, vy, vz, life) {
         const i = sprayI++ % SPRAY_N,
@@ -23251,7 +23482,7 @@
       // and it's right there when she walks back off the pier
       function parkCarByPier() {
         if (driving(car)) return;
-        car.pos.set(PIER.x + 4.5, 0, PIER.z0 + 10);
+        car.pos.set(PIER.x - 4.5, 0, PIER.z0 + 10); // (the far side of the pier from where it used to wait)
         car.pos.y = roofUnder(car.pos.x, car.pos.z, 0);
         car.yaw = Math.PI; // (nose toward the pier)
         car.waiting = true; // (its lights stay on until she gets in)
