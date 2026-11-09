@@ -3846,6 +3846,7 @@
       const T_FRONT = new THREE.Color(3.0, 2.9, 2.6),
         T_REAR = new THREE.Color(2.8, 0.1, 0.16);
       const trains = [];
+      const TRAIN_HALF = (CARS * (CAR_LEN + CAR_GAP)) / 2; // nose to its middle
       // where a train may run along its line (its whole length stays over the island)
       function trainSpan(dir) {
         const half = (CARS * (CAR_LEN + CAR_GAP)) / 2 + 2;
@@ -3868,6 +3869,7 @@
           const [lo, hi] = trainSpan(dir);
           tr.s = lo + Math.random() * (hi - lo);
           tr.v = (24 + Math.random() * 24) * (Math.random() < 0.5 ? -1 : 1);
+          tr.cruise = Math.abs(tr.v);
           return;
         }
         tr.y = -500; // no line nearby - hide until next respawn
@@ -3891,8 +3893,33 @@
           dummy.scale.set(1, 1, 1);
           dummy.updateMatrix();
         };
+        // 🚦 who is up on a train deck: she on foot, the plane (rolling or parked)
+        const onDecks = [];
+        if (vehMode === "walk") onDecks.push(girl.pos.x, girl.pos.y, girl.pos.z);
+        if (plane.grounded) onDecks.push(plane.pos.x, plane.groundY, plane.pos.z);
         for (const tr of trains) {
           const camAlong = tr.dir ? camera.position.z : camera.position.x;
+          if (tr.y > -100) {
+            // someone on its deck ahead: it slows down and waits a little short
+            // of them, then rolls on once the way is clear
+            if (!tr.cruise) tr.cruise = Math.abs(tr.v) || 30;
+            const sg = tr.v < 0 ? -1 : 1,
+              nose = tr.s + sg * TRAIN_HALF,
+              top = tr.y - 1.35;
+            let gap = 1e9;
+            for (let i = 0; i < onDecks.length; i += 3) {
+              const lat = (tr.dir ? onDecks[i] : onDecks[i + 2]) - tr.line;
+              if (Math.abs(lat) > 3.2 || Math.abs(onDecks[i + 1] - top) > 1.6)
+                continue;
+              const d = ((tr.dir ? onDecks[i + 2] : onDecks[i]) - nose) * sg;
+              if (d > -4 && d < gap) gap = d;
+            }
+            const want = tr.cruise * clamp((gap - 9) / 55, 0, 1),
+              cur = Math.abs(tr.v);
+            tr.v =
+              sg *
+              Math.max(1e-3, cur + (want - cur) * Math.min(1, dt * (want < cur ? 4 : 0.7)));
+          }
           tr.s += tr.v * dt;
           // the line ends at the Corniche - the train turns back there
           if (tr.y > -100) {
@@ -12859,6 +12886,9 @@
         throttle: 0,
         grounded: true,
         groundY: 0,
+        road: null, // the skyway / train deck it rolls on ({dir, line, lim, cross})
+        slope: 0, // its nose-up tilt on a skyway's ramp (looks only)
+        slopeTo: 0,
         wheels: [],
         prop: null,
         propDisc: null,
@@ -15657,6 +15687,20 @@
             ),
           );
         girl.pos.y = Math.max(0, plane.pos.y - PLANE_GEAR + 0.05);
+        if (plane.grounded && plane.road) {
+          // up on a skyway or a train deck: she steps down onto it ahead of the
+          // nose (beside the wing would be thin air)
+          const r = plane.road;
+          girl.pos.set(
+            plane.pos.x + Math.sin(plane.yaw) * 6.5,
+            plane.groundY + 0.6,
+            plane.pos.z + Math.cos(plane.yaw) * 6.5,
+          );
+          const lat = (r.dir ? girl.pos.x : girl.pos.z) - r.line,
+            c = r.line + Math.max(-1, Math.min(1, lat));
+          if (r.dir) girl.pos.x = c;
+          else girl.pos.z = c;
+        }
         pushOutPoint(girl.pos, 0.5);
         girl.grounded = false;
         girl.climbing = false;
@@ -16133,6 +16177,72 @@
             }
           }
       }
+      // 🛣️🚆 the plane's floor: the streets & rooftops, a skyway's road and its
+      // ramps, a train deck - the highest it can roll up (or come down) onto
+      // from fuselage height y (its wheels at most `step` below it). plane.road
+      // = the high road it is on, or null at street & rooftop level
+      const PLANE_ROAD = { dir: 0, line: 0, lim: 0, cross: false };
+      function planeFloor(x, z, y, step) {
+        const gy = roofUnder(x, z, y),
+          feet = y - PLANE_GEAR,
+          sy = skyUnder(x, z, feet, step),
+          w = skyWay,
+          dy = deckTop(x, z, feet, step);
+        plane.road = null;
+        plane.slopeTo = 0;
+        const top = Math.max(sy, dy);
+        if (top < 0 || top < gy) return gy;
+        const onS = sy >= 0 && sy >= dy - 0.3,
+          onD = dy >= 0 && dy >= sy - 0.3;
+        if (onS) {
+          // up or down a ramp: the nose follows its slope
+          const s = w.dir ? z : x,
+            fa = w.dir ? Math.cos(plane.yaw) : Math.sin(plane.yaw);
+          plane.slopeTo = Math.atan2(
+            Math.max(0, skyH(w, s + 2 * fa)) - Math.max(0, skyH(w, s - 2 * fa)),
+            4,
+          );
+        }
+        if (top > 0.3) {
+          const r = PLANE_ROAD;
+          if (onS) {
+            r.dir = w.dir;
+            r.line = w.line;
+            r.lim = SKY_HW - 1.25;
+          } else {
+            r.dir = deckWay.dir;
+            r.line = deckWay.line;
+            r.lim = 1.0;
+          }
+          r.cross = (onS && onD) || (onD && deckCross); // (two roads meet here)
+          plane.road = r;
+        }
+        return top;
+      }
+      // the rails along a skyway or a train deck keep the rolling plane on it,
+      // turned along the road (where two roads meet she may turn onto the other)
+      function planeRails(dt) {
+        const r = plane.road,
+          p = plane.pos;
+        if (r.cross) return;
+        const lat = (r.dir ? p.x : p.z) - r.line;
+        if (Math.abs(lat) <= r.lim) return;
+        const c = r.line + Math.sign(lat) * r.lim;
+        if (r.dir) p.x = c;
+        else p.z = c;
+        const fa = r.dir ? Math.cos(plane.yaw) : Math.sin(plane.yaw),
+          ahead = r.dir
+            ? fa >= 0
+              ? 0
+              : Math.PI
+            : fa >= 0
+              ? Math.PI / 2
+              : -Math.PI / 2;
+        plane.yaw = angLerp(plane.yaw, ahead, Math.min(1, dt * 4));
+        plane.speed *= 1 - Math.min(1, dt * 0.4);
+      }
+      const _pw = new THREE.Vector3();
+
       // 🌊 how far past the coastline she may fly or ride (the cake's pier reaches
       // 78 m out): there the plane - or the jet ski, or the swan - turns back by
       // itself, and it hands her the controls again only once it is close to the
@@ -16188,16 +16298,35 @@
           plane.pos.z += Math.cos(plane.yaw) * plane.speed * dt;
           planeCollide(); // walls stop the taxi roll too - no phasing through towers
           if (airPush(plane.pos, 4.6)) plane.speed = 0; // the terminal, tower & hangar
+          if (plane.groundY < 1) {
+            // down on the street: a ramp's low side & the skyway pillars are solid
+            _pw.set(plane.pos.x, plane.groundY, plane.pos.z);
+            if (skyWall(_pw, 1.6, 3.5, 1.2) || skyPillarPush(_pw, 1.6)) {
+              // sliding along it costs nothing; rolling straight into it stops her
+              const dx = _pw.x - plane.pos.x,
+                dz = _pw.z - plane.pos.z,
+                into =
+                  -(Math.sin(plane.yaw) * dx + Math.cos(plane.yaw) * dz) /
+                  (Math.hypot(dx, dz) || 1);
+              plane.pos.x = _pw.x;
+              plane.pos.z = _pw.z;
+              if (into > 0.3) plane.speed *= 1 - 0.5 * into;
+            }
+          }
           plane.vy = 0;
           if (plane.speed > 23 && plane.pitch > 0.08) {
             plane.grounded = false; // 🛫 rotate!
             plane.vy = 2.2;
             track("🛫 Take-off from Rose Airfield!");
           } else {
-            const support = roofUnder(plane.pos.x, plane.pos.z, plane.pos.y);
+            // (up a skyway's ramp, along it or a train deck - or a rooftop)
+            const support = planeFloor(plane.pos.x, plane.pos.z, plane.pos.y, 1.2);
             if (plane.groundY > 0 && support < plane.groundY - 1)
-              plane.grounded = false; // rolled off a rooftop edge
-            else plane.groundY = support;
+              plane.grounded = false; // rolled off a rooftop's edge (or a high road's)
+            else {
+              plane.groundY = support;
+              if (plane.road) planeRails(dt);
+            }
             plane.pos.y = plane.groundY + PLANE_GEAR;
           }
         } else {
@@ -16257,8 +16386,8 @@
 
           planeCollide();
 
-          // touching down - street or rooftop
-          const gy = roofUnder(plane.pos.x, plane.pos.z, plane.pos.y);
+          // touching down - street or rooftop, a skyway or a train deck
+          const gy = planeFloor(plane.pos.x, plane.pos.z, plane.pos.y, 2.5);
           if (plane.pos.y <= gy + PLANE_GEAR) {
             plane.pos.y = gy + PLANE_GEAR;
             const sink = Math.sin(plane.pitch) * plane.speed + plane.vy;
@@ -16271,14 +16400,24 @@
             plane.vy = 0;
             plane.pitch = Math.max(0, Math.min(0.1, plane.pitch));
             plane.roll = 0;
-            track("🛬 Landed" + (gy > 0 ? " on a rooftop!" : ""));
+            track(
+              "🛬 Landed" +
+                (plane.road ? " on a high road!" : gy > 0 ? " on a rooftop!" : ""),
+            );
           }
         }
 
         planeWater(dt); // 💦 spray & wake on the sea, a splash touching it
         applyKick(plane, dt); // 🎈💥 shoved by a balloon she burst
+        plane.slope +=
+          ((plane.grounded ? plane.slopeTo : 0) - plane.slope) * Math.min(1, dt * 8);
         plane.g.position.copy(plane.pos);
-        plane.g.rotation.set(-plane.pitch, plane.yaw, plane.roll, "YXZ");
+        plane.g.rotation.set(
+          -plane.pitch - plane.slope,
+          plane.yaw,
+          plane.roll,
+          "YXZ",
+        );
         const rpm = 4 + plane.throttle * 46 + plane.speed * 0.12;
         plane.prop.rotation.z += rpm * dt;
         plane.propDisc.material.opacity = Math.max(
@@ -16324,7 +16463,7 @@
           plane.pos.y += plane.vy * dt;
           plane.pitch += (-0.35 - plane.pitch) * Math.min(1, dt);
           planeCollide(); // an abandoned plane bounces off walls too
-          const gy = roofUnder(plane.pos.x, plane.pos.z, plane.pos.y);
+          const gy = planeFloor(plane.pos.x, plane.pos.z, plane.pos.y, 2.5);
           if (plane.pos.y <= gy + PLANE_GEAR) {
             plane.pos.y = gy + PLANE_GEAR;
             plane.grounded = true;
@@ -25515,25 +25654,46 @@
         return best;
       }
 
-      // sky-bridge deck top under her feet, so she can run along the bridges
-      function deckUnder(p) {
+      // 🚆 the train-deck top under (x, z) that something at height y can stand on
+      // (it may be up to `tol` below it) - or −1. deckWay says which line;
+      // deckCross, that two decks meet there at that height
+      let deckWay = null,
+        deckCross = false;
+      const _deckW = [
+        { dir: 0, line: 0 },
+        { dir: 1, line: 0 },
+      ];
+      function deckTop(x, z, y, tol) {
         let best = -1;
+        deckWay = null;
+        deckCross = false;
         for (let dir = 0; dir < 2; dir++) {
-          const lat = dir ? p.x : p.z;
+          const lat = dir ? x : z;
           const n = Math.round(lat / TILE);
-          const y = bridgeAt(n, dir);
-          if (!y || skyLine(n, dir)) continue; // (a skyway: see skyUnder)
-          const along = dir ? p.z : p.x; // the decks end at the Corniche
+          const hb = bridgeAt(n, dir);
+          if (!hb || skyLine(n, dir)) continue; // (a skyway: see skyUnder)
+          const along = dir ? z : x; // the decks end at the Corniche
           if (
             along < (dir ? CITY_Z0 : CITY_X0) ||
             along > (dir ? CITY_Z1 : CITY_X1)
           )
             continue;
           if (Math.abs(lat - n * TILE) > 2.5) continue;
-          const top = y + 0.45;
-          if (p.y >= top - 0.35 && top > best) best = top;
+          const top = hb + 0.45;
+          if (y < top - tol) continue;
+          if (Math.abs(top - best) < 0.01) deckCross = true;
+          else if (top > best) {
+            best = top;
+            deckCross = false;
+            deckWay = _deckW[dir];
+            deckWay.line = n * TILE;
+          }
         }
         return best;
+      }
+      // sky-bridge deck top under her feet, so she can run along the bridges
+      function deckUnder(p) {
+        return deckTop(p.x, p.z, p.y, 0.35);
       }
 
       let prevJump = false;
