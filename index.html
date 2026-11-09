@@ -26895,8 +26895,8 @@
 
 
       // --- rooftop surprises (high up - fly upward with ▲ / E / Shift to reach them) ---
-      const ROOF_A = pickRoof(4, 4, 1),
-        ROOF_B = pickRoof(-5, -3, 1);
+      const ROOF_A = pickRoof(4, 4, 1);
+      // ROOF_B = pickRoof(-5, -3, 1); // (the love reasons' roof, hidden)
 
       const por = buildPortrait(
         new THREE.Vector3(ROOF_A.x, ROOF_A.top, ROOF_A.z),
@@ -26917,33 +26917,34 @@
         activate: () => openPortrait(),
       });
 
-      const rea = buildReasons(
-        new THREE.Vector3(ROOF_B.x, ROOF_B.top, ROOF_B.z),
-      );
-      addSurprise({
-        id: "reasons",
-        emoji: "💝",
-        label: "أسباب حبّي لكِ",
-        color: 0xff4f8b,
-        pos: new THREE.Vector3(ROOF_B.x, ROOF_B.top, ROOF_B.z),
-        centerY: ROOF_B.top + 10,
-        markerY: ROOF_B.top + 18,
-        radius: 42,
-        update: (s, t) => {
-          rea.big.scale.setScalar(2.2 * (1 + Math.sin(t * 1.2) * 0.06));
-          rea.grp.rotation.y = t * 0.3;
-          rea.orb.forEach((h, i) => {
-            const a = t * 1.2 + i * 2.1;
-            h.position.set(
-              Math.cos(a) * 4,
-              9 + Math.sin(t * 2 + i) * 0.6,
-              Math.sin(a) * 4,
-            );
-            h.rotation.y = a;
-          });
-        },
-        activate: () => openReasons(),
-      });
+      // 💝 « أسباب حبّي لكِ » (the love reasons) is out of the hunt for now
+      // const rea = buildReasons(
+      //   new THREE.Vector3(ROOF_B.x, ROOF_B.top, ROOF_B.z),
+      // );
+      // addSurprise({
+      //   id: "reasons",
+      //   emoji: "💝",
+      //   label: "أسباب حبّي لكِ",
+      //   color: 0xff4f8b,
+      //   pos: new THREE.Vector3(ROOF_B.x, ROOF_B.top, ROOF_B.z),
+      //   centerY: ROOF_B.top + 10,
+      //   markerY: ROOF_B.top + 18,
+      //   radius: 42,
+      //   update: (s, t) => {
+      //     rea.big.scale.setScalar(2.2 * (1 + Math.sin(t * 1.2) * 0.06));
+      //     rea.grp.rotation.y = t * 0.3;
+      //     rea.orb.forEach((h, i) => {
+      //       const a = t * 1.2 + i * 2.1;
+      //       h.position.set(
+      //         Math.cos(a) * 4,
+      //         9 + Math.sin(t * 2 + i) * 0.6,
+      //         Math.sin(a) * 4,
+      //       );
+      //       h.rotation.y = a;
+      //     });
+      //   },
+      //   activate: () => openReasons(),
+      // });
 
       // 🌠 the wishing star floats over the golden ring of its own little plaza,
       // right beside Rosmantic Music (its light beam & radar dot show it)
