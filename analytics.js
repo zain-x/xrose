@@ -1,5 +1,5 @@
-import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, setDoc, getDoc, updateDoc, increment, serverTimestamp } from 'firebase/firestore';
+// Firebase (the visit counter) is loaded lazily further down: the Telegram notes
+// must never wait for a 400 KB library or a database round trip.
 
 const _k1 = atob('QUl6YVN5RGZONUxiYWls');
 const _k2 = atob('ODd2OW9rWEFWQjNqQnR4dnZGQjV6cVdr');
@@ -26,8 +26,24 @@ const TELEGRAM_BOT_TOKEN = _t1 + _t2;
 const TELEGRAM_CHAT_ID = _c1;
 
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+const TELEGRAM_URL = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+
+// one place for every note. `last` = the page may be going away: a beacon
+// survives the tab closing (and iPhone's app switch), a plain fetch does not
+function sendTelegram(text, last = false) {
+    if (last) {
+        try {
+            const form = new URLSearchParams({ chat_id: TELEGRAM_CHAT_ID, text });
+            if (navigator.sendBeacon && navigator.sendBeacon(TELEGRAM_URL, form)) return Promise.resolve(true);
+        } catch (e) {}
+    }
+    return fetch(TELEGRAM_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text }),
+        keepalive: last
+    }).then((r) => r.ok).catch(() => false);
+}
 
 
 function getDeviceInfo() {
@@ -76,133 +92,119 @@ function formatDate(date) {
 }
 
 
-async function sendTelegramNotification(visitData) {
+// the counter: bump it and hand back { visitCount, lastVisit } (or null if the
+// database is slow / unreachable - the note goes out without the number then)
+async function countVisit() {
+    try {
+        const [{ initializeApp }, fs] = await Promise.all([
+            import('firebase/app'),
+            import('firebase/firestore')
+        ]);
+        const db = fs.getFirestore(initializeApp(firebaseConfig));
+        const visitorRef = fs.doc(db, 'visitors', 'rose');
+        const snap = await fs.getDoc(visitorRef);
+        if (snap.exists()) {
+            const data = snap.data();
+            fs.updateDoc(visitorRef, {
+                visitCount: fs.increment(1),
+                lastVisit: fs.serverTimestamp(),
+                device: getDeviceInfo()
+            }).catch(() => {});
+            return { visitCount: (data.visitCount || 0) + 1, lastVisit: data.lastVisit?.toDate() };
+        }
+        fs.setDoc(visitorRef, {
+            visitCount: 1,
+            firstVisit: fs.serverTimestamp(),
+            lastVisit: fs.serverTimestamp(),
+            device: getDeviceInfo()
+        }).catch(() => {});
+        return { visitCount: 1, lastVisit: null };
+    } catch (error) {
+        return null;
+    }
+}
+
+function visitMessage(visitData) {
     const { device, os, browser } = getDeviceInfo();
     const now = new Date();
-    
-    const message = `
-🌹 Rose visited the website!
+    const lines = ['🌹 Rose visited the website!', ''];
+    if (visitData) lines.push(`زيارة رقم: ${visitData.visitCount}`);
+    lines.push(`الوقت: ${formatTime(now)}`, `التاريخ: ${formatDate(now)}`, '');
+    lines.push(`الجهاز: ${device} (${os})`, `المتصفح: ${browser}`);
+    if (visitData) {
+        lines.push('', visitData.lastVisit
+            ? `آخر زيارة: ${formatDate(new Date(visitData.lastVisit))}`
+            : 'الزيارة الأولى! 💜');
+    }
+    return lines.join('\n');
+}
 
-زيارة رقم: ${visitData.visitCount}
-الوقت: ${formatTime(now)}
-التاريخ: ${formatDate(now)}
-
-الجهاز: ${device} (${os})
-المتصفح: ${browser}
-
-${visitData.lastVisit ? `آخر زيارة: ${formatDate(new Date(visitData.lastVisit))}` : 'الزيارة الأولى! 💜'}
-    `.trim();
-    
+// the page reloading itself to its newest version is not a new visit
+function isFreshReload() {
     try {
-        const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                chat_id: TELEGRAM_CHAT_ID,
-                text: message,
-                parse_mode: 'HTML'
-            })
-        });
-        
-        if (response.ok) {
-            // Notification sent
-        }
-    } catch (error) {
-        // Silent error handling
+        return Date.now() - (+sessionStorage.getItem('rose-fresh-reload') || 0) < 20000;
+    } catch (e) {
+        return false;
     }
 }
 
-// Track visit
+// Track visit: the note leaves right away - the counter gets 1.5 s to add its
+// number, never more
 async function trackVisit() {
-    const visitorId = 'rose'; // You can change this to track multiple users
-    const visitorRef = doc(db, 'visitors', visitorId);
-    
-    try {
-        const visitorDoc = await getDoc(visitorRef);
-        
-        if (visitorDoc.exists()) {
-            // Existing visitor
-            const data = visitorDoc.data();
-            await updateDoc(visitorRef, {
-                visitCount: increment(1),
-                lastVisit: serverTimestamp(),
-                device: getDeviceInfo()
-            });
-            
-            // Send notification
-            await sendTelegramNotification({
-                visitCount: (data.visitCount || 0) + 1,
-                lastVisit: data.lastVisit?.toDate()
-            });
-            
-            // Show welcome back message
-            showWelcomeMessage((data.visitCount || 0) + 1);
-        } else {
-            // First visit
-            await setDoc(visitorRef, {
-                visitCount: 1,
-                firstVisit: serverTimestamp(),
-                lastVisit: serverTimestamp(),
-                device: getDeviceInfo()
-            });
-            
-            // Send notification
-            await sendTelegramNotification({
-                visitCount: 1,
-                lastVisit: null
-            });
-            
-            // Show first visit message
-            showWelcomeMessage(1);
-        }
-    } catch (error) {
-        // Silent error handling
+    if (isFreshReload()) return;
+    const visitData = await Promise.race([
+        countVisit(),
+        new Promise((resolve) => setTimeout(() => resolve(null), 1500))
+    ]);
+    sendTelegram(visitMessage(visitData));
+}
+
+// Time on the site = the time the page was really on screen. Leaving (closing
+// the tab, switching app, locking the phone) sends it at once; coming back after
+// a while is a new stay, with a note of its own.
+const AWAY_IS_NEW_STAY = 60000;
+let shownAt = document.visibilityState === 'visible' ? Date.now() : 0;
+let onScreen = 0; // ms of this stay so far
+let hiddenAt = 0;
+let leftSent = false;
+
+function fmtSpent(ms) {
+    const t = Math.floor(ms / 1000);
+    const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), sec = t % 60;
+    return h > 0 ? `${h}h ${m}m ${sec}s` : `${m}m ${sec}s`;
+}
+
+function onLeave() {
+    if (shownAt) {
+        onScreen += Date.now() - shownAt;
+        shownAt = 0;
+    }
+    if (!hiddenAt) hiddenAt = Date.now();
+    if (leftSent || onScreen <= 10000) return; // only a stay of more than 10 seconds
+    leftSent = true;
+    sendTelegram(`⏱ Rose spent ${fmtSpent(onScreen)} on the website\n\nالوقت: ${formatTime(new Date())}`, true);
+}
+
+function onReturn() {
+    if (shownAt) return;
+    const away = hiddenAt ? Date.now() - hiddenAt : 0;
+    shownAt = Date.now();
+    hiddenAt = 0;
+    leftSent = false;
+    if (away >= AWAY_IS_NEW_STAY) {
+        onScreen = 0;
+        const now = new Date();
+        sendTelegram(`🌹 Rose came back to the website\n\nالوقت: ${formatTime(now)}\nالتاريخ: ${formatDate(now)}`);
     }
 }
 
-// Show welcome message
-function showWelcomeMessage(visitCount) {
-    // Silent tracking - no logs
-}
-
-// Track time on site
-let startTime = Date.now();
-
-window.addEventListener('beforeunload', async () => {
-    const timeSpent = Math.floor((Date.now() - startTime) / 1000);
-    const hours = Math.floor(timeSpent / 3600);
-    const minutes = Math.floor((timeSpent % 3600) / 60);
-    const seconds = timeSpent % 60;
-    
-    // Format time display based on duration
-    let timeDisplay;
-    if (hours > 0) {
-        timeDisplay = `${hours}h ${minutes}m ${seconds}s`;
-    } else {
-        timeDisplay = `${minutes}m ${seconds}s`;
-    }
-    
-    // Send time spent notification
-    if (timeSpent > 10) { // Only if spent more than 10 seconds
-        try {
-            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    chat_id: TELEGRAM_CHAT_ID,
-                    text: `⏱ Rose spent ${timeDisplay} on the website`,
-                    parse_mode: 'HTML'
-                }),
-                keepalive: true
-            });
-        } catch (error) {
-            // Silent error handling
-        }
-    }
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') onLeave();
+    else onReturn();
+});
+window.addEventListener('pagehide', onLeave);
+window.addEventListener('pageshow', (e) => {
+    if (e.persisted && document.visibilityState === 'visible') onReturn();
 });
 
 // Initialize tracking
@@ -211,28 +213,10 @@ trackVisit();
 // Track button clicks
 export async function trackButtonClick(buttonName) {
     const now = new Date();
-    const message = `
-🎯 Rose clicked: ${buttonName}
+    await sendTelegram(`🎯 Rose clicked: ${buttonName}
 
 الوقت: ${formatTime(now)}
-التاريخ: ${formatDate(now)}
-    `.trim();
-    
-    try {
-        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                chat_id: TELEGRAM_CHAT_ID,
-                text: message,
-                parse_mode: 'HTML'
-            })
-        });
-    } catch (error) {
-        // Silent error handling
-    }
+التاريخ: ${formatDate(now)}`);
 }
 
 // Make function available globally
@@ -242,19 +226,9 @@ window.trackButtonClick = trackButtonClick;
 // the date go under it, like the other notes
 export async function sendRoseMessage(text) {
     const now = new Date();
-    const message = `${text}
+    return sendTelegram(`${text}
 
 الوقت: ${formatTime(now)}
-التاريخ: ${formatDate(now)}`;
-    try {
-        const r = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text: message })
-        });
-        return r.ok;
-    } catch (error) {
-        return false;
-    }
+التاريخ: ${formatDate(now)}`);
 }
 window.sendRoseMessage = sendRoseMessage;
