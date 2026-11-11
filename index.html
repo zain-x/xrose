@@ -5166,7 +5166,7 @@
       const SECRET_LETTER = [
         "اليوم مو يوم عادي…",
         "عمرك مو رقم عم يكبر… هو ضحكات وحكايات ولحظات حلوة عم تتجمع.",
-        "هالسنة بتمنالك تكوني أسعد شخص بالدنيا، وتضلي متل ما انتي لأنك حلوة بطبيعتك.",
+        "هالسنة بتمنالك تكوني أسعد إنسانة بالدنيا، وتضلي متل ما انتي لأنك حلوة بطبيعتك رغم بحب العكس.",
         "كل عام وانتي ارق واجمل روزة والباقي بقلك ياه وجهاً لوجه 😛🌹",
       ];
       const LOVE_REASONS = [
@@ -23507,9 +23507,9 @@
       // and it's right there when she walks back off the pier
       function parkCarByPier() {
         if (driving(car)) return;
-        car.pos.set(PIER.x + 4.5, 0, PIER.z0 + 10); // (the other side of the pier: on her right as she turns back to the city)
+        car.pos.set(PIER.x - 4.5, 0, PIER.z0 + 10);
         car.pos.y = roofUnder(car.pos.x, car.pos.z, 0);
-        car.yaw = Math.PI; // (nose toward the pier)
+        car.yaw = 0; // (its back to the pier, nose to the city: ready to drive off)
         car.waiting = true; // (its lights stay on until she gets in)
         car.speed = 0;
         car.g.position.copy(car.pos);
