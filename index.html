@@ -1124,6 +1124,14 @@
         backdrop-filter: blur(6px);
         padding: 20px;
       }
+      /* a phone re-blurs the whole moving world behind the card on every frame
+         (the fireworks behind her letter): the dark veil alone is enough there */
+      @media (pointer: coarse) {
+        .panel {
+          backdrop-filter: none;
+          background: rgba(10, 2, 8, 0.84);
+        }
+      }
       .panel.show {
         display: flex;
         animation: fadeIn 0.3s ease;
@@ -4830,7 +4838,7 @@
       // the world and loops for ever. It only fades away while other music is
       // really heard (inside the music hall, the ♪ song, the vinyl, a ride's
       // radio, the birthday song, right by the cinema) and comes back after
-      const AMB_VOL = 0.63; // (0.45 + 40%)
+      const AMB_VOL = 0.756; // (0.45 + 40%, then + 20%)
       const amb = new Audio("assets/inter.mp3");
       amb.loop = true;
       amb.preload = "auto";
@@ -5253,7 +5261,8 @@
       // faced the sea by then, so that would stutter right in the middle of the
       // turn. While she reads her letter the turn's views are drawn once, unseen
       let warmRT = null;
-      function warmTurnViews() {
+      function warmTurnViews(step) {
+        step = step > 0 ? step : 0; // (one view a call: three at once froze the fireworks)
         try {
           const g = girl.pos,
             cam = camera.clone(),
@@ -5262,7 +5271,8 @@
             warmRT = new THREE.WebGLRenderTarget(64, 64, {
               type: THREE.HalfFloatType,
             });
-          for (const a of [Math.PI / 2, (3 * Math.PI) / 4, Math.PI]) {
+          {
+            const a = [Math.PI, (3 * Math.PI) / 4, Math.PI / 2][step];
             const ez = g.z + 9; // (where she'll be by the end of the walk)
             cam.position.set(g.x + Math.sin(a) * 6.8, g.y + 2.2, ez + Math.cos(a) * 6.8);
             cam.lookAt(g.x, g.y + 2, ez);
@@ -5280,6 +5290,7 @@
           }
           renderer.setRenderTarget(prev);
         } catch (e) {}
+        if (step < 2) setTimeout(() => warmTurnViews(step + 1), 450);
       }
       // a shuffled deck that never repeats a phrase until every one has been shown
       // (and never starts a new round with the one she just read); remembered
@@ -8664,8 +8675,11 @@
       }
       function pumpSong() {
         const beat = 60 / song.bpm;
+        // (the birthday song plays over the fireworks and the letter opening - a
+        // frame can stall there, so its notes are handed to the sound clock a good
+        // 2 s early and no stall can drop or bunch them)
         const now = hallCtx.currentTime,
-          ahead = now + 0.3;
+          ahead = now + (bdaySong ? 2 : 0.3);
         for (let guard = 0; guard < 64; guard++) {
           const ev = song.ev[songIdx];
           const t = songT0 + ev.t * beat;
