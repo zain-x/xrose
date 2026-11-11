@@ -5678,18 +5678,9 @@
         );
         if (discovered.size >= countedTotal) setTimeout(celebrate, 900);
       }
+      // every surprise found: no card and no button - just a shower of hearts and
+      // roses, and she carries on
       function celebrate() {
-        const el = document.getElementById("celebrate"),
-          card = document.getElementById("celebrate-card");
-        card.innerHTML = `<h1>اكتشفتي كل أرض حلم الورد 🌹</h1>
-    <p>كل وردة، وكل قلب، وكل رسالة هون… كانت إلك انتي 💜<br>المهم تعرفي إني دايماً معك.</p>
-    <div class="panel-btn" id="celebClose">كمّلي الطيران 🕊️</div>`;
-        el.classList.add("show");
-        pauseUI();
-        document.getElementById("celebClose").addEventListener("click", () => {
-          el.classList.remove("show");
-          resumeUI();
-        });
         track("🎉 Found ALL surprises in Rose Dream Land!");
         let n = 0;
         const iv = setInterval(() => {
