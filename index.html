@@ -4935,9 +4935,6 @@
       function enterCity() {
         if (started) return;
         started = true;
-        try {
-          localStorage.setItem("rose-first-start", "1"); // (next time: the city)
-        } catch (e) {}
         overlay.classList.add("hidden");
         document.getElementById("touch").classList.add("on");
         ambOn = true; // 🎧 inter.mp3 starts on this tap and loops
@@ -14668,11 +14665,11 @@
       const NEWS_FREQ = 87.7;
       const RF_VOL = 0.68; // (0.85 - 20%: the radio's songs, heard on every ride)
       const RADIO_MUSIC = RADIO_SONGS.filter((s) => s.lang !== "mix");
-      // 💗 the first song she hears each visit is « العام الجديد » - Fadl Shaker &
-      // Sherine - and it always comes in at 0:27; every other song starts where it may
-      // (on her birthday the radio opens with « Sana Helwa » instead - see bdayGoLive)
-      let RF_OPENER = "fadl-sherine-al-am-al-jadid";
-      const RF_START = { "fadl-sherine-al-am-al-jadid": 27 };
+      // 📻 the radio opens with whatever the shuffle brings, coming in somewhere
+      // past the start (only on her birthday does it open with « Sana Helwa », from
+      // the top - see bdayGoLive)
+      let RF_OPENER = "";
+      const RF_START = {};
       // the 100-songs DJ mix, cut at every song change into short clips
       const RADIO_MIX = RADIO_SONGS.filter((s) => s.lang === "mix");
       const isMix = (i) => i >= 0 && RADIO_SONGS[i].lang === "mix";
@@ -16529,12 +16526,12 @@
             if (nearParked) nearVehicle = "parked";
           }
           // 📻 the song her ride's radio will open with
-          if (nearVehicle && !radio.on)
-            radioWarm(
-              radio.everOn
-                ? peekNext()
-                : RADIO_SONGS.findIndex((s) => s.id === RF_OPENER),
-            );
+          if (nearVehicle && !radio.on) {
+            const op = radio.everOn
+              ? -1
+              : RADIO_SONGS.findIndex((s) => s.id === RF_OPENER);
+            radioWarm(op >= 0 ? op : peekNext());
+          }
         }
         nearMusic =
           !nearVehicle && vehMode === "walk" && started && !uiPaused
@@ -25315,21 +25312,6 @@
         body: null,
         cape: null,
       };
-      // 🎂 her very first visit starts on the sand in front of the birthday pier,
-      // facing the cake at its end - every visit after that starts in the city
-      // as usual (this device remembers; one that already found the cake starts
-      // in the city too)
-      let firstStart = false;
-      try {
-        firstStart =
-          !localStorage.getItem("rose-first-start") &&
-          localStorage.getItem("rose-cake-found") !== "1";
-      } catch (e) {}
-      if (firstStart) {
-        girl.pos.set(PIER.x, 0, PIER.z0 + 5);
-        girl.yaw = Math.PI; // (her "south" is −z: straight down the pier)
-        yaw = 0;
-      }
       {
         const G = girl.g;
         const body = new THREE.Group();
