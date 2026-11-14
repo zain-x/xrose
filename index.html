@@ -14665,7 +14665,7 @@
         [532.2, 564.4],
       ];
       const NEWS_FREQ = 87.7;
-      const RF_VOL = 0.68; // (0.85 - 20%: the radio's songs, heard on every ride)
+      const RF_VOL = 0.442; // (0.85 - 20%, then - 35%: the radio's songs, heard on every ride)
       const RADIO_MUSIC = RADIO_SONGS.filter((s) => s.lang !== "mix");
       // 📻 the radio opens with whatever the shuffle brings, coming in somewhere
       // past the start (only on her birthday does it open with « Sana Helwa », from
@@ -14721,6 +14721,7 @@
         needTap: false, // the browser held the song back until her next tap
         startAt: 0, // where the current song came in (s)
         everOn: false, // has the radio played yet this visit?
+        want: false, // she turned it on herself (a ride's radio stays off until she does)
       };
       try {
         const saved = JSON.parse(localStorage.getItem("roseFM") || "{}");
@@ -14995,6 +14996,7 @@
         radioSaveBag();
         radio.idx = i;
         radio.paused = false;
+        radio.want = true; // (a song is on - she wants the radio)
         if (!isMix(i)) radio.mixRun = false;
         else if (how === "pick") radio.mixRun = true;
         const flow = how === "flow"; // next clip of the mix - no static in between
@@ -15119,11 +15121,16 @@
         if (!radio.on) return;
         if (!radio.paused) {
           radio.paused = true;
+          radio.want = false; // (she stopped it - the next ride stays quiet too)
           radio.seq++;
           for (const n in rfCh) rfCh[n].to = 0;
         } else {
           radio.paused = false;
-          if (radio.phase === "song" && rfSong.src) {
+          radio.want = true; // (she turned it on - the next rides play on their own)
+          radioQuietCity();
+          // a ride's first ▶: it comes in just as it used to on getting in
+          if (radio.phase === "off") radioFresh();
+          else if (radio.phase === "song" && rfSong.src) {
             radioHiss(450, 0);
             rfAM = 0.7;
             rfAMto = 0;
@@ -15145,12 +15152,16 @@
         radio.kind = kind;
         radioEl.dataset.kind = kind;
         radioEl.classList.add("on");
-        // the city's song steps aside while the radio plays
-        radio.cityWasOn = roseOn;
-        if (roseOn) setRose(false);
-        if (music && !music.paused) music.pause(); // (the hall's vinyl too)
-        if (!quick) radio.paused = false;
+        // 📻 a new ride's radio stays off (▶ showing) until she turns it on herself
+        // (▶ / M) - once she has, the rides after it play on their own until she
+        // stops it again
+        if (!quick) {
+          radio.paused = !radio.want;
+          if (radio.paused) radio.phase = "off"; // (then ▶ brings a brand-new song)
+        }
+        radio.cityWasOn = false;
         if (radio.paused) return radioRender();
+        radioQuietCity();
         if (quick && radio.idx >= 0 && radio.phase === "song" && rfSong.src) {
           // carry on where she left it, after a quick crackle
           radioHiss(700, 0.2);
@@ -15163,20 +15174,29 @@
             rfAMto = 0;
           }, 600);
           radioRender();
-        } else {
-          // a brand-new random song for a brand-new ride (start the player inside
-          // this tap so phones allow it)
-          // her very first ride opens with the opener; after that, the shuffle
-          const first = RADIO_SONGS.findIndex((s) => s.id === RF_OPENER);
-          const i = !radio.everOn && first >= 0 ? first : pickNext();
-          radio.everOn = true;
-          rfSong.src = RADIO_DIR + RADIO_SONGS[i].id + ".mp3";
-          rfSong
-            .play()
-            .then(() => radio.phase !== "song" && rfSong.pause())
-            .catch(() => {});
-          tuneTo(i, "enter");
+        } else radioFresh();
+      }
+      // a brand-new random song for a brand-new ride (start the player inside
+      // this tap so phones allow it)
+      // her very first song opens with the opener; after that, the shuffle
+      function radioFresh() {
+        const first = RADIO_SONGS.findIndex((s) => s.id === RF_OPENER);
+        const i = !radio.everOn && first >= 0 ? first : pickNext();
+        radio.everOn = true;
+        rfSong.src = RADIO_DIR + RADIO_SONGS[i].id + ".mp3";
+        rfSong
+          .play()
+          .then(() => radio.phase !== "song" && rfSong.pause())
+          .catch(() => {});
+        tuneTo(i, "enter");
+      }
+      // the city's ♪ song (and the hall's vinyl) step aside while the radio plays
+      function radioQuietCity() {
+        if (roseOn) {
+          radio.cityWasOn = true;
+          setRose(false);
         }
+        if (music && !music.paused) music.pause();
       }
       function radioOff() {
         if (!radio.on) return;
@@ -16527,8 +16547,8 @@
             nearParked = nearestParked(girl.pos, 3.9);
             if (nearParked) nearVehicle = "parked";
           }
-          // 📻 the song her ride's radio will open with
-          if (nearVehicle && !radio.on) {
+          // 📻 the song her ride's radio will open with (only once she plays it)
+          if (nearVehicle && !radio.on && radio.want) {
             const op = radio.everOn
               ? -1
               : RADIO_SONGS.findIndex((s) => s.id === RF_OPENER);
@@ -25295,11 +25315,11 @@
       });
       const girl = {
         g: new THREE.Group(),
-        // 🍿 every visit starts in Rose Park, just past the park's cross path,
-        // facing « سينما روز » 63 m away down the whole football pitch - its big
-        // screen and its marquee in view (clear of the lamps and the court)
-        pos: new THREE.Vector3(CINE_SPOT.x + 63, 0, CINE_SPOT.z),
-        yaw: -Math.PI / 2, // facing west, toward the screen
+        // 🍿 every visit starts on the street just south-east of Rose Park, by
+        // the open lot next to the rose plaza, looking west - « سينما روز » far
+        // off on the left across the park (~120 m), seen at an angle
+        pos: new THREE.Vector3(-98, 0, -46),
+        yaw: -Math.PI / 2 + 0.12, // facing (a touch north of) west
         grounded: true,
         climbing: false,
         animT: 0,
@@ -25317,10 +25337,9 @@
         body: null,
         cape: null,
       };
-      // the camera starts behind her, looking at the screen too - tipped up a
-      // little so the marquee shows
-      yaw = Math.PI / 2;
-      pitch = 0.12;
+      // the camera starts behind her, looking the same way (the cinema to the left)
+      yaw = Math.PI / 2 + 0.12;
+      pitch = 0;
       {
         const G = girl.g;
         const body = new THREE.Group();
