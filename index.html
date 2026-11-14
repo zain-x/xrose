@@ -10048,6 +10048,36 @@
         g.fill();
         g.restore();
       }
+      // 🌹 the balloons' own lettering: just « Rose » in gold with the painted
+      // heart beside it (laid out like the last line of drawBirthday), sized to
+      // fit the face
+      function drawRoseHeart(g, cx, cy, maxW, px, stroke) {
+        g.save();
+        g.textAlign = "center";
+        g.textBaseline = "middle";
+        g.lineJoin = "round";
+        const font = (s) => `italic 900 ${s}px Georgia, serif`;
+        g.font = font(px);
+        const w = g.measureText("Rose").width + px * 0.375 * 2.35; // word + heart
+        if (w > maxW) {
+          px *= maxW / w;
+          g.font = font(px);
+        }
+        const r = px * 0.375, // (the heart to the word as on the old balloons)
+          rw = g.measureText("Rose").width;
+        g.lineWidth = Math.max(4, px * 0.16);
+        g.strokeStyle = stroke;
+        g.strokeText("Rose", cx - r * 1.2, cy);
+        g.fillStyle = "#ffe1a8";
+        g.fillText("Rose", cx - r * 1.2, cy);
+        drawHeartPath(g, cx + rw / 2 + r * 0.25, cy, r);
+        g.lineWidth = Math.max(3, r * 0.3);
+        g.strokeStyle = stroke;
+        g.stroke();
+        g.fillStyle = "#ff2d5e";
+        g.fill();
+        g.restore();
+      }
       // a sprinkle of birthday confetti over a balloon skin
       function sprinkleConfetti(g, W, H, n) {
         const C = ["#ffffff", "#ffe1a8", "#ff9ec2", "#bfe0ff", "#c6f7e2"];
@@ -10085,24 +10115,24 @@
         hl.addColorStop(1, "rgba(30,0,15,0.4)");
         g.fillStyle = hl;
         g.fillRect(0, 0, W, H);
-        // (the « Happy Birthday Rose ♥ » wish on a dark plaque, front & back, is
-        // taken off for now - just the stripes)
-        // for (const cx of [W * 0.25, W * 0.75]) {
-        //   const plaque = g.createRadialGradient(
-        //     cx,
-        //     H * 0.5,
-        //     10,
-        //     cx,
-        //     H * 0.5,
-        //     230,
-        //   );
-        //   plaque.addColorStop(0, "rgba(70,10,45,0.55)");
-        //   plaque.addColorStop(0.7, "rgba(70,10,45,0.3)");
-        //   plaque.addColorStop(1, "rgba(70,10,45,0)");
-        //   g.fillStyle = plaque;
-        //   g.fillRect(cx - 240, 0, 480, H);
-        //   drawBirthday(g, cx, H * 0.47, 300, 70, "rgba(55,8,28,0.75)");
-        // }
+        // « Rose ♥ » on a dark plaque, painted twice (front & back) so it reads
+        // as the balloon turns (no « Happy Birthday » on it for now)
+        for (const cx of [W * 0.25, W * 0.75]) {
+          const plaque = g.createRadialGradient(
+            cx,
+            H * 0.5,
+            10,
+            cx,
+            H * 0.5,
+            230,
+          );
+          plaque.addColorStop(0, "rgba(70,10,45,0.55)");
+          plaque.addColorStop(0.7, "rgba(70,10,45,0.3)");
+          plaque.addColorStop(1, "rgba(70,10,45,0)");
+          g.fillStyle = plaque;
+          g.fillRect(cx - 240, 0, 480, H);
+          drawRoseHeart(g, cx, H * 0.47, 300, 120, "rgba(55,8,28,0.75)");
+        }
         const t = new THREE.CanvasTexture(cv);
         t.anisotropy = 4;
         return t;
@@ -10421,8 +10451,8 @@
         0xff5d83, 0xff9ec2, 0xffd700, 0xff2d5e, 0xba94ff, 0x59b7ff, 0x3ccf9a,
       ];
       const balloons = [];
-      // Balloon skin: the balloon colour + a glossy highlight + birthday confetti
-      // (the "Happy Birthday Rose ♥" across the front is off for now).
+      // Balloon skin: the balloon colour + a glossy highlight + birthday confetti,
+      // and "Rose ♥" across the front (the face that turns to her).
       function makeBalloonTexture(css) {
         const W = 1024,
           H = 512,
@@ -10446,8 +10476,8 @@
         g.fillStyle = hl;
         g.fillRect(0, 0, W, H);
         sprinkleConfetti(g, W, H, 70);
-        // (no « Happy Birthday Rose ♥ » lettering on them for now)
-        // drawBirthday(g, W / 2, H * 0.47, 330, 74, "rgba(55,8,28,0.7)");
+        // « Rose ♥ » across the front (no « Happy Birthday » on them for now)
+        drawRoseHeart(g, W / 2, H * 0.47, 330, 130, "rgba(55,8,28,0.7)");
         const t = new THREE.CanvasTexture(cv);
         t.anisotropy = 4;
         return t;
