@@ -25293,9 +25293,10 @@
       });
       const girl = {
         g: new THREE.Group(),
-        // 🍿 every visit starts in Rose Park, on the football pitch, facing
-        // « سينما روز » 40 m away - its big screen and its marquee in view
-        pos: new THREE.Vector3(CINE_SPOT.x + 40, 0, CINE_SPOT.z),
+        // 🍿 every visit starts in Rose Park, just past the park's cross path,
+        // facing « سينما روز » 63 m away down the whole football pitch - its big
+        // screen and its marquee in view (clear of the lamps and the court)
+        pos: new THREE.Vector3(CINE_SPOT.x + 63, 0, CINE_SPOT.z),
         yaw: -Math.PI / 2, // facing west, toward the screen
         grounded: true,
         climbing: false,
