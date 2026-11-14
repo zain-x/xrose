@@ -25293,8 +25293,10 @@
       });
       const girl = {
         g: new THREE.Group(),
-        pos: new THREE.Vector3(0, 0, -8), // on the road, the red car in view
-        yaw: Math.PI, // facing south toward the car
+        // 🍿 every visit starts in Rose Park, on the football pitch, facing
+        // « سينما روز » 40 m away - its big screen and its marquee in view
+        pos: new THREE.Vector3(CINE_SPOT.x + 40, 0, CINE_SPOT.z),
+        yaw: -Math.PI / 2, // facing west, toward the screen
         grounded: true,
         climbing: false,
         animT: 0,
@@ -25312,6 +25314,10 @@
         body: null,
         cape: null,
       };
+      // the camera starts behind her, looking at the screen too - tipped up a
+      // little so the marquee shows
+      yaw = Math.PI / 2;
+      pitch = 0.12;
       {
         const G = girl.g;
         const body = new THREE.Group();
@@ -27373,26 +27379,26 @@
       //   activate: () => openReasons(),
       // });
 
-      // 🌠 the wishing star floats over the golden ring of its own little plaza,
-      // right beside Rosmantic Music (its light beam & radar dot show it)
-      const WISH_AT = P(lotC(WISH_LOT[0]), lotC(WISH_LOT[1]));
-      const star = buildStar(WISH_AT);
-      addSurprise({
-        id: "wish",
-        emoji: "⭐",
-        label: "نجمة الأمنية",
-        color: 0xffe07a,
-        pos: WISH_AT,
-        centerY: 4.5,
-        markerY: 11,
-        radius: 9,
-        update: (s, t) => {
-          star.star.position.y = 4.6 + Math.sin(t * 1.3) * 0.35;
-          star.star.rotation.y = t * 0.8;
-          star.star.rotation.z = Math.sin(t * 0.6) * 0.2;
-        },
-        activate: () => openWish(),
-      });
+      // 🌠 the wishing star (« نجمة الأمنية ») is hidden for now - it used to float
+      // over the golden ring of its own little plaza, right beside Rosmantic Music
+      // const WISH_AT = P(lotC(WISH_LOT[0]), lotC(WISH_LOT[1]));
+      // const star = buildStar(WISH_AT);
+      // addSurprise({
+      //   id: "wish",
+      //   emoji: "⭐",
+      //   label: "نجمة الأمنية",
+      //   color: 0xffe07a,
+      //   pos: WISH_AT,
+      //   centerY: 4.5,
+      //   markerY: 11,
+      //   radius: 9,
+      //   update: (s, t) => {
+      //     star.star.position.y = 4.6 + Math.sin(t * 1.3) * 0.35;
+      //     star.star.rotation.y = t * 0.8;
+      //     star.star.rotation.z = Math.sin(t * 0.6) * 0.2;
+      //   },
+      //   activate: () => openWish(),
+      // });
 
 
       // --- the sealed envelope on its table inside مقهى روز ☕💌 ---
