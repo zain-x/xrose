@@ -28,9 +28,42 @@ const TELEGRAM_CHAT_ID = _c1;
 
 const TELEGRAM_URL = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
 
+// 🧪 a local test (localhost, a LAN address, a file) never sends a note to
+// Telegram and never bumps the visit counter - the console shows what would
+// have gone out instead
+const LOCAL_TEST = (() => {
+    try {
+        const h = location.hostname;
+        return (
+            location.protocol === 'file:' ||
+            h === '' ||
+            h === 'localhost' ||
+            h === '0.0.0.0' ||
+            h === '[::1]' ||
+            h.endsWith('.local') ||
+            /^127\./.test(h) ||
+            /^10\./.test(h) ||
+            /^192\.168\./.test(h) ||
+            /^172\.(1[6-9]|2\d|3[01])\./.test(h)
+        );
+    } catch (e) {
+        return false;
+    }
+})();
+
 // one place for every note. `last` = the page may be going away: a beacon
 // survives the tab closing (and iPhone's app switch), a plain fetch does not
+// 🧟 notes from Rombie World (/rombie/) say so, so they're never mistaken for Rose World
+const PAGE_TAG = (() => {
+    try { return /^\/rombie(\/|$)/.test(location.pathname) ? '🧟 [Rombie World] ' : ''; } catch (e) { return ''; }
+})();
+
 function sendTelegram(text, last = false) {
+    text = PAGE_TAG + text;
+    if (LOCAL_TEST) {
+        console.info('[local test] Telegram note not sent:', text);
+        return Promise.resolve(false);
+    }
     if (last) {
         try {
             const form = new URLSearchParams({ chat_id: TELEGRAM_CHAT_ID, text });
@@ -151,7 +184,7 @@ function isFreshReload() {
 // Track visit: the note leaves right away - the counter gets 1.5 s to add its
 // number, never more
 async function trackVisit() {
-    if (isFreshReload()) return;
+    if (isFreshReload() || LOCAL_TEST) return;
     const visitData = await Promise.race([
         countVisit(),
         new Promise((resolve) => setTimeout(() => resolve(null), 1500))
