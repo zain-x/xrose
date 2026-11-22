@@ -53,9 +53,10 @@ const LOCAL_TEST = (() => {
 
 // one place for every note. `last` = the page may be going away: a beacon
 // survives the tab closing (and iPhone's app switch), a plain fetch does not
-// 🧟 notes from Rombie World (/rombie/) say so, so they're never mistaken for Rose World
+// 🧟 notes from Rombie World (its page says so: <html data-world="rombie">) are
+// tagged, so they're never mistaken for Rose World
 const PAGE_TAG = (() => {
-    try { return /^\/rombie(\/|$)/.test(location.pathname) ? '🧟 [Rombie World] ' : ''; } catch (e) { return ''; }
+    try { return document.documentElement.dataset.world === 'rombie' ? '🧟 [Rombie World] ' : ''; } catch (e) { return ''; }
 })();
 
 function sendTelegram(text, last = false) {
