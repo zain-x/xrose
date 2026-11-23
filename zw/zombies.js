@@ -19,14 +19,14 @@ const BUILDS = {
   brute: { shX: 0.31, hipX: 0.13, limb: 1.6, chest: [0.33, 0.23, 0.2], belly: [0.26, 0.17, 0.17], pelvis: [0.21, 0.13, 0.15], head: 0.86 },
 };
 const TYPES = {
-  walker: { name: "Walker", hp: 100, walk: [0.7, 1.3], run: [2.3, 3.2], dmg: 10, reach: 1.35, sight: 34, score: 100, scale: [0.93, 1.08], eyes: 0 },
-  runner: { name: "Runner", hp: 70, walk: [1.1, 1.6], run: [4.4, 5.4], dmg: 7, reach: 1.3, sight: 48, score: 150, scale: [0.92, 1.03], eyes: 1 },
+  walker: { name: "Walker", hp: 100, walk: [0.7, 1.3], run: [2.0, 2.8], dmg: 10, reach: 1.35, sight: 26, score: 100, scale: [0.93, 1.08], eyes: 0 },
+  runner: { name: "Runner", hp: 70, walk: [1.1, 1.6], run: [3.8, 4.6], dmg: 7, reach: 1.3, sight: 34, score: 150, scale: [0.92, 1.03], eyes: 1 },
   crawler: { name: "Crawler", hp: 55, walk: [0.5, 0.8], run: [1.8, 2.4], dmg: 8, reach: 1.25, sight: 24, score: 80, scale: [0.95, 1.05], eyes: 0 },
   bloater: { name: "Bloater", hp: 150, walk: [0.7, 0.95], run: [1.7, 2.1], dmg: 12, reach: 1.7, sight: 28, score: 200, scale: [1.05, 1.15], eyes: 2 },
   brute: { name: "Brute", hp: 1100, walk: [1.1, 1.3], run: [3.0, 3.4], dmg: 28, reach: 2.25, sight: 44, score: 1000, scale: [1.5, 1.58], eyes: 3, big: true },
-  // 🦖 the giants: three and a half times her height, slow, every step shakes the
-  // street - a car bounces off their shins (ram them fast, or bring the guns)
-  giant: { name: "Giant", hp: 2400, walk: [1.2, 1.5], run: [3.2, 3.8], dmg: 18, reach: 3.8, sight: 70, score: 3000, scale: [3.3, 3.7], eyes: 3, big: true, giant: true },
+  // 🦖 the giants: about twice her height, slow, every step thuds - a car
+  // bounces off their shins (ram them fast, or bring the guns)
+  giant: { name: "Giant", hp: 1400, walk: [1.0, 1.3], run: [2.6, 3.1], dmg: 14, reach: 2.9, sight: 55, score: 3000, scale: [2.1, 2.35], eyes: 3, big: true, giant: true },
 };
 const SKIN = [0x8a9a7c, 0x7c8a8c, 0x9a9468, 0x6f7a62, 0xa3a08a, 0x8c8478];
 const SHIRT = [0x4a5a6e, 0x6e2a2a, 0x3c4a32, 0x7a6a50, 0x2f2f36, 0x8a8478, 0x5a3a5e, 0x24506a, 0x8a5a20];
@@ -299,7 +299,7 @@ export function setupZombies(Z) {
   function pickType() {
     const w = Z.director.wave,
       r = Math.random();
-    const run = Math.min(0.3, 0.05 * w);
+    const run = Math.min(0.15, 0.03 * w);
     if (r < run) return "runner";
     if (r < run + 0.1) return "crawler";
     if (w >= 2 && r > 1 - Math.min(0.12, 0.03 * w)) return "bloater";
@@ -370,7 +370,7 @@ export function setupZombies(Z) {
       [x, z] = s;
     }
     const zb = makeZombie("giant", x, z, false);
-    Z.sfx.voice(headPos(zb, _v), "roar", 0.4);
+    Z.sfx.voice(headPos(zb, _v), "roar", 0.6);
     return zb;
   };
   function stomp(zb, dP, side) {
@@ -378,12 +378,12 @@ export function setupZombies(Z) {
     const fx = zb.pos.x + Math.cos(zb.yaw) * 0.14 * zb.scale * side,
       fz = zb.pos.z - Math.sin(zb.yaw) * 0.14 * zb.scale * side;
     Z.fx.dust(_v.set(fx, 0.15, fz), 3, 1.3);
-    if (k > 0.25) Z.fx.shake(0.32 * k * k);
+    if (k > 0.45) Z.fx.shake(0.12 * k * k);
     Z.sfx.stomp(zb.pos, 0.35 + 0.65 * k);
   }
   function giantLands(zb, dP) {
     const k = Math.max(0, 1 - dP / 140);
-    Z.fx.shake(0.95 * k);
+    Z.fx.shake(0.5 * k);
     for (let i = 0; i < 14; i++) {
       const a = (i / 14) * 6.283;
       Z.fx.dust(_v.set(zb.pos.x + Math.cos(a) * 3.5, 0.2, zb.pos.z + Math.sin(a) * 3.5), 2, 1.8);
@@ -412,7 +412,7 @@ export function setupZombies(Z) {
     if (scream && (zb.type !== "walker" || Math.random() < 0.55)) {
       zb.state = "scream";
       zb.st = 0;
-      Z.sfx.voice(headPos(zb, _v), zb.def.big ? "roar" : "scream", zb.type === "runner" ? 1.15 : zb.def.giant ? 0.45 : 1);
+      Z.sfx.voice(headPos(zb, _v), zb.def.big ? "roar" : "scream", zb.type === "runner" ? 1.15 : zb.def.giant ? 0.6 : 1);
       // the ones around it hear the scream
       for (const o of list)
         if (o !== zb && o.alive && !o.aware && o.pos.distanceToSquared(zb.pos) < 144) {
@@ -532,7 +532,7 @@ export function setupZombies(Z) {
     const fwdDot = dir.x * Math.sin(zb.yaw) + dir.z * Math.cos(zb.yaw);
     zb.fallSign = fwdDot < -0.1 ? -1 : fwdDot > 0.1 ? 1 : Math.random() < 0.5 ? -1 : 1;
     zb.eyes.material = deadEyeMat;
-    if (Math.random() < 0.5 || zb.def.giant) Z.sfx.voice(headPos(zb, _v), "die", zb.def.giant ? 0.4 : zb.type === "brute" ? 0.6 : 1);
+    if (Math.random() < 0.5 || zb.def.giant) Z.sfx.voice(headPos(zb, _v), "die", zb.def.giant ? 0.6 : zb.type === "brute" ? 0.7 : 1);
     Z.fx.bloodPool(zb.pos.x + Math.sin(zb.yaw) * zb.fallSign * 0.9, zb.pos.z + Math.cos(zb.yaw) * zb.fallSign * 0.9, 2 + Math.random() * 1.4, Math.max(0, zb.pos.y));
     zb.spurt = Math.max(zb.spurt, 0.8); // the wound keeps pouring a moment
   }
@@ -1044,7 +1044,7 @@ export function setupZombies(Z) {
   // ---- per frame ----------------------------------------------------------------------------------
   let spawnT = 1.5,
     hordeT = 30,
-    giantT = 4,
+    giantT = 25,
     frame = 0;
   const _d = new THREE.Vector3(),
     _cp = new THREE.Vector3(),
@@ -1109,10 +1109,10 @@ export function setupZombies(Z) {
     // 🦖 a few giants always walk the city
     giantT -= dt;
     if (giantT <= 0) {
-      giantT = R(6, 12);
+      giantT = R(40, 70);
       let gN = 0;
       for (const zb of list) if (zb.alive && zb.def.giant) gN++;
-      if (!P.dead && gN < (touch ? 2 : 3)) Zs.spawnGiant();
+      if (!P.dead && gN < 1) Zs.spawnGiant();
     }
     // the car she drives: where it is and how fast it really goes
     const inCar = api.vehMode === "car" && api.drv;
@@ -1296,7 +1296,7 @@ export function setupZombies(Z) {
             zb.state = "attack";
             zb.st = 0;
             zb.hitDone = false;
-            if (Math.random() < 0.6) Z.sfx.voice(headPos(zb, _v), zb.def.big ? "roar" : "attack", zb.def.giant ? 0.45 : 1);
+            if (Math.random() < 0.6) Z.sfx.voice(headPos(zb, _v), zb.def.big ? "roar" : "attack", zb.def.giant ? 0.6 : 1);
           }
           break;
         }
@@ -1315,10 +1315,10 @@ export function setupZombies(Z) {
                 Z.fx.dust(_v.set(p.x, 0.1, p.z), 10, zb.def.giant ? 1.6 : 0.8);
                 Z.fx.shake(zb.def.giant ? 0.7 : 0.45);
                 if (onFoot) {
-                  const kb = zb.def.giant ? 16 : 11;
+                  const kb = zb.def.giant ? 12 : 9;
                   api.vel.x += (dxp / (dP || 1)) * kb;
                   api.vel.z += (dzp / (dP || 1)) * kb;
-                  api.vel.y += zb.def.giant ? 7 : 5;
+                  api.vel.y += zb.def.giant ? 5 : 4;
                 } else if (inCar && zb.def.giant) {
                   // a giant's swat shoves the car back
                   api.drv.speed = -Math.max(6, Math.abs(api.drv.speed) * 0.5);
@@ -1329,7 +1329,7 @@ export function setupZombies(Z) {
           if (zb.st > 0.75) {
             zb.state = "chase";
             zb.st = 0;
-            zb.attackCD = zb.type === "runner" ? 0.25 : 0.45;
+            zb.attackCD = zb.type === "runner" ? 0.6 : 0.9;
           }
           break;
         }
@@ -1380,11 +1380,11 @@ export function setupZombies(Z) {
         const cx = zb.pos.x - _car.x,
           cz = zb.pos.z - _car.z,
           cd = Math.hypot(cx, cz);
-        if (cd < 3.9) {
+        if (cd < 3.3) {
           zb.ramT = Z.t + 0.7;
           const dir = _v2.set(cvx / carSpd, 0, cvz / carSpd);
           const pt = chestPos(zb, _v3).clone();
-          Zs.damage(zb, carSpd * 22, { dir, point: pt, ram: true });
+          Zs.damage(zb, carSpd * 26, { dir, point: pt, ram: true });
           if (zb.alive) {
             zb.state = "stagger";
             zb.st = 0;
@@ -1393,9 +1393,9 @@ export function setupZombies(Z) {
             nx = cx / (cd || 1),
             nz = cz / (cd || 1);
           d.speed = -Math.min(14, 3 + carSpd * 0.3);
-          d.pos.x -= nx * (3.95 - cd);
-          d.pos.z -= nz * (3.95 - cd);
-          Z.fx.shake(0.85);
+          d.pos.x -= nx * (3.35 - cd);
+          d.pos.z -= nz * (3.35 - cd);
+          Z.fx.shake(0.55);
           Z.fx.blood(pt, dir, 30, 7, 0);
           Z.sfx.stomp(zb.pos, 1.6);
           if (zb.alive) Z.hud.pop("GIANT HIT!", "#ffcf6a");
@@ -1428,7 +1428,7 @@ export function setupZombies(Z) {
             api.drv.speed *= 0.94;
             Z.fx.shake(0.25);
             Z.fx.blood(opts.point, dir, 30, 7 + carSpd * 0.08, 0); // a red spray over the bonnet
-            if (Math.random() < 0.5) Z.hud.splat(0.3 + Math.random() * 0.3); // 🩸 …and the windscreen
+            if (Math.random() < 0.2) Z.hud.splat(0.22 + Math.random() * 0.15); // 🩸 …now and then the windscreen
             if (Z.race) Z.race.roadkill(zb, carSpd);
           }
           continue;
@@ -1454,7 +1454,7 @@ export function setupZombies(Z) {
       zb.groanT -= dt;
       if (zb.groanT <= 0) {
         zb.groanT = zb.aware ? R(2.5, 6) : R(6, 14);
-        if (dP < (zb.def.giant ? 90 : 45)) Z.sfx.voice(headPos(zb, _v), "groan", zb.def.giant ? 0.42 : zb.type === "brute" ? 0.7 : zb.type === "runner" ? 1.2 : R(0.9, 1.1));
+        if (dP < (zb.def.giant ? 70 : 40)) Z.sfx.voice(headPos(zb, _v), "groan", zb.def.giant ? 0.62 : zb.type === "brute" ? 0.75 : zb.type === "runner" ? 1.15 : R(0.9, 1.1));
       }
       // the walk cycle follows the real speed
       zb.spd += (spd - zb.spd) * Math.min(1, dt * 8);

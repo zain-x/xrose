@@ -14,7 +14,7 @@ const DEFS = [
   { id: "uzi", key: 4, short: "UZI", name: "Uzi", dmg: 19, rate: 15, auto: true, mag: 32, res: 96, max: 320, spread: 0.04, recoil: 0.011, noise: 50, reload: 1.3, head: 2.5, decap: 0.25, knock: 0.6, range: 110, hold: "pistol" },
   { id: "ak", key: 4, short: "AK", name: "AK-47", dmg: 33, rate: 10, auto: true, mag: 30, res: 90, max: 300, spread: 0.022, recoil: 0.02, noise: 70, reload: 1.8, head: 2.8, decap: 0.5, knock: 1.4, range: 200, hold: "rifle" },
   { id: "sniper", key: 5, short: "SNP", name: "Sniper Rifle", dmg: 280, rate: 0.85, mag: 5, res: 15, max: 40, spread: 0.035, recoil: 0.13, noise: 90, reload: 2.4, head: 4, pierce: 4, decap: 1, knock: 6, range: 320, zoom: true, hold: "rifle" },
-  { id: "minigun", key: 6, short: "MG", name: "Machine Gun", dmg: 25, rate: 24, auto: true, mag: 400, res: 400, max: 900, belt: true, spread: 0.05, recoil: 0.006, noise: 85, reload: 0, head: 2.4, decap: 0.4, knock: 2, range: 170, spin: 0.3, slow: 0.85, hold: "heavy" },
+  { id: "minigun", key: 6, short: "MG", name: "Machine Gun", dmg: 42, rate: 13, auto: true, mag: 400, res: 400, max: 900, belt: true, spread: 0.035, recoil: 0.012, noise: 85, reload: 0, head: 2.4, decap: 0.45, knock: 2.4, range: 170, spin: 0.12, slow: 0.88, hold: "heavy" },
   { id: "flamer", key: 6, short: "FLM", name: "Flamethrower", flame: true, fuel: true, dps: 60, range: 11, use: 8, noise: 40, hold: "heavy" },
   { id: "gl", key: 7, short: "GL", name: "Grenade Launcher", proj: "grenade", rate: 1.4, mag: 6, res: 12, max: 36, recoil: 0.08, noise: 80, reload: 2.6, blast: 6, bdmg: 260, speed: 30, hold: "rifle" },
   { id: "rpg", key: 7, short: "RPG", name: "RPG-7", proj: "rocket", rate: 0.9, mag: 1, res: 5, max: 12, recoil: 0.14, noise: 90, reload: 2.0, blast: 7.5, bdmg: 430, speed: 60, hold: "rpg" },
@@ -718,7 +718,7 @@ export function setupWeapons(Z) {
       spinK += (want - spinK) * Math.min(1, dt * (want ? 1 / w.spin : 1.5));
       if (w.model.spin) w.model.spin.rotation.z += dt * spinK * 40;
       const L = spinK > 0.02 ? loopOn("spin") : null;
-      if (L) L.set(null, 0.18 * spinK, 40 + spinK * 90);
+      if (L) L.set(null, 0.06 * spinK, 700 + spinK * 500);
       else if (loops.spin) {
         loops.spin.stop();
         delete loops.spin;

@@ -1,10 +1,10 @@
-// 🏁 ROMBIE WORLD's race: a loop of glowing gates through Rose Island's
-// streets. She starts in her violet car on the line beside the rose plaza;
-// three laps against the clock - and every zombie she takes out knocks time
-// off the lap (a giant: five whole seconds). Her car carries a pair of
-// machine guns on the roof: hold the left mouse button (or the 🔥 button on a
-// phone) and they rake the road ahead. Nothing here is hard: no time limit,
-// no losing - just the best lap to beat.
+// 🏁 ROMBIE WORLD's race - when she wants one. Her violet car waits beside
+// her at the rose plaza and a glowing START gate stands down the street;
+// driving through it starts three laps through ten gates round downtown, and
+// every zombie she takes out knocks time off the lap (a giant: five whole
+// seconds). Her car carries a pair of machine guns on the roof: hold the left
+// mouse button (or the 🔥 button on a phone). Nothing here is hard: no time
+// limit, no losing - just the best lap to beat.
 import * as THREE from "three";
 
 export function setupRace(Z) {
@@ -15,7 +15,8 @@ export function setupRace(Z) {
 
   // ---- the circuit ------------------------------------------------------------------
   // street crossings, clockwise round downtown, back to the line by the plaza
-  const START = { x: -96, z: -48, yaw: Math.PI }; // (facing down the street, south)
+  const START = { x: -96, z: -60, yaw: Math.PI }; // (the gate across the street, facing south)
+  const PARK = { x: -95, z: -42, yaw: Math.PI }; // her car, waiting beside her
   const PTS = [
     [-96, -160],
     [32, -160],
@@ -34,7 +35,8 @@ export function setupRace(Z) {
   const PASS = 11.5; // this close counts as through it
 
   const RS = (Z.race = {
-    state: "idle", // 'count' → 'run' → 'done' → 'run' (the next race)
+    state: "idle", // 'ready' (the start gate glows) → 'run' → 'done' → 'ready'
+    armed: true, // (after a race she drives off the line before the gate starts another)
     race: 1,
     lap: 1,
     next: 0, // the gate she's heading for
@@ -96,7 +98,7 @@ export function setupRace(Z) {
     c.textAlign = "center";
     c.textBaseline = "middle";
     c.fillStyle = "#ffd23a";
-    c.fillText("FINISH", 256, 66);
+    c.fillText("RACE", 256, 66);
     const t = new THREE.CanvasTexture(cv);
     t.colorSpace = THREE.SRGBColorSpace;
     const m = new THREE.Mesh(new THREE.PlaneGeometry(13, 3.25), new THREE.MeshBasicMaterial({ map: t, side: THREE.DoubleSide, toneMapped: false }));
@@ -104,9 +106,10 @@ export function setupRace(Z) {
     return m;
   }
   function showGates() {
+    const ready = RS.state === "ready" || RS.state === "done";
     gates.forEach((G, i) => {
-      const isNext = i === RS.next,
-        isAfter = i === (RS.next + 1) % N;
+      const isNext = ready ? i === N - 1 : i === RS.next,
+        isAfter = !ready && i === (RS.next + 1) % N;
       G.g.visible = RS.state !== "idle" && (isNext || isAfter);
       const c = isNext ? (i === N - 1 ? COL.finish : COL.next) : COL.after;
       G.ringMat.color.copy(c);
@@ -120,7 +123,7 @@ export function setupRace(Z) {
   const css = document.createElement("style");
   css.textContent = `
   #zr { position: fixed; left: 18px; top: 16px; z-index: 14; display: none; pointer-events: none; color: #fff; font-family: Impact, "Arial Black", sans-serif; text-shadow: 0 2px 4px #000; min-width: 190px; }
-  body.zw-on #zr { display: block; }
+  body.zw-on.zr-on #zr { display: block; }
   #zr .top { font-size: 15px; letter-spacing: 1.5px; color: #ffd23a; }
   #zr .top b { color: #ff4fa8; font-weight: 400; margin-left: 10px; }
   #zr .tm { font-size: 40px; line-height: 1.05; letter-spacing: 1px; }
@@ -211,20 +214,23 @@ export function setupRace(Z) {
   };
 
   // ---- start · gates · laps ------------------------------------------------------------------------
-  let countT = 0,
-    countStep = 0;
+  placeCar(PARK.x, PARK.z, PARK.yaw); // (her car waits right beside her)
   RS.start = () => {
-    intoCar(START.x, START.z, START.yaw);
-    RS.state = "count";
+    RS.state = "ready";
     RS.next = 0;
     RS.lap = 1;
-    countT = 0;
-    countStep = 0;
     showGates();
-    Z.hud.banner("ROMBIE WORLD", "Drive through the glowing gates · run them over · mind the giants", 4.5);
-    // a giant waits down the first street, on the left
-    setTimeout(() => Z.zombies.spawnGiant(-64, -128), 600);
+    Z.hud.banner("ROMBIE WORLD", "Your car is right here (F) · drive through the glowing gate to race", 5);
   };
+  function begin() {
+    RS.next = 0;
+    RS.lap = 1;
+    RS.kills = 0;
+    bigText("GO!", "#5dff7a");
+    Z.sfx.raceBeep(true);
+    go();
+    showGates();
+  }
   function go() {
     RS.state = "run";
     RS.lapStart = RS.raceStart = Z.rt;
@@ -257,9 +263,10 @@ export function setupRace(Z) {
     if (RS.lap >= LAPS) {
       const total = Math.max(0, Z.rt - RS.raceStart - RS.raceBonus);
       Z.hud.banner("🏁 RACE " + RS.race + " DONE", `Time ${fmt(total)} · best lap ${fmt(Math.min(...RS.laps))} · ☠ ${RS.kills}${rec ? " · NEW RECORD!" : ""}`, 6);
-      Z.slowmo(0.4, 1.2);
+      Z.slowmo(0.4, 1.2, true);
       RS.state = "done";
       RS.doneT = Z.rt;
+      RS.armed = false;
     } else {
       RS.lap++;
       Z.hud.banner(rec ? "NEW BEST LAP!" : `LAP ${RS.lap}/${LAPS}`, `Last lap ${fmt(lt)}`, 2.6);
@@ -280,10 +287,10 @@ export function setupRace(Z) {
     rk.push(now);
     while (rk.length && now - rk[0] > 1.6) rk.shift();
     if (rk.length === 3) {
-      Z.slowmo(0.35, 0.7);
+      Z.slowmo(0.35, 0.7, true);
       setTimeout(() => Z.hud.pop("CARNAGE!", "#ff3a2a"), 300);
     } else if (rk.length === 6) {
-      Z.slowmo(0.3, 0.9);
+      Z.slowmo(0.3, 0.9, true);
       setTimeout(() => Z.hud.pop("MASSACRE!", "#ff3a2a"), 300);
     }
   };
@@ -351,12 +358,12 @@ export function setupRace(Z) {
     const ah = Z.aircraft.hitTest(_o, _d, h ? h.t : wallT);
     let end = wallT;
     if (ah) {
-      ah.a.damage(30, ah.point);
+      ah.a.damage(40, ah.point);
       Z.fx.sparks(ah.point, 6, 8);
       end = ah.t;
     } else if (h) {
       const head = h.part === "head";
-      Z.zombies.damage(h.zb, 30 * (head ? 2.6 : h.part === "legs" ? 0.7 : 1) * R(0.92, 1.08), {
+      Z.zombies.damage(h.zb, 40 * (head ? 2.6 : h.part === "legs" ? 0.7 : 1) * R(0.92, 1.08), {
         dir: _d.clone(),
         part: head ? "head" : "body",
         point: h.point.clone(),
@@ -389,31 +396,23 @@ export function setupRace(Z) {
     const host = inCar ? api.drv.g : api.car.g;
     if (guns.parent !== host) host.add(guns);
 
-    if (RS.state === "count") {
-      countT += dt;
-      if (inCar) api.drv.speed = 0; // (held on the line)
-      const steps = [
-        [0.9, "3", "#ff3a3a"],
-        [1.9, "2", "#ffb03a"],
-        [2.9, "1", "#ffe23a"],
-        [3.9, "GO!", "#5dff7a"],
-      ];
-      if (countStep < steps.length && countT >= steps[countStep][0]) {
-        const [, txt, col] = steps[countStep];
-        bigText(txt, col);
-        Z.sfx.raceBeep(txt === "GO!");
-        countStep++;
-        if (txt === "GO!") go();
-      }
-    } else if (RS.state === "done" && Z.rt - RS.doneT > 6) {
-      // the next race starts right here, through the finish line
+    document.body.classList.toggle("zr-on", RS.state === "run" || RS.state === "done");
+    if (RS.state === "done" && Z.rt - RS.doneT > 6) {
+      RS.state = "ready"; // (the gate waits for the next one)
       RS.race++;
-      RS.lap = 1;
-      RS.kills = 0;
-      bigText("GO!", "#5dff7a");
-      Z.sfx.raceBeep(true);
-      go();
       showGates();
+    }
+    // the start gate: driving through it starts a race
+    if (RS.state === "ready" && !P.dead) {
+      const p = Z.ppos(),
+        d = Math.hypot(p.x - START.x, p.z - START.z);
+      if (d > 30) RS.armed = true;
+      if (inCar && RS.armed && d < PASS && p.y < RING * 2 + 4) begin();
+    }
+    // the first time she sits in a car, a word about the race
+    if (inCar && !RS.told && RS.state === "ready") {
+      RS.told = true;
+      Z.hud.toast("🏁 Drive through the glowing gate to start a race", "#ff7ad0");
     }
 
     // through the next gate?
@@ -424,7 +423,7 @@ export function setupRace(Z) {
     }
     // the gates breathe
     const pulse = 1 + Math.sin(Z.rt * 4) * 0.04;
-    const G = gates[RS.next];
+    const G = gates[RS.state === "run" ? RS.next : N - 1];
     G.ring.scale.setScalar(pulse);
 
     // the roof guns
@@ -432,7 +431,7 @@ export function setupRace(Z) {
       gunCool -= dt;
       while (gunCool <= 0) {
         shoot();
-        gunCool += 1 / 14;
+        gunCool += 1 / 11;
       }
     } else gunCool = Math.max(0, gunCool - dt);
     if (!inCar) RS.fireMouse = false;
@@ -480,9 +479,10 @@ export function setupRace(Z) {
   // foot, her car in amber
   RS.radar = (proj, dot, rg) => {
     if (RS.state === "idle") return;
-    const a = PTS[RS.next],
+    const racing = RS.state === "run";
+    const a = racing ? PTS[RS.next] : PTS[N - 1],
       b = PTS[(RS.next + 1) % N];
-    const qb = proj(b[0], b[1], false);
+    const qb = racing ? proj(b[0], b[1], false) : null;
     if (qb) dot(qb, 3.5, "rgba(90, 210, 255, 0.8)");
     const qa = proj(a[0], a[1], true);
     if (qa) {
@@ -491,7 +491,7 @@ export function setupRace(Z) {
       rg.lineWidth = 1.5;
       rg.stroke();
     }
-    if (api.vehMode === "walk") {
+    if (api.vehMode === "walk" && racing) {
       const qc = proj(api.car.pos.x, api.car.pos.z, true);
       if (qc) {
         rg.fillStyle = "#ffb43a";

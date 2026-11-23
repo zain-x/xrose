@@ -156,7 +156,7 @@ export function initZombieWorld(api) {
   // ---- hurting her ---------------------------------------------------------
   Z.hurt = (amt, src, kind = "hit") => {
     if (P.dead || !Z.entered || Z.rt < P.inv) return;
-    amt = Math.min(22, amt * 0.5); // 🙂 easy: softer hits, never more than 22 at once
+    amt = Math.min(10, amt * 0.3); // 🙂 easy: soft hits, never more than 10 at once
     if (!Z.onFoot()) amt *= 0.5; // the car's steel takes half
     if (P.armor > 0) {
       const a = Math.min(P.armor, amt * 0.6);
@@ -199,10 +199,10 @@ export function initZombieWorld(api) {
       bestD = -1;
     for (let i = 0; i < 14; i++) {
       const a = Math.random() * Math.PI * 2,
-        r = i === 0 ? 0 : 30 + Math.random() * 120;
+        r = i === 0 ? 6 : 8 + Math.random() * 32; // (close to the plaza and her car)
       // snap onto a street line (the lots' edges are the roads)
-      let x = Math.cos(a) * r,
-        z = Math.sin(a) * r - 8;
+      let x = Math.cos(a) * r - 98,
+        z = Math.sin(a) * r - 46;
       if (Math.random() < 0.5) x = Math.round(x / TILE) * TILE;
       else z = Math.round(z / TILE) * TILE;
       if (!Z.freeSpot(x, z, 1.5)) continue;
@@ -214,12 +214,12 @@ export function initZombieWorld(api) {
         best = [x, z];
       }
     }
-    if (!best) best = [0, -8];
+    if (!best) best = [-98, -46];
     g.pos.set(best[0], 0, best[1]);
     g.climbing = false;
     api.vel.set(0, 0, 0);
     // 🏁 racing: back in the car at the last gate she went through
-    if (Z.race && Z.race.state !== "idle") Z.race.respawn();
+    if (Z.race && Z.race.state === "run") Z.race.respawn();
     Z.zombies.clearAround(Z.ppos(), 22);
     P.hp = P.max;
     P.armor = Math.max(P.armor, 25);
@@ -233,9 +233,12 @@ export function initZombieWorld(api) {
   };
 
   // ⏱ slow motion: k for `secs` real seconds
-  Z.slowmo = (k, secs) => {
+  let slowFree = 0;
+  Z.slowmo = (k, secs, force = false) => {
+    if (!force && Z.rt < slowFree) return; // (a beat of slow motion is special: not too often)
     Z.slow.k = Math.min(Z.slow.until > Z.rt ? Z.slow.k : 1, k);
     Z.slow.until = Math.max(Z.slow.until, Z.rt + secs);
+    slowFree = Z.slow.until + 4;
   };
 
   // ---- score & kill streaks --------------------------------------------------
@@ -272,8 +275,8 @@ export function initZombieWorld(api) {
   D.need = () => 14 + D.wave * 8;
   D.population = () => {
     const touch = api.isTouch;
-    const cap = touch ? 20 : 36;
-    const n = (touch ? 8 : 14) + D.wave * (touch ? 2 : 3);
+    const cap = touch ? 14 : 26;
+    const n = (touch ? 6 : 10) + D.wave * (touch ? 1 : 2);
     return Math.min(cap, D.lull > 0 ? Math.ceil(n * 0.4) : n);
   };
   function director(dt) {
@@ -285,7 +288,7 @@ export function initZombieWorld(api) {
       D.lull = 7;
       Z.hud.toast(`☠ WAVE ${D.wave} · ${waveLine(D.wave)}`, "#ffb03a");
       Z.sfx.waveHorn();
-      if (D.wave % 3 === 0) setTimeout(() => Z.zombies.spawnBoss(), 6000);
+      if (D.wave % 4 === 0) setTimeout(() => Z.zombies.spawnBoss(), 6000);
     }
     // ✈️ things from the sky, from the second wave on
     if (D.t > D.nextDrop) {
@@ -293,13 +296,13 @@ export function initZombieWorld(api) {
       Z.aircraft.supplyDrop();
     }
     // (no drones in Rombie World)
-    if (D.wave >= 3 && D.t > D.nextHeli) {
+    if (D.wave >= 4 && D.t > D.nextHeli) {
       if (!Z.aircraft.gunshipAlive()) Z.aircraft.spawnGunship();
-      D.nextHeli = D.t + Z.rnd(130, 180);
+      D.nextHeli = D.t + Z.rnd(220, 300);
     }
-    if (D.wave >= 4 && D.t > D.nextBomb) {
+    if (D.wave >= 6 && D.t > D.nextBomb) {
       Z.aircraft.bombingRun();
-      D.nextBomb = D.t + Z.rnd(150, 210);
+      D.nextBomb = D.t + Z.rnd(260, 340);
     }
   }
   function waveLine(w) {
@@ -350,9 +353,9 @@ export function initZombieWorld(api) {
     if (P.dead) {
       P.deadT += dt;
       if (P.deadT > 1.9) Z.hud.showDeath();
-    } else if (P.hp < P.max && Z.rt - P.lastHurt > 4) {
+    } else if (P.hp < P.max && Z.rt - P.lastHurt > 3) {
       // 🙂 a few quiet seconds and she heals right back up
-      P.hp = Math.min(P.max, P.hp + dt * 7);
+      P.hp = Math.min(P.max, P.hp + dt * 12);
     }
 
     Z.weapons.update(dt, sdt);
@@ -374,7 +377,7 @@ export function initZombieWorld(api) {
     Z.audio.start();
     Z.hud.onEnter();
     Z.world.onEnter();
-    Z.race.start(); // 🏁 into the car, onto the line: 3… 2… 1…
+    Z.race.start(); // 🏁 the start gate lights up (the race is hers to begin)
   }
 
   return {
