@@ -1,4 +1,4 @@
-// Firebase (the visit counter) is loaded lazily further down: the Telegram notes
+// Firebase (the visit counter) is loaded lazily further down: the notes
 // must never wait for a 400 KB library or a database round trip.
 
 const _k1 = atob('QUl6YVN5RGZONUxiYWls');
@@ -18,23 +18,13 @@ const firebaseConfig = {
 };
 
 
-const _t1 = atob('ODc0Mjk5MDAwNzpBQUZKVFpRQjc5MXNtekx0cFBnY1lRT2pFVDJNZF84OFot');
-const _t2 = atob('OA==');
-const _c1 = atob('NzY3MzQ=');
-
-const TELEGRAM_BOT_TOKEN = _t1 + _t2;
-const TELEGRAM_CHAT_ID = _c1;
-
-
-const TELEGRAM_URL = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
-
-// 💬 every note also goes to a Discord channel (its webhook link); empty = Telegram only
+// 💬 the notes go to a Discord channel (its webhook link)
 const _w1 = atob('aHR0cHM6Ly9kaXNjb3JkLmNvbS9hcGkvd2ViaG9va3MvMTU3NDcyOTY5ODE4Nzk0Mzk4OS94RV9zM1c3dzFkR1o0aHRNWXVzcXVIeVBDNXdRelZSNVl3RURzOQ==');
 const _w2 = atob('Y2dZcTZkaC1MOWJERnhwZGs3MUgwdzhIaGdtNURT');
 const DISCORD_URL = _w1 + _w2;
 
 // 🧪 a local test (localhost, a LAN address, a file) never sends a note to
-// Telegram and never bumps the visit counter - the console shows what would
+// Discord and never bumps the visit counter - the console shows what would
 // have gone out instead
 const LOCAL_TEST = (() => {
     try {
@@ -56,7 +46,7 @@ const LOCAL_TEST = (() => {
     }
 })();
 
-// one place for every note: it goes to Telegram and to Discord. `last` = the page
+// one place for every note: it goes to Discord. `last` = the page
 // may be going away: a beacon survives the tab closing (and iPhone's app switch),
 // a plain fetch does not
 // 🧟 notes from Rombie World (/rombie/) say so, so they're never mistaken for Rose World
@@ -64,28 +54,13 @@ const PAGE_TAG = (() => {
     try { return /^\/rombie(\/|$)/.test(location.pathname) ? '🧟 [Rombie World] ' : ''; } catch (e) { return ''; }
 })();
 
-function sendTelegram(text, last = false) {
+function sendNote(text, last = false) {
     text = PAGE_TAG + text;
     if (LOCAL_TEST) {
-        console.info('[local test] note not sent (Telegram, Discord):', text);
+        console.info('[local test] note not sent:', text);
         return Promise.resolve(false);
     }
-    return Promise.all([postTelegram(text, last), postDiscord(text, last)]).then(([t, d]) => t || d);
-}
-
-function postTelegram(text, last) {
-    if (last) {
-        try {
-            const form = new URLSearchParams({ chat_id: TELEGRAM_CHAT_ID, text });
-            if (navigator.sendBeacon && navigator.sendBeacon(TELEGRAM_URL, form)) return Promise.resolve(true);
-        } catch (e) {}
-    }
-    return fetch(TELEGRAM_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text }),
-        keepalive: last
-    }).then((r) => r.ok).catch(() => false);
+    return postDiscord(text, last);
 }
 
 // Discord: the note's first line in bold, sent by the webhook's own name (notes
@@ -220,7 +195,7 @@ async function trackVisit() {
         countVisit(),
         new Promise((resolve) => setTimeout(() => resolve(null), 1500))
     ]);
-    sendTelegram(visitMessage(visitData));
+    sendNote(visitMessage(visitData));
 }
 
 // Time on the site = the time the page was really on screen. Leaving (closing
@@ -246,7 +221,7 @@ function onLeave() {
     if (!hiddenAt) hiddenAt = Date.now();
     if (leftSent || onScreen <= 10000) return; // only a stay of more than 10 seconds
     leftSent = true;
-    sendTelegram(`⏱ Rose spent ${fmtSpent(onScreen)} on the website\n\nالوقت: ${formatTime(new Date())}`, true);
+    sendNote(`⏱ Rose spent ${fmtSpent(onScreen)} on the website\n\nالوقت: ${formatTime(new Date())}`, true);
 }
 
 function onReturn() {
@@ -258,7 +233,7 @@ function onReturn() {
     if (away >= AWAY_IS_NEW_STAY) {
         onScreen = 0;
         const now = new Date();
-        sendTelegram(`🌹 Rose came back to the website\n\nالوقت: ${formatTime(now)}\nالتاريخ: ${formatDate(now)}`);
+        sendNote(`🌹 Rose came back to the website\n\nالوقت: ${formatTime(now)}\nالتاريخ: ${formatDate(now)}`);
     }
 }
 
@@ -277,7 +252,7 @@ trackVisit();
 // Track button clicks
 export async function trackButtonClick(buttonName) {
     const now = new Date();
-    await sendTelegram(`🎯 Rose clicked: ${buttonName}
+    await sendNote(`🎯 Rose clicked: ${buttonName}
 
 الوقت: ${formatTime(now)}
 التاريخ: ${formatDate(now)}`);
@@ -286,11 +261,11 @@ export async function trackButtonClick(buttonName) {
 // Make function available globally
 window.trackButtonClick = trackButtonClick;
 
-// 💋 a note of her own to his Telegram (the kiss balance claim) - the time and
+// 💋 a note of her own to his Discord (the kiss balance claim) - the time and
 // the date go under it, like the other notes
 export async function sendRoseMessage(text) {
     const now = new Date();
-    return sendTelegram(`${text}
+    return sendNote(`${text}
 
 الوقت: ${formatTime(now)}
 التاريخ: ${formatDate(now)}`);
