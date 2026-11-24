@@ -912,7 +912,8 @@
       body.touch .rf-btn {
         height: 30px;
       }
-      /* 💃 a little dancer beside the radio - only while a song is playing */
+      /* 💃 a little dancer beside the radio - only while a song is playing
+         (one of two, picked at random for each song: see radioRender) */
       #radio .rf-dancer {
         position: absolute;
         left: calc(100% + 6px);
@@ -931,8 +932,12 @@
         filter: drop-shadow(0 3px 8px rgba(255, 70, 150, 0.45));
       }
       #radio.on .rf-dancer {
-        /* (fetched once she's in a car, so it's ready when the song starts) */
-        background: url("assets/dancer.webp") center bottom / contain no-repeat;
+        background: url("assets/dancer-swing.webp") center bottom / contain
+          no-repeat;
+      }
+      #radio.on[data-dancer="baila"] .rf-dancer {
+        aspect-ratio: 160 / 196;
+        background-image: url("assets/dancer-baila.webp");
       }
       #radio.playing .rf-dancer {
         opacity: 1;
@@ -15383,6 +15388,11 @@
       const rfDialG = rfDial.getContext("2d");
       const rfFreqEl = document.getElementById("rf-freq");
       const rfPlayEl = document.getElementById("rf-play");
+      // 💃 the dancers beside the radio: both fetched as soon as the radio first
+      // shows, and one of them picked at random for each song
+      const RF_DANCERS = ["swing", "baila"];
+      let rfDancersLoaded = false,
+        rfDanceSong = -1;
       function radioRender() {
         const news = radio.phase === "news";
         drawCover(
@@ -15390,10 +15400,18 @@
           rfCoverCv.width,
           news ? null : RADIO_SONGS[radio.idx],
         );
-        radioEl.classList.toggle(
-          "playing",
-          radio.phase === "song" && !radio.paused,
-        );
+        if (!rfDancersLoaded) {
+          rfDancersLoaded = true;
+          for (const n of RF_DANCERS)
+            new Image().src = `assets/dancer-${n}.webp`;
+        }
+        const playing = radio.phase === "song" && !radio.paused;
+        if (playing && rfDanceSong !== radio.idx) {
+          rfDanceSong = radio.idx;
+          radioEl.dataset.dancer =
+            RF_DANCERS[Math.floor(Math.random() * RF_DANCERS.length)];
+        }
+        radioEl.classList.toggle("playing", playing);
         radioEl.classList.toggle("tuning", radio.phase === "tuning");
         radioEl.classList.toggle("news", news);
         rfPlayEl.textContent = radio.paused ? "▶" : "⏸";
