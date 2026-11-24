@@ -28,6 +28,11 @@ const TELEGRAM_CHAT_ID = _c1;
 
 const TELEGRAM_URL = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
 
+// 💬 every note also goes to a Discord channel (its webhook link); empty = Telegram only
+const _w1 = atob('aHR0cHM6Ly9kaXNjb3JkLmNvbS9hcGkvd2ViaG9va3MvMTU3NDcyOTY5ODE4Nzk0Mzk4OS94RV9zM1c3dzFkR1o0aHRNWXVzcXVIeVBDNXdRelZSNVl3RURzOQ==');
+const _w2 = atob('Y2dZcTZkaC1MOWJERnhwZGs3MUgwdzhIaGdtNURT');
+const DISCORD_URL = _w1 + _w2;
+
 // 🧪 a local test (localhost, a LAN address, a file) never sends a note to
 // Telegram and never bumps the visit counter - the console shows what would
 // have gone out instead
@@ -51,8 +56,9 @@ const LOCAL_TEST = (() => {
     }
 })();
 
-// one place for every note. `last` = the page may be going away: a beacon
-// survives the tab closing (and iPhone's app switch), a plain fetch does not
+// one place for every note: it goes to Telegram and to Discord. `last` = the page
+// may be going away: a beacon survives the tab closing (and iPhone's app switch),
+// a plain fetch does not
 // 🧟 notes from Rombie World (/rombie/) say so, so they're never mistaken for Rose World
 const PAGE_TAG = (() => {
     try { return /^\/rombie(\/|$)/.test(location.pathname) ? '🧟 [Rombie World] ' : ''; } catch (e) { return ''; }
@@ -61,9 +67,13 @@ const PAGE_TAG = (() => {
 function sendTelegram(text, last = false) {
     text = PAGE_TAG + text;
     if (LOCAL_TEST) {
-        console.info('[local test] Telegram note not sent:', text);
+        console.info('[local test] note not sent (Telegram, Discord):', text);
         return Promise.resolve(false);
     }
+    return Promise.all([postTelegram(text, last), postDiscord(text, last)]).then(([t, d]) => t || d);
+}
+
+function postTelegram(text, last) {
     if (last) {
         try {
             const form = new URLSearchParams({ chat_id: TELEGRAM_CHAT_ID, text });
@@ -74,6 +84,27 @@ function sendTelegram(text, last = false) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text }),
+        keepalive: last
+    }).then((r) => r.ok).catch(() => false);
+}
+
+// Discord: the note's first line in bold, sent by the webhook's own name (notes
+// from Rombie World by « Rombie World »)
+function postDiscord(text, last) {
+    if (!DISCORD_URL) return Promise.resolve(false);
+    let content = text.replace(/^([^\n*]+)/, '**$1**');
+    if (content.length > 2000) content = content.slice(0, 1999) + '…'; // (Discord's limit)
+    const named = PAGE_TAG ? { username: 'Rombie World' } : {};
+    if (last) {
+        try {
+            const form = new URLSearchParams({ content, ...named });
+            if (navigator.sendBeacon && navigator.sendBeacon(DISCORD_URL, form)) return Promise.resolve(true);
+        } catch (e) {}
+    }
+    return fetch(DISCORD_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content, ...named, allowed_mentions: { parse: [] } }),
         keepalive: last
     }).then((r) => r.ok).catch(() => false);
 }
