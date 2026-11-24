@@ -1,12 +1,9 @@
 <!doctype html>
-<html lang="en" data-world="rombie">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- 🧟 Rombie World is the site's main page (Rose World is kept in git
-         history, commit ba41667); every path resolves from the site root -->
-    <base href="/" />
-    <title>Rombie World 🧟</title>
+    <title>Rose World ♥</title>
     <!-- the tab icon: a rose-pink heart with a gold sparkle (PNGs for Safari,
          phones' home screens and Android) -->
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
@@ -1653,67 +1650,6 @@
         font-size: 14px;
         line-height: 1.8;
       }
-
-      /* 🧟 ROMBIE WORLD: the start card and the loader in the colours of the fall */
-      #overlay {
-        background: radial-gradient(
-          circle at 50% 40%,
-          rgba(40, 6, 4, 0.5),
-          rgba(4, 3, 2, 0.94)
-        );
-      }
-      #overlay .card {
-        color: #e9e1d2;
-      }
-      #overlay .zw-t {
-        font: 400 clamp(46px, 11vw, 92px) / 1 Impact, "Arial Black", sans-serif;
-        letter-spacing: 4px;
-        color: #c8180c;
-        text-shadow:
-          0 0 28px rgba(255, 30, 0, 0.45),
-          0 4px 0 #2a0000;
-        margin-bottom: 6px;
-      }
-      #overlay .zw-s {
-        font-size: 14px;
-        color: #cdbfa8;
-        margin-bottom: 22px;
-        letter-spacing: 0.5px;
-      }
-      #overlay .phones {
-        color: #d8cdbb;
-      }
-      #overlay .go {
-        font: 400 18px Impact, "Arial Black", sans-serif;
-        letter-spacing: 2px;
-        border-color: rgba(255, 90, 60, 0.75);
-        background: rgba(150, 20, 10, 0.45);
-        padding: 12px 34px;
-      }
-      #loading {
-        color: #e9e1d2;
-        background: radial-gradient(circle at 50% 35%, #2a0c08, #050302 72%);
-      }
-      #loading h1 {
-        font-family: Impact, "Arial Black", sans-serif;
-        letter-spacing: 3px;
-        color: #c8180c;
-        text-shadow: 0 0 22px rgba(255, 30, 0, 0.5);
-      }
-      #loading .rose {
-        filter: drop-shadow(0 6px 22px rgba(255, 40, 20, 0.6));
-      }
-      #loading .barwrap {
-        background: rgba(120, 30, 20, 0.2);
-        border-color: rgba(200, 60, 40, 0.45);
-      }
-      #loading .bar {
-        background: linear-gradient(90deg, #5a0a04, #c8180c, #ff6a3a);
-        box-shadow: 0 0 18px rgba(255, 40, 10, 0.7);
-      }
-      #hud {
-        color: #e3d9c6;
-      }
     </style>
   </head>
   <body>
@@ -1721,35 +1657,21 @@
     <div class="flash" id="flash"></div>
 
     <div id="hud">
-      <div><b>🧟 ROMBIE WORLD</b> - gun them down, run them over</div>
+      <div><b>Infinite Rose World ♥</b></div>
       <div>
-        🏁 <span class="key">W</span><span class="key">A</span
-        ><span class="key">S</span><span class="key">D</span> drive &nbsp;
-        <span class="key">⇧</span> boost &nbsp; <span class="key">Space</span> drift
-        &nbsp; 🖱️ <b>Left</b> the car's machine guns
+        <span class="key">W</span><span class="key">A</span
+        ><span class="key">S</span><span class="key">D</span> run &nbsp;
+        <span class="key">Space</span> jump &nbsp; <span class="key">⇧</span>
+        sprint
       </div>
       <div>
-        🏁 drive through the glowing gate to race · every zombie you hit takes
-        time off your lap
+        🧗‍♀️ keep pushing into any tower and she climbs it like a spider;
+        <span class="key">Space</span> leaps off the wall
       </div>
       <div>
-        <span class="key">F</span> out of the car: <span class="key">W</span
-        ><span class="key">A</span><span class="key">S</span
-        ><span class="key">D</span> run &nbsp; <span class="key">Space</span> jump
-      </div>
-      <div>
-        🖱️ <b>Left</b> shoot &nbsp; <b>Right</b> aim / scope &nbsp;
-        <b>Wheel</b> or <span class="key">1</span>…<span class="key">7</span>
-        weapons
-      </div>
-      <div>
-        <span class="key">R</span> reload &nbsp; <span class="key">Q</span>
-        grenade &nbsp; <span class="key">X</span> air strike &nbsp;
-        <span class="key">F</span> back in the car
-      </div>
-      <div>
-        🧗‍♀️ push into a tower to climb it &nbsp; 🦸‍♀️
-        <span class="key">G</span> fly
+        🦸‍♀️ <span class="key">G</span> وضع سوبر وومن, she flies!
+        <span class="key">Space</span> rise, <span class="key">C</span> dive,
+        hold <span class="key">⇧</span> turbo
       </div>
       <!-- the rest of the help is hidden for now (below the Super Woman line)
       <div>🕐 time follows your real clock</div>
@@ -1799,26 +1721,22 @@
     </div>
 
     <div id="title">
-      <h1>ROMBIE <span>WORLD</span></h1>
+      <h1>ROSE <span>WORLD ♥</span></h1>
     </div>
 
     <div id="stats"></div>
 
     <div id="overlay">
       <div class="card">
-        <div class="zw-t">ROMBIE WORLD</div>
-        <div class="zw-s">
-          Rose Island has fallen. Gun them down, run them over - and race when you like.
-        </div>
         <div class="phones"><span>🎧</span>Better with headphones</div>
-        <div class="go">ENTER ROMBIE WORLD</div>
+        <div class="go">Enter Rose World</div>
       </div>
     </div>
 
-    <!-- ☣️ Loading -->
+    <!-- ♥ Loading: Welcome to Rose Dream Land ♥ -->
     <div id="loading">
-      <div class="rose">🧟</div>
-      <h1>ROMBIE WORLD</h1>
+      <div class="rose">🌹</div>
+      <h1>Rose World</h1>
       <div class="barwrap"><div class="bar" id="load-bar"></div></div>
       <div class="pct" id="load-pct">0%</div>
     </div>
@@ -1984,9 +1902,6 @@
       import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
       import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
       import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
-      // 🧟 ROMBIE WORLD - the zombie race laid over the island (see zw/)
-      import { initZombieWorld } from "./zw/main.js";
-      const ZOMBIE = true;
       // Real love-words from the original Rose project - re-used as the city's treasures.
       import { moodMessages } from "../messages.js";
 
@@ -2420,26 +2335,7 @@
         sky: "#bfe0ff",
         mint: "#c6f7e2",
       };
-      // ☣️ in the dead city the rooftop signs only warn (and flicker - zw/world.js)
-      const IM = (px) => `${px}px Impact, "Arial Black", sans-serif`;
-      const ZW_LABELS = () => [
-        makeLabel([{ t: "QUARANTINE", font: IM(78), color: "#ff3a2a" }], "rgba(255,40,20,0.95)"),
-        makeLabel([{ t: "HELP", font: IM(132), color: "#f0e6d0" }], "rgba(255,80,40,0.8)"),
-        makeLabel([{ t: "☣ DANGER", font: IM(96), color: "#ffb020" }], "rgba(255,150,20,0.9)"),
-        makeLabel([{ t: "منطقة موبوءة", font: AR(96), color: "#ff4a3a" }], "rgba(255,40,20,0.9)"),
-        makeLabel([{ t: "RUN", font: IM(140), color: "#ff2a1a" }], "rgba(255,20,0,0.95)"),
-        makeLabel([{ t: "SOS", font: IM(140), color: "#e8f0ff" }], "rgba(120,160,255,0.85)"),
-        makeLabel([{ t: "NO ENTRY", font: IM(92), color: "#ff6a2a" }], "rgba(255,90,20,0.9)"),
-        makeLabel([{ t: "اهربي", font: AR(140), color: "#ff3a2a" }], "rgba(255,30,10,0.95)"),
-        makeLabel(
-          [
-            { t: "THEY ARE", font: IM(70), color: "#f0e6d0" },
-            { t: "INSIDE", font: IM(84), color: "#ff3a2a" },
-          ],
-          "rgba(255,40,20,0.9)",
-        ),
-      ];
-      const LABEL_VARIANTS = ZOMBIE ? ZW_LABELS() : [
+      const LABEL_VARIANTS = [
         makeLabel(
           [{ t: "Rose", font: EN(132), color: LC.white }],
           "rgba(255,110,165,0.95)",
@@ -4501,9 +4397,8 @@
       });
       document.addEventListener("mousemove", (e) => {
         if (!locked || uiPaused) return;
-        const ms = 0.0022 * (ZOMBIE ? ZW.sens() : 1); // (slower in a scope)
-        yaw -= e.movementX * ms;
-        pitch -= e.movementY * ms;
+        yaw -= e.movementX * 0.0022;
+        pitch -= e.movementY * 0.0022;
         pitch = Math.max(
           -Math.PI / 2 + 0.05,
           Math.min(Math.PI / 2 - 0.05, pitch),
@@ -4553,7 +4448,6 @@
       );
       const isBdayNow = () => {
         const d = new Date();
-        if (ZOMBIE) return false; // (no birthday party in the dead city)
         return (
           BDAY_FORCE ||
           (d.getMonth() === BDAY.month && d.getDate() === BDAY.day)
@@ -4601,7 +4495,6 @@
       addEventListener("keydown", (e) => {
         if (pianoOpen) return; // those keys are piano keys right now 🎹
         if (e.code === "KeyP") autoTime = !autoTime;
-        else if (ZOMBIE && /^Digit/.test(e.code)) return; // (the weapons' keys)
         else if (e.code === "Digit1") stormTarget = 0.0;
         else if (e.code === "Digit2") stormTarget = 0.5;
         else if (e.code === "Digit3") stormTarget = 1.0;
@@ -4618,7 +4511,6 @@
             _now.getMinutes() * 60 +
             _now.getSeconds()) /
           86400;
-        if (ZOMBIE) timeOfDay = 0.02; // ☣️ the dead city never sees the sun
         // 🌅/🌙 Rose Resort can hold the sky at a sunset or a starry night a while
         skyMix +=
           ((skyHold && nowS() < skyHold.until ? 1 : 0) - skyMix) *
@@ -4826,19 +4718,16 @@
         updateLampLights();
         updateLocalLights(dt);
         watchBaked();
-        if (!ZOMBIE) {
-          // (the dead city has no petals, hearts, balloons, kisses or banners)
-          updatePetals(dt, starTime);
-          updateHearts(dt, starTime);
-          updateBalloons(dt, starTime);
-          updateShootStars(dt);
-          updateKisses(starTime);
-          updateGifPosters();
-        }
+        updatePetals(dt, starTime);
+        updateHearts(dt, starTime);
+        updateBalloons(dt, starTime);
+        updateShootStars(dt);
+        updateKisses(starTime);
+        updateGifPosters();
         updatePark(dt, starTime);
         updateSurprises(starTime, dt);
         updateVehicles(dt, starTime);
-        if (!ZOMBIE) updateBannerPlane(dt, starTime);
+        updateBannerPlane(dt, starTime);
         updateHall(dt, starTime);
         updateAmbient(dt);
         updateRainSong(dt);
@@ -4850,11 +4739,10 @@
         updateResort(dt, starTime);
         updateBirthday(dt, starTime);
         radarT += dt;
-        if (radarT >= 0.1 && !ZOMBIE) {
+        if (radarT >= 0.1) {
           radarT = 0;
           updateRadar(starTime); // 10 Hz is plenty for a minimap
         }
-        if (ZOMBIE) ZW.update(dt); // ☣️ the dead, the guns, the sky (zw/)
 
         // ground follows the camera so the infinite world stays lit
         ground.position.set(camera.position.x, 0, camera.position.z);
@@ -5049,16 +4937,13 @@
         started = true;
         overlay.classList.add("hidden");
         document.getElementById("touch").classList.add("on");
-        if (!ZOMBIE) {
-          ambOn = true; // 🎧 inter.mp3 starts on this tap and loops
-          ambAudio();
-          amb.play().catch(() => {});
-        }
+        ambOn = true; // 🎧 inter.mp3 starts on this tap and loops
+        ambAudio();
+        amb.play().catch(() => {});
         // (the vinyl and the ♪ song still only play when she asks for them)
         initHallAudio(); // (created on this tap so the hall's piano may play later)
-        if (ZOMBIE) ZW.onEnter(); // ☣️ the dread, the HUD, wave 1 (on this tap)
         if (!isTouch) canvas.requestPointerLock();
-        track(ZOMBIE ? "🧟 Entered Rombie World" : "🌹 Entered Rose Dream Land");
+        track("🌹 Entered Rose Dream Land");
         if (BDAY_TODAY) setTimeout(bdayWelcome, 1500); // 🎂 it's her day
         cineBegin(); // 🍿 the park cinema's episode starts now (on this tap)
       }
@@ -5133,9 +5018,8 @@
             lookX = t.clientX;
             lookY = t.clientY;
             if (uiPaused) continue;
-            const ts = 0.005 * (ZOMBIE ? ZW.sens() : 1);
-            yaw -= dx * ts;
-            pitch -= dy * ts;
+            yaw -= dx * 0.005;
+            pitch -= dy * 0.005;
             pitch = Math.max(
               -Math.PI / 2 + 0.05,
               Math.min(Math.PI / 2 - 0.05, pitch),
@@ -26077,10 +25961,6 @@
           sprint = keys["ShiftLeft"] || keys["ShiftRight"] || touchBoost;
           if (touchDown) fwd = Math.min(fwd, -1); // ▼ = back away / climb down
         }
-        if (ZOMBIE && ZW.blockMove()) {
-          fwd = side = 0; // ☠ (she's down)
-          jumpHeld = sprint = false;
-        }
         fwd = Math.max(-1, Math.min(1, fwd));
         side = Math.max(-1, Math.min(1, side));
         const jumpPressed = jumpHeld && !prevJump;
@@ -26221,10 +26101,7 @@
           girl.animT += dt * 5;
         } else if (!girl.climbing) {
           // --- running / jumping / falling ---
-          const speed =
-            (sprint ? 12.5 : 7.2) *
-            (girl.swim ? 0.45 : 1) * // slower in the pool
-            (ZOMBIE ? ZW.speedMul() : 1); // (a minigun is heavy, a scope is slow)
+          const speed = (sprint ? 12.5 : 7.2) * (girl.swim ? 0.45 : 1); // slower in the pool
           const ease = girl.grounded ? 13 : 3.2;
           vel.x += (wishX * speed - vel.x) * Math.min(1, dt * ease);
           vel.z += (wishZ * speed - vel.z) * Math.min(1, dt * ease);
@@ -26295,10 +26172,7 @@
           // short steps when she walks, long bounding strides when she runs
           // (half a turn of animT per step)
           const gs = Math.hypot(vel.x, vel.z);
-          girl.animT +=
-            (girl.grounded ? (Math.PI * gs) / gaitStep(gs) : 5) *
-            dt *
-            (ZOMBIE ? ZW.gaitSign() : 1); // (backing away while she aims: the steps run backwards)
+          girl.animT += (girl.grounded ? (Math.PI * gs) / gaitStep(gs) : 5) * dt;
         }
 
         // --- pose the little doll ---
@@ -26436,7 +26310,6 @@
         if (girl.cape.visible && (girl.grounded || girl.climbing))
           girl.cape.rotation.x = 0.25 + runAmp * 0.5;
         if (girl.cape.visible) waveCape(starTime); // cloth ripple
-        if (ZOMBIE) ZW.poseGirl(dt); // 🔫 the gun up on the aim (zw/weapons.js)
 
         girlCamera(p);
       }
@@ -26540,19 +26413,14 @@
         return -0.16 + (lerp(-0.18 - 0.22 * Math.max(0, f), -1.3 - 0.25 * f, w) + 0.16) * a;
       }
       function girlCamera(p) {
-        // ☣️ with a gun: closer, over her right shoulder (zw/weapons.js cam)
-        const zc = ZOMBIE ? ZW.cam() : null;
-        const sh = zc ? zc.sh : 0,
-          rx = Math.cos(yaw) * sh,
-          rz = -Math.sin(yaw) * sh;
-        const tx = p.x + rx,
-          ty = p.y + 2.0 + (zc ? zc.up : 0),
-          tz = p.z + rz;
+        const tx = p.x,
+          ty = p.y + 2.0,
+          tz = p.z;
         const cp = Math.cos(pitch),
-          d = zc ? zc.d : 6.8;
+          d = 6.8;
         camera.position.set(
           tx + Math.sin(yaw) * cp * d,
-          ty + Math.sin(-pitch) * d * 0.6 + 0.7 * Math.min(1, d / 6.8),
+          ty + Math.sin(-pitch) * d * 0.6 + 0.7,
           tz + Math.cos(yaw) * cp * d,
         );
         pushOutPoint(camera.position, 0.6);
@@ -27589,8 +27457,7 @@
       const ROSE_CAFE = CAFES.find((c) => c.envelope);
       const envPos = P(lotC(ROSE_CAFE.gx), lotC(ROSE_CAFE.gz));
       const envl = buildEnvelope(envPos);
-      if (ZOMBIE) envl.grp.visible = false;
-      if (!ZOMBIE) addSurprise({
+      addSurprise({
         id: "envelope",
         emoji: "💌",
         label: "ظرف مختوم بالمقهى",
@@ -27652,9 +27519,8 @@
           s.marker.position.y =
             s.markerYBase + Math.sin(t * 1.5 + s.center.z) * 0.6;
         }
-        if (ZOMBIE || !started || uiPaused || vehMode !== "walk") {
-          // (☣️ in the dead city no love-surprise opens)
-          if (!ZOMBIE) promptEl.classList.remove("show");
+        if (!started || uiPaused || vehMode !== "walk") {
+          promptEl.classList.remove("show");
           actBtn.classList.remove("live");
           nearest = null;
           return;
@@ -27938,99 +27804,6 @@
           BAKE.batches.splice(i, 1);
         }
       }
-
-      // 🧟 ROMBIE WORLD: everything the zombie world needs from this one (zw/main.js)
-      const ZW = ZOMBIE
-        ? initZombieWorld({
-            THREE,
-            scene,
-            camera,
-            renderer,
-            canvas,
-            girl,
-            vel,
-            keys,
-            TILE,
-            get yaw() {
-              return yaw;
-            },
-            set yaw(v) {
-              yaw = v;
-            },
-            get pitch() {
-              return pitch;
-            },
-            set pitch(v) {
-              pitch = Math.max(-Math.PI / 2 + 0.05, Math.min(Math.PI / 2 - 0.05, v));
-            },
-            get vehMode() {
-              return vehMode;
-            },
-            get uiPaused() {
-              return uiPaused;
-            },
-            get started() {
-              return started;
-            },
-            get locked() {
-              return locked;
-            },
-            get isTouch() {
-              return isTouch;
-            },
-            get drv() {
-              return drv;
-            },
-            car, // 🏁 her own car - the race car
-            enterCar: (rig = car) => {
-              if (vehMode === "walk") enterCar(rig);
-            },
-            focusPos,
-            pushOutPoint,
-            roofUnder,
-            towerSpec,
-            landDist,
-            keepOnLand,
-            hash,
-            audio: () => {
-              initHallAudio();
-              return hallCtx;
-            },
-            exitVehicle: () => {
-              if (vehMode === "car") exitCar();
-              else if (vehMode === "plane") exitPlane();
-            },
-            setStorm: (v) => {
-              stormTarget = storm = v;
-            },
-            env: {
-              uNight,
-              hemi,
-              keyLight,
-              moonFill,
-              moonDisc,
-              moonGlow,
-              starMat,
-              lampLights,
-              lampHeadMat,
-              LABEL_MATS,
-            },
-            hideList: [
-              petals,
-              balloonRoot,
-              kissRoot,
-              posterRoot,
-              bdayRoot,
-              nameSky,
-              bannerPlane.root,
-              bannerPlane2.root,
-              ...bannerPlane.hearts.map((h) => h.sp),
-              ...bannerPlane2.hearts.map((h) => h.sp),
-            ],
-            floatingHearts,
-            surprises,
-          })
-        : null;
 
       updateChunks();
       runLoader();
