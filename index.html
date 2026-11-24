@@ -5475,6 +5475,17 @@
         }
       }
       function openEnvelope(keep) {
+        // the date invitation is closed for now: the envelope just says so
+        // (the invitation below stays - set DATE_CLOSED to false to bring it back)
+        const DATE_CLOSED = true;
+        if (DATE_CLOSED) {
+          openPanel(`<span class="emoji-head">💌</span>
+    <p class="big-msg" dir="ltr">This service is no longer available :)</p>
+    <div class="panel-btn" id="dateDone">👍</div>`);
+          document.getElementById("dateDone").addEventListener("click", closePanel);
+          track("💌 Opened the café envelope (« no longer available »)");
+          return;
+        }
         const min = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
         // she picks ANY hour she likes - the native 12h picker shows AM/PM
         // (stored 24h "19:00", always SHOWN 12h "7:00 مساءً")
