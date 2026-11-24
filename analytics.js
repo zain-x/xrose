@@ -47,8 +47,8 @@ const LOCAL_TEST = (() => {
 })();
 
 // one place for every note: it goes to Discord. `last` = the page
-// may be going away: a beacon survives the tab closing (and iPhone's app switch),
-// a plain fetch does not
+// may be going away: a keepalive request survives the tab closing (and
+// iPhone's app switch), a plain fetch does not
 // 🧟 notes from Rombie World (/rombie/) say so, so they're never mistaken for Rose World
 const PAGE_TAG = (() => {
     try { return /^\/rombie(\/|$)/.test(location.pathname) ? '🧟 [Rombie World] ' : ''; } catch (e) { return ''; }
@@ -71,8 +71,15 @@ function postDiscord(text, last) {
     if (content.length > 2000) content = content.slice(0, 1999) + '…'; // (Discord's limit)
     const named = PAGE_TAG ? { username: 'Rombie World' } : {};
     if (last) {
+        // the page is going away: a keepalive form post outlives it - a simple
+        // request (no preflight) and, unlike a beacon, without the browser's
+        // discord.com cookies; a beacon only where keepalive isn't there
+        const form = new URLSearchParams({ content, ...named });
         try {
-            const form = new URLSearchParams({ content, ...named });
+            fetch(DISCORD_URL, { method: 'POST', body: form, keepalive: true, mode: 'no-cors' }).catch(() => {});
+            return Promise.resolve(true);
+        } catch (e) {}
+        try {
             if (navigator.sendBeacon && navigator.sendBeacon(DISCORD_URL, form)) return Promise.resolve(true);
         } catch (e) {}
     }
