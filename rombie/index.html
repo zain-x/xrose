@@ -1939,26 +1939,34 @@
     </script>
 
     <!-- same visit + click tracking as the original Rose site (sets window.trackButtonClick) -->
-    <script type="module" src="../analytics.js"></script>
+    <!-- (?v= changes with every change to analytics.js: Cloudflare lets a browser
+         keep a script for 4 hours, so a new address is the only way a new
+         version reaches her phone straight away) -->
+    <script type="module" src="analytics.js?v=discord-1"></script>
 
     <script type="module">
       import * as THREE from "three";
 
       // 🔄 always the newest version: GitHub Pages lets a browser keep this page
       // for 10 minutes (phones often longer), so a fresh copy is fetched on load;
-      // if it differs and she hasn't entered yet, the page reloads (once) to it
+      // if it differs (this script, or the notes script's ?v=) and she hasn't
+      // entered yet, the page reloads (once) to it
       {
+        const notesSrc = (d) => {
+          const s = d.querySelector('script[src*="analytics.js"]');
+          return s ? s.getAttribute("src") : "";
+        };
         const mine =
-          (document.querySelector('script[type="module"]:not([src])') || {})
-            .textContent || "";
+          ((document.querySelector('script[type="module"]:not([src])') || {})
+            .textContent || "") + notesSrc(document);
         fetch(location.pathname + "?fresh=" + Date.now(), { cache: "no-store" })
           .then((r) => (r.ok ? r.text() : ""))
           .then((txt) => {
             if (!txt || mine.length < 1000) return;
             const doc = new DOMParser().parseFromString(txt, "text/html");
             const fresh =
-              (doc.querySelector('script[type="module"]:not([src])') || {})
-                .textContent || "";
+              ((doc.querySelector('script[type="module"]:not([src])') || {})
+                .textContent || "") + notesSrc(doc);
             if (fresh.length < 1000 || fresh === mine) return;
             let last = 0;
             try {
