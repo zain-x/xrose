@@ -3,7 +3,7 @@
 // air-strike flares - scattered through the streets, dropped by the dead,
 // and floating down under a parachute from the supply plane.
 import * as THREE from "three";
-import { WEAPON_IDS } from "./weapons.js";
+import { WEAPON_IDS } from "./weapons.js?v=hunt-1";
 
 const KIND_COL = {
   health: 0x52ff7a,

@@ -6,15 +6,15 @@
 //   zombies · weapons · pickups · aircraft · the hunt (below): ten of them,
 //   and when the last one falls she goes back to Rose World
 import * as THREE from "three";
-import { setupFx } from "./fx.js";
-import { setupAudio } from "./audio.js";
-import { setupHud } from "./hud.js";
-import { setupWorld } from "./world.js";
-import { setupZombies } from "./zombies.js";
-import { setupWeapons } from "./weapons.js";
-import { setupPickups } from "./pickups.js";
-import { setupAircraft } from "./aircraft.js";
-import { setupRace } from "./race.js";
+import { setupFx } from "./fx.js?v=hunt-1";
+import { setupAudio } from "./audio.js?v=hunt-1";
+import { setupHud } from "./hud.js?v=hunt-1";
+import { setupWorld } from "./world.js?v=hunt-1";
+import { setupZombies } from "./zombies.js?v=hunt-1";
+import { setupWeapons } from "./weapons.js?v=hunt-1";
+import { setupPickups } from "./pickups.js?v=hunt-1";
+import { setupAircraft } from "./aircraft.js?v=hunt-1";
+import { setupRace } from "./race.js?v=hunt-1";
 
 export function initZombieWorld(api) {
   const Z = {

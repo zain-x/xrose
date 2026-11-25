@@ -3,7 +3,7 @@
 // flicker « QUARANTINE », wrecked cars burning at the crossroads with smoke
 // pouring up, ash falling and embers rising - and nothing romantic left.
 import * as THREE from "three";
-import { Cloud } from "./fx.js";
+import { Cloud } from "./fx.js?v=hunt-1";
 
 export function setupWorld(Z) {
   const { api, scene, camera } = Z;

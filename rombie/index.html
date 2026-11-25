@@ -1992,7 +1992,9 @@
       import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
       import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
       // 🧟 ROMBIE WORLD - the zombie race laid over the island (see zw/)
-      import { initZombieWorld } from "./zw/main.js";
+      // (?v= changes with every change to zw/: Cloudflare lets a phone keep a
+      // script 4 hours - a new address is the only way the new game reaches it)
+      import { initZombieWorld } from "./zw/main.js?v=hunt-1";
       const ZOMBIE = true;
       // Real love-words from the original Rose project - re-used as the city's treasures.
       import { moodMessages } from "../messages.js";
