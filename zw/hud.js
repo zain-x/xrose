@@ -364,7 +364,7 @@ export function setupHud(Z) {
     if (dead.classList.contains("on")) return;
     const P = Z.player,
       D = Z.director;
-    dead.querySelector(".st").innerHTML = `Wave <b>${D.wave}</b> &nbsp;·&nbsp; Kills <b>${P.kills}</b> &nbsp;·&nbsp; Headshots <b>${P.heads}</b><br>Score <b>${P.score}</b> &nbsp;·&nbsp; Best <b>${P.best}</b>`;
+    dead.querySelector(".st").innerHTML = `Zombies <b>${Z.hunt ? Z.hunt.killed + "/" + Z.hunt.total : D.wave}</b> &nbsp;·&nbsp; Kills <b>${P.kills}</b> &nbsp;·&nbsp; Headshots <b>${P.heads}</b><br>Score <b>${P.score}</b> &nbsp;·&nbsp; Best <b>${P.best}</b>`;
     dead.classList.add("on");
   };
   H.hideDeath = () => dead.classList.remove("on");
@@ -561,7 +561,7 @@ export function setupHud(Z) {
     if (hp < lastHp - 0.5 || hp > lastHp) el.hpU.style.width = (hp / P.max) * 100 + "%";
     lastHp = hp;
     el.hpT.textContent = Math.ceil(hp);
-    el.hpBar.classList.toggle("low", hp < 30);
+    el.hpBar.classList.toggle("low", hp < P.max * 0.3);
     el.arI.style.width = P.armor + "%";
     el.arBar.style.opacity = P.armor > 0 ? 1 : 0.35;
     // the gun
@@ -601,11 +601,13 @@ export function setupHud(Z) {
     el.xr.style.left = s + "px";
     // score line
     const D = Z.director;
-    scoreEl.textContent = `☠ ${P.kills}   ·   WAVE ${D.wave}   ·   ${P.score}`;
+    scoreEl.textContent = Z.hunt
+      ? `🧟 ${Z.hunt.killed} / ${Z.hunt.total}   ·   ${P.score}`
+      : `☠ ${P.kills}   ·   WAVE ${D.wave}   ·   ${P.score}`;
     // overlays
     hurtA = Math.max(0, hurtA - dt * 1.3);
     el.vig.style.opacity = hurtA.toFixed(3);
-    el.low.style.opacity = hp < 30 && !P.dead ? 1 : 0;
+    el.low.style.opacity = hp < P.max * 0.3 && !P.dead ? 1 : 0;
     flashA = Math.max(0, flashA - dt * 2.5);
     el.wf.style.opacity = flashA.toFixed(3);
     el.bt.style.opacity = Z.rt < Z.bulletUntil ? 1 : 0;

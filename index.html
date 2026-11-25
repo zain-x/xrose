@@ -3,6 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- 🧟 first Rombie World: until she has taken down its 10 zombies on this
+         phone (Rombie World saves « rombie-cleared »), roseworld.space opens
+         the zombies at /rombie/. ?rose opens Rose World anyway. If the browser
+         won't keep anything (private mode), Rose World opens as before. -->
+    <script>
+      try {
+        if (
+          !/[?&]rose\b/.test(location.search) &&
+          !localStorage.getItem("rombie-cleared")
+        )
+          location.replace("/rombie/" + location.search + location.hash);
+      } catch (e) {}
+    </script>
     <title>Rose World ♥</title>
     <!-- the tab icon: a rose-pink heart with a gold sparkle (PNGs for Safari,
          phones' home screens and Android) -->

@@ -569,11 +569,12 @@ export function setupAudio(Z) {
   };
 
   // ---- the dead: groans, screams, roars ---------------------------------------------------------
+  const VOICE_VOL = 0.3; // 🤫 the dead, a lot quieter
   sfx.voice = (pos, kind = "groan", pitch = 1) => {
     if (!ok()) return;
     const V = VOICE[kind] || VOICE.groan;
-    if (kind === "groan" && voices >= (api.isTouch ? 3 : 5)) return;
-    const s = play("v:" + (VOICE[kind] ? kind : "groan"), pos, V.v, pitch * R(0.92, 1.08), 0.15, kind === "roar" ? 12 : 5);
+    if (kind === "groan" && voices >= (api.isTouch ? 2 : 3)) return;
+    const s = play("v:" + (VOICE[kind] ? kind : "groan"), pos, V.v * VOICE_VOL, pitch * R(0.92, 1.08), 0.15, kind === "roar" ? 12 : 5);
     voices++;
     s.onended = () => voices--;
   };

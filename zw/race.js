@@ -389,12 +389,14 @@ export function setupRace(Z) {
   let trackT = 0,
     hudT = 0;
   RS.update = (dt) => {
-    if (RS.state === "idle") return;
     const inCar = api.vehMode === "car" && api.drv;
     document.body.classList.toggle("zw-incar", !!inCar);
     // her own car keeps the guns; whichever car she drives wears them
     const host = inCar ? api.drv.g : api.car.g;
     if (guns.parent !== host) host.add(guns);
+    roofGuns(dt, inCar);
+    // (no race unless one is started: no gates, no clock)
+    if (RS.state === "idle") return;
 
     document.body.classList.toggle("zr-on", RS.state === "run" || RS.state === "done");
     if (RS.state === "done" && Z.rt - RS.doneT > 6) {
@@ -426,6 +428,9 @@ export function setupRace(Z) {
     const G = gates[RS.state === "run" ? RS.next : N - 1];
     G.ring.scale.setScalar(pulse);
 
+    racePanel(dt);
+  };
+  function roofGuns(dt, inCar) {
     // the roof guns
     if (inCar && (RS.fireMouse || RS.fireTouch) && canFire()) {
       gunCool -= dt;
@@ -451,6 +456,8 @@ export function setupRace(Z) {
         }
       }
     }
+  }
+  function racePanel(dt) {
 
     // the panel (a few times a second is plenty)
     hudT -= dt;

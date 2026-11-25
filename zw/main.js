@@ -3,7 +3,8 @@
 // through `api`; every module here hangs its part on the shared context Z:
 //   fx (particles, blood, explosions)  · audio (all of it synthesized)
 //   hud (bars, crosshair, messages)    · world (night, fog, fires, ash)
-//   zombies · weapons · pickups · aircraft · the wave director (below)
+//   zombies · weapons · pickups · aircraft · the hunt (below): ten of them,
+//   and when the last one falls she goes back to Rose World
 import * as THREE from "three";
 import { setupFx } from "./fx.js";
 import { setupAudio } from "./audio.js";
@@ -37,8 +38,8 @@ export function initZombieWorld(api) {
 
   // ---- the player ---------------------------------------------------------
   const P = (Z.player = {
-    hp: 100,
-    max: 100,
+    hp: 1000, // 🙂 a LOT of health: they can hardly hurt her
+    max: 1000,
     armor: 0,
     dead: false,
     deadT: 0,
@@ -281,43 +282,56 @@ export function initZombieWorld(api) {
   };
   function director(dt) {
     D.t += dt;
-    if (D.lull > 0) D.lull -= dt;
-    if (D.waveKills >= D.need()) {
-      D.wave++;
-      D.waveKills = 0;
-      D.lull = 7;
-      Z.hud.toast(`☠ WAVE ${D.wave} · ${waveLine(D.wave)}`, "#ffb03a");
-      Z.sfx.waveHorn();
-      if (D.wave % 4 === 0) setTimeout(() => Z.zombies.spawnBoss(), 6000);
-    }
-    // ✈️ things from the sky, from the second wave on
+    // no waves, no gunships, no bombers: just a supply crate now and then
     if (D.t > D.nextDrop) {
       D.nextDrop = D.t + Z.rnd(95, 130);
       Z.aircraft.supplyDrop();
     }
-    // (no drones in Rombie World)
-    if (D.wave >= 4 && D.t > D.nextHeli) {
-      if (!Z.aircraft.gunshipAlive()) Z.aircraft.spawnGunship();
-      D.nextHeli = D.t + Z.rnd(220, 300);
-    }
-    if (D.wave >= 6 && D.t > D.nextBomb) {
-      Z.aircraft.bombingRun();
-      D.nextBomb = D.t + Z.rnd(260, 340);
-    }
   }
-  function waveLine(w) {
-    return (
-      [
-        "",
-        "",
-        "They heard the engine. More are coming.",
-        "The big ones are awake.",
-        "Something is up in the sky.",
-        "The horde grows.",
-        "Keep your foot down.",
-      ][w] || "Keep racing."
-    );
+
+  // ---- 🧟 the hunt: ten of them took the island - take all ten down and Rose
+  // World is hers again ----------------------------------------------------------------------
+  const HUNT_TYPES = ["walker", "walker", "walker", "runner", "walker", "crawler", "walker", "runner", "walker", "giant"];
+  const HOME = "/"; // where she goes when the last one falls: Rose World
+  const Hn = (Z.hunt = { total: HUNT_TYPES.length, killed: 0, done: false, wakeT: 25 });
+  Hn.start = () => {
+    let n = 0;
+    for (const type of HUNT_TYPES) if (Z.zombies.spawnHunt(type)) n++;
+    Hn.total = n; // (always ten - a street spot is never far)
+    Z.hud.banner("ROMBIE WORLD", `Take down all ${Hn.total} zombies to get back to Rose World 🌹`, 5);
+  };
+  Hn.left = () => Hn.total - Hn.killed;
+  // (zombies.js calls this once for each of the ten, however it dies)
+  Hn.onDead = () => {
+    if (Hn.done) return;
+    Hn.killed++;
+    if (Hn.killed >= Hn.total) return win();
+    Z.hud.toast(Hn.left() === 1 ? "🧟 1 zombie left!" : `🧟 ${Hn.left()} zombies left`, "#ff9ec2");
+    // the last few come for her (so she never has to search the whole island)
+    if (Hn.left() <= 3) for (const o of Z.zombies.list) if (o.hunt && o.alive) Z.zombies.wake(o);
+  };
+  function win() {
+    Hn.done = true;
+    Z.slowmo(0.35, 1.4, true);
+    Z.hud.banner(`🌹 ALL ${Hn.total} ZOMBIES DOWN`, "Rose World is safe again - taking you back…", 5);
+    try {
+      localStorage.setItem("rombie-cleared", String(Date.now()));
+    } catch (e) {}
+    try {
+      if (window.trackButtonClick) window.trackButtonClick(`🧟 Took down all ${Hn.total} zombies - off to Rose World 🌹`);
+    } catch (e) {}
+    setTimeout(() => location.assign(HOME), 5000);
   }
+  // now and then one of the rest picks up her trail (so the hunt never stalls)
+  Hn.update = (dt) => {
+    if (Hn.done || P.dead) return;
+    Hn.wakeT -= dt;
+    if (Hn.wakeT <= 0) {
+      Hn.wakeT = Z.rnd(18, 28);
+      const rest = Z.zombies.list.filter((o) => o.hunt && o.alive && !o.aware);
+      if (rest.length) Z.zombies.wake(Z.pick(rest));
+    }
+  };
 
   // ---- the modules -------------------------------------------------------------
   setupFx(Z);
@@ -355,7 +369,7 @@ export function initZombieWorld(api) {
       if (P.deadT > 1.9) Z.hud.showDeath();
     } else if (P.hp < P.max && Z.rt - P.lastHurt > 3) {
       // 🙂 a few quiet seconds and she heals right back up
-      P.hp = Math.min(P.max, P.hp + dt * 12);
+      P.hp = Math.min(P.max, P.hp + dt * P.max * 0.05);
     }
 
     Z.weapons.update(dt, sdt);
@@ -364,6 +378,7 @@ export function initZombieWorld(api) {
     Z.aircraft.update(sdt);
     Z.pickups.update(dt);
     if (!P.dead) director(dt);
+    Hn.update(dt);
     Z.fx.update(sdt, dt);
     Z.audio.update(dt);
     Z.hud.update(dt);
@@ -377,7 +392,7 @@ export function initZombieWorld(api) {
     Z.audio.start();
     Z.hud.onEnter();
     Z.world.onEnter();
-    Z.race.start(); // 🏁 the start gate lights up (the race is hers to begin)
+    Hn.start(); // 🧟 the ten of them, out in the streets around her
   }
 
   return {

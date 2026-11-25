@@ -26,9 +26,9 @@ export function setupWorld(Z) {
   api.setStorm(0.3); // a cold drizzle over the city
 
   // ---- the night itself ------------------------------------------------------------
-  const FOG = new THREE.Color(0x1b1728);
-  const HEMI_SKY = new THREE.Color(0x6c6a8c),
-    HEMI_GND = new THREE.Color(0x2a1a24);
+  const FOG = new THREE.Color(0x3a3550); // (a lighter night: she can see the streets)
+  const HEMI_SKY = new THREE.Color(0xa4a0c4),
+    HEMI_GND = new THREE.Color(0x4e3a46);
   if (E.moonDisc) {
     E.moonDisc.material.color.set(0xff4a2a);
     E.moonDisc.scale.multiplyScalar(1.5);
@@ -37,14 +37,14 @@ export function setupWorld(Z) {
   function atmosphere() {
     scene.fog.color.copy(FOG);
     scene.background.copy(FOG);
-    scene.fog.density = touch ? 0.0085 : 0.0072;
+    scene.fog.density = touch ? 0.0058 : 0.0048;
     E.hemi.color.copy(HEMI_SKY);
     E.hemi.groundColor.copy(HEMI_GND);
-    E.hemi.intensity = 1.05;
+    E.hemi.intensity = 1.7;
     E.moonFill.color.setHex(0xd2614c);
-    E.moonFill.intensity = 0.75;
+    E.moonFill.intensity = 1.15;
     E.keyLight.intensity = 0;
-    api.renderer.toneMappingExposure = 1.0;
+    api.renderer.toneMappingExposure = 1.3;
     E.uNight.value = 0.75; // the city's windows and neon still burning
     if (E.starMat) E.starMat.uniforms.uOpacity.value *= 0.3;
     if (E.moonGlow) E.moonGlow.material.opacity = Math.max(E.moonGlow.material.opacity, 0.22);

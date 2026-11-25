@@ -355,6 +355,18 @@ export function setupZombies(Z) {
       if (Z.freeSpot(x, z, 0.6)) makeZombie(Math.random() < 0.8 ? "walker" : "runner", x, z, false);
     }
   }
+  // 🧟 one of the hunt's ten, somewhere in the streets around her (never culled)
+  Zs.spawnHunt = (type) => {
+    let zb = null;
+    if (type === "giant") zb = Zs.spawnGiant();
+    for (let k = 0; k < 5 && !zb; k++) {
+      const s = spawnSpot(28 + k * 8, 85 + k * 20, false);
+      if (s) zb = makeZombie(type === "giant" && k > 2 ? "walker" : type, s[0], s[1], false);
+    }
+    if (zb) zb.hunt = true;
+    return zb;
+  };
+  Zs.wake = (zb) => alert(zb, true);
   Zs.spawnBoss = () => {
     const s = spawnSpot(40, 60, false);
     if (!s) return;
@@ -393,7 +405,7 @@ export function setupZombies(Z) {
     Z.sfx.explosion(zb.pos, 0.35);
   }
   Zs.clearAround = (p, r) => {
-    for (const zb of [...list]) if (zb.pos.distanceTo(p) < r) removeZombie(zb);
+    for (const zb of [...list]) if (!(zb.hunt && zb.alive) && zb.pos.distanceTo(p) < r) removeZombie(zb);
   };
 
   // ---- waking up ----------------------------------------------------------------------------
@@ -495,6 +507,8 @@ export function setupZombies(Z) {
     }
     if (zb.hp > 0) return true;
     // ☠
+    if (zb.hunt && Z.hunt) Z.hunt.onDead(zb);
+    if (!o.fire) killBlood(zb, point, dir);
     const how = { head, decap: false, gib: false, car: !!o.car, fire: !!o.fire };
     const overkill = -zb.hp;
     if ((o.gib && !zb.def.giant) || (o.blast && overkill > 90 && !zb.def.big)) {
@@ -524,6 +538,20 @@ export function setupZombies(Z) {
     if (zb.type === "bloater") burst(zb);
     return true;
   };
+  // 🩸 a kill is a LOT of blood: a burst, chunks, a wide pool with splashes
+  // round it, the wall behind - and her screen, if she's close
+  const _wb = new THREE.Vector3();
+  function killBlood(zb, point, dir) {
+    const fl = Math.max(0, zb.pos.y),
+      big = zb.def.giant ? 2 : zb.def.big ? 1.5 : 1;
+    Z.fx.blood(point, dir, 40 * big, 6.5, fl);
+    Z.fx.gore(point, Math.round(8 * big), 5, fl);
+    Z.fx.bloodPool(zb.pos.x, zb.pos.z, R(3, 4.2) * big, fl);
+    for (let i = 0; i < 5; i++)
+      Z.fx.bloodPool(zb.pos.x + R(-2.6, 2.6) * big, zb.pos.z + R(-2.6, 2.6) * big, R(0.6, 1.5), fl);
+    Z.fx.wallBlood(_wb.copy(point).addScaledVector(dir, 1.2), R(1.4, 2.2));
+    if (zb.pos.distanceTo(Z.ppos()) < 7) Z.hud.splat(0.35);
+  }
   function die(zb, dir, o) {
     zb.alive = false;
     zb.state = "dying";
@@ -534,7 +562,7 @@ export function setupZombies(Z) {
     zb.eyes.material = deadEyeMat;
     if (Math.random() < 0.5 || zb.def.giant) Z.sfx.voice(headPos(zb, _v), "die", zb.def.giant ? 0.6 : zb.type === "brute" ? 0.7 : 1);
     Z.fx.bloodPool(zb.pos.x + Math.sin(zb.yaw) * zb.fallSign * 0.9, zb.pos.z + Math.cos(zb.yaw) * zb.fallSign * 0.9, 2 + Math.random() * 1.4, Math.max(0, zb.pos.y));
-    zb.spurt = Math.max(zb.spurt, 0.8); // the wound keeps pouring a moment
+    zb.spurt = Math.max(zb.spurt, 2.4); // the wound keeps pouring a while
   }
 
   // 🪓 off with the head: it flies, the neck pumps blood, the body stumbles on
@@ -1097,18 +1125,19 @@ export function setupZombies(Z) {
     spawnT -= dt;
     let aliveN = 0;
     for (const zb of list) if (zb.alive) aliveN++;
-    if (spawnT <= 0) {
+    const endless = !Z.hunt; // (the hunt has its ten and no more)
+    if (endless && spawnT <= 0) {
       spawnT = 0.35;
       if (!P.dead && aliveN < Z.director.population()) Zs.spawn();
     }
     hordeT -= dt;
-    if (hordeT <= 0) {
+    if (endless && hordeT <= 0) {
       hordeT = R(35, 60);
       if (!P.dead && aliveN < Z.director.population() + 6) spawnHorde();
     }
     // 🦖 a few giants always walk the city
     giantT -= dt;
-    if (giantT <= 0) {
+    if (endless && giantT <= 0) {
       giantT = R(40, 70);
       let gN = 0;
       for (const zb of list) if (zb.alive && zb.def.giant) gN++;
@@ -1137,7 +1166,7 @@ export function setupZombies(Z) {
         dP = Math.hypot(dxp, dzp);
       // far behind her: let it go (another will come)
       const far = zb.def.giant ? 2.4 : 1;
-      if (dP > 125 * far && (zb.alive ? !zb.aware || dP > 160 * far : true)) {
+      if (!(zb.hunt && zb.alive) && dP > 125 * far && (zb.alive ? !zb.aware || dP > 160 * far : true)) {
         removeZombie(zb);
         continue;
       }
@@ -1453,7 +1482,7 @@ export function setupZombies(Z) {
       // groans
       zb.groanT -= dt;
       if (zb.groanT <= 0) {
-        zb.groanT = zb.aware ? R(2.5, 6) : R(6, 14);
+        zb.groanT = zb.aware ? R(5, 10) : R(12, 24);
         if (dP < (zb.def.giant ? 70 : 40)) Z.sfx.voice(headPos(zb, _v), "groan", zb.def.giant ? 0.62 : zb.type === "brute" ? 0.75 : zb.type === "runner" ? 1.15 : R(0.9, 1.1));
       }
       // the walk cycle follows the real speed
