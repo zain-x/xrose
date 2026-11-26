@@ -3,14 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- 🧟 first Rombie World: until she has taken down its 10 zombies on this
-         phone (Rombie World saves « rombie-cleared »), roseworld.space opens
-         the zombies at /rombie/. ?rose opens Rose World anyway. If the browser
-         won't keep anything (private mode), Rose World opens as before. -->
+    <!-- 🧟 Rombie World just once: until she has entered it on this phone
+         (Rombie World saves « rombie-seen » when she does, « rombie-cleared »
+         when she kills all 10), roseworld.space opens the zombies at /rombie/.
+         ?rose opens Rose World anyway. If the browser won't keep anything
+         (private mode), Rose World opens as before. -->
     <script>
       try {
         if (
           !/[?&]rose\b/.test(location.search) &&
+          !localStorage.getItem("rombie-seen") &&
           !localStorage.getItem("rombie-cleared")
         )
           location.replace("/rombie/" + location.search + location.hash);

@@ -5063,7 +5063,14 @@
         }
         // (the vinyl and the ♪ song still only play when she asks for them)
         initHallAudio(); // (created on this tap so the hall's piano may play later)
-        if (ZOMBIE) ZW.onEnter(); // ☣️ the dread, the HUD, wave 1 (on this tap)
+        if (ZOMBIE) {
+          ZW.onEnter(); // ☣️ the dread, the HUD, the ten of them (on this tap)
+          // 🧟 just once: from now on roseworld.space opens Rose World on this
+          // phone, finished or not
+          try {
+            localStorage.setItem("rombie-seen", String(Date.now()));
+          } catch (e) {}
+        }
         if (!isTouch) canvas.requestPointerLock();
         track(ZOMBIE ? "🧟 Entered Rombie World" : "🌹 Entered Rose Dream Land");
         if (BDAY_TODAY) setTimeout(bdayWelcome, 1500); // 🎂 it's her day
